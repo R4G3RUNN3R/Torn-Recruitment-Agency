@@ -9,9 +9,10 @@ function source() {
   return fs.readFileSync(file, 'utf8');
 }
 
-test('userscript is version 4.0.1 and loads the tested Scout core', () => {
+test('userscript is version 4.1.0 and loads the tested Scout core', () => {
   const s = source();
-  assert.match(s, /@version\s+4\.0\.1/);
+  assert.match(s, /@version\s+4\.1\.0/);
+  assert.match(s, /SCRIPT_VERSION\s*=\s*["']4\.1\.0["']/);
   assert.match(s, /@require\s+https:\/\/raw\.githubusercontent\.com\/R4G3RUNN3R\/Torn-Recruitment-Agency\/main\/src\/scout-core\.js/);
 });
 
@@ -48,17 +49,47 @@ test('userscript contains current, seven-day and thirty-day Scout collection', (
   assert.match(s, /bestactivestreak/);
 });
 
+test('Simple UI is default and Advanced controls are marked', () => {
+  const s = source();
+  assert.match(s, /complexity:\s*["']simple["']/);
+  assert.match(s, /ra-complexity-simple/);
+  assert.match(s, /ra-complexity-advanced/);
+  assert.match(s, /ra-advanced-only/);
+  assert.match(s, /Fit Settings/);
+  assert.match(s, /applyComplexityMode/);
+});
+
 test('Scout API scheduler defaults to and hard-caps at 75 calls per minute', () => {
   const s = source();
   assert.match(s, /rate:\s*75/);
-  assert.match(s, /Math\.min\(75,\s*n\(settings\.scout\.rate,\s*75\)\)/);
-  assert.match(s, /60000\s*\/\s*Math\.max\(10,\s*Math\.min\(75,/);
+  assert.match(s, /function\s+clampScoutRate/);
+  assert.match(s, /Math\.min\(75,\s*n\(value,\s*75\)\)/);
+  assert.match(s, /60000\s*\/\s*clampScoutRate\(settings\.scout\.rate\)/);
 });
 
 test('dark theme uses neon green text and light theme uses black text', () => {
   const s = source();
   assert.match(s, /:root\{[^}]*--ra-text:#39ff14[^}]*--ra-muted:#39ff14/);
   assert.match(s, /:root\[data-ra-theme="light"\]\{[^}]*--ra-text:#000000[^}]*--ra-muted:#111111/);
+});
+
+test('sidebar launcher and fallback exist', () => {
+  const s = source();
+  assert.match(s, /ensureSidebarLauncher/);
+  assert.match(s, /ra-sidebar-launcher/);
+  assert.match(s, /syncFallbackLauncher/);
+  assert.match(s, /MutationObserver/);
+});
+
+test('shared window manager registers main results and history', () => {
+  const s = source();
+  assert.match(s, /registerManagedWindow/);
+  assert.match(s, /windowGeometry/);
+  assert.match(s, /registerManagedWindow\(["']main["']/);
+  assert.match(s, /registerManagedWindow\(["']results["']/);
+  assert.match(s, /registerManagedWindow\(["']history["']/);
+  assert.match(s, /restoreWindowGeometry/);
+  assert.match(s, /persistWindowGeometry/);
 });
 
 test('userscript contains cache, queue and cache-diagnostic controls', () => {
