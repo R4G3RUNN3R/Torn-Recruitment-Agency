@@ -1,0 +1,824 @@
+// ==UserScript==
+// @name         R4G3RUNN3R's Recruitment Agency
+// @namespace    r4g3runn3r.recruitment.agency
+// @version      4.0.0
+// @description  Company/faction recruitment scanner plus local Scout intelligence, Fit, Trend and history for Torn.
+// @author       R4G3RUNN3R[3877028]
+// @license      MIT
+// @match        https://www.torn.com/*
+// @grant        none
+// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/main/src/scout-core.js
+// @downloadURL  https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/main/R4G3RUNN3R-Recruitment-Agency.user.js
+// @updateURL    https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/main/R4G3RUNN3R-Recruitment-Agency.user.js
+// ==/UserScript==
+
+(() => {
+    "use strict";
+
+    if (window.__R4G3_RECRUITMENT_AGENCY_V4__) return;
+    window.__R4G3_RECRUITMENT_AGENCY_V4__ = true;
+
+    const Core = window.RA_ScoutCore;
+    if (!Core) {
+        console.error("[RA] Scout core did not load.");
+        return;
+    }
+
+    const SCRIPT_VERSION = "4.0.0";
+    const DB_NAME = "tornWorkerDB";
+    const REQUIRED_DB_VERSION = 9;
+    const API_BASE = "https://api.torn.com/v2";
+    const API_COMMENT = "R4G3RUNN3R Recruitment Agency";
+    const PAGE_SIZE = 20;
+    const THREAD_LIST_LIMIT = 100;
+    const CACHE_TTL = 12 * 60 * 60 * 1000;
+    const DEFAULT_COMPANY_THREAD_ID = "15907925";
+    const DEFAULT_FACTION_THREAD_ID = "15909136";
+    const DEFAULT_COMPANY_CATEGORY_ID = 46;
+    const DEFAULT_FACTION_CATEGORY_ID = 24;
+    const SCOUT_STAT_LIST = "xantaken,useractivity,refills,statenhancersused,attackswon,attackslost,rankedwarhits,networth,activestreak,bestactivestreak";
+
+    const COMPANY_OPTIONS = [
+        "adult_novelties", "amusement_park", "candle_shop", "car_dealership", "clothing_store", "cruise_line",
+        "cyber_cafe", "detective_agency", "farm", "firework_stand", "fitness_center", "flower_shop",
+        "furniture_store", "game_shop", "gas_station", "gents_strip_club", "grocery_store", "gun_shop",
+        "hair_salon", "ladies_strip_club", "law_firm", "lingerie_store", "logistics_management", "meat_warehouse",
+        "mechanic_shop", "mining_corporation", "music_store", "nightclub", "oil_rig", "private_security_firm",
+        "property_broker", "pub", "restaurant", "software_corporation", "sweet_shop", "television_network",
+        "theater", "toy_shop", "travel_agency", "wedding_chapel", "zoo"
+    ];
+
+    const DEFAULT_SCOUT = {
+        rate: 95,
+        workers: 3,
+        budget: 900,
+        historyGapMs: 0,
+        maxCandidates: 60,
+        autoScoutNew: false,
+        cacheVerdict: "unknown",
+        scoring: Core.DEFAULT_SCORING,
+        filters: {
+            faction: "any",
+            activity: "any",
+            minLevel: 0,
+            maxLevel: 0,
+            maxIdleDays: 0,
+            minFit: 0,
+            minNetworth: 0,
+            minActiveStreak: 0,
+            minBestStreak: 0,
+            minStatEnhancers: 0
+        }
+    };
+
+    const DEFAULT_SETTINGS = {
+        theme: "dark",
+        density: "comfortable",
+        dockEnabled: true,
+        includeInactive: false,
+        activeMode: "company",
+        apiKey: "",
+        forumScope: "thread",
+        forumDays: 30,
+        forumEnrich: false,
+        view: "table",
+        resultSort: "fit",
+        scout: DEFAULT_SCOUT
+    };
+
+    let db = null;
+    let mode = "company";
+    let activeThreadId = "";
+    let resultRows = [];
+    let selectedIds = new Set();
+    let settings = null;
+    let uiMounted = false;
+    let forumScanning = false;
+
+    const scoutRuntime = {
+        running: false,
+        paused: false,
+        cancelled: false,
+        calls: 0,
+        done: 0,
+        total: 0,
+        nextAt: 0,
+        gate: Promise.resolve(),
+        ids: []
+    };
+
+    function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+    function n(v, fallback = 0) { const x = Number(v); return Number.isFinite(x) ? x : fallback; }
+    function esc(v) { return String(v ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[c])); }
+    function fmt(v, dp = 0) { return Number.isFinite(Number(v)) ? Number(v).toLocaleString(undefined, {maximumFractionDigits: dp}) : "—"; }
+    function money(v) { const x = n(v, NaN); if (!Number.isFinite(x)) return "—"; if (x >= 1e12) return `$${(x/1e12).toFixed(2)}T`; if (x >= 1e9) return `$${(x/1e9).toFixed(2)}B`; if (x >= 1e6) return `$${(x/1e6).toFixed(1)}M`; return `$${Math.round(x).toLocaleString()}`; }
+    function ageText(ts) { if (!ts) return "—"; const s = Math.max(0, Math.floor((Date.now() - ts) / 1000)); if (s < 60) return `${s}s`; if (s < 3600) return `${Math.floor(s/60)}m`; if (s < 86400) return `${Math.floor(s/3600)}h`; return `${Math.floor(s/86400)}d`; }
+    function profileUrl(id) { return `https://www.torn.com/profiles.php?XID=${id}`; }
+    function messageUrl(id) { return `https://www.torn.com/messages.php#/p=compose&XID=${id}`; }
+    function forumUrl(threadId) { return `https://www.torn.com/forums.php?a=0&p=threads&t=${threadId}`; }
+    function modeLabel(m) { return m === "company" ? "Company" : m === "faction" ? "Faction" : "Scout"; }
+    function setStatus(text, bad = false) { const el = document.getElementById("ra-status"); if (el) { el.textContent = text; el.classList.toggle("ra-bad", bad); } }
+    function setProgress(done, total, text = "") { const p = document.getElementById("ra-progress-fill"); const t = document.getElementById("ra-progress-text"); if (p) p.style.width = `${total ? Math.min(100, done/total*100) : 0}%`; if (t) t.textContent = text || `${done}/${total}`; }
+
+    function mergeSettings(raw = {}) {
+        const scout = raw.scout || {};
+        const scoring = Core.normalizeScoring({
+            targets: {...Core.DEFAULT_SCORING.targets, ...(scout.scoring?.targets || {})},
+            weights: {...Core.DEFAULT_SCORING.weights, ...(scout.scoring?.weights || {})}
+        });
+        return {
+            ...DEFAULT_SETTINGS,
+            ...raw,
+            scout: {
+                ...DEFAULT_SCOUT,
+                ...scout,
+                scoring,
+                filters: {...DEFAULT_SCOUT.filters, ...(scout.filters || {})}
+            }
+        };
+    }
+
+    function openDB() {
+        return new Promise((resolve, reject) => {
+            const req = indexedDB.open(DB_NAME, REQUIRED_DB_VERSION);
+            req.onupgradeneeded = e => {
+                const d = e.target.result;
+                if (!d.objectStoreNames.contains("users")) d.createObjectStore("users", {keyPath: "recordId"});
+                if (!d.objectStoreNames.contains("meta")) d.createObjectStore("meta", {keyPath: "key"});
+                if (!d.objectStoreNames.contains("scoutLatest")) d.createObjectStore("scoutLatest", {keyPath: "userId"});
+                if (!d.objectStoreNames.contains("scoutHistory")) {
+                    const h = d.createObjectStore("scoutHistory", {keyPath: "snapshotId"});
+                    h.createIndex("userId", "userId", {unique: false});
+                    h.createIndex("capturedAt", "capturedAt", {unique: false});
+                }
+            };
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error || new Error("IndexedDB open failed"));
+            req.onblocked = () => reject(new Error("IndexedDB upgrade is blocked by another Torn tab."));
+        });
+    }
+
+    const idb = {
+        get(store, key) { return new Promise(resolve => { try { const q = db.transaction(store, "readonly").objectStore(store).get(key); q.onsuccess = () => resolve(q.result || null); q.onerror = () => resolve(null); } catch { resolve(null); } }); },
+        put(store, value) { return new Promise((resolve, reject) => { try { const tx = db.transaction(store, "readwrite"); tx.objectStore(store).put(value); tx.oncomplete = () => resolve(true); tx.onerror = () => reject(tx.error); } catch (e) { reject(e); } }); },
+        getAll(store) { return new Promise(resolve => { try { const q = db.transaction(store, "readonly").objectStore(store).getAll(); q.onsuccess = () => resolve(q.result || []); q.onerror = () => resolve([]); } catch { resolve([]); } }); },
+        clear(store) { return new Promise(resolve => { try { const q = db.transaction(store, "readwrite").objectStore(store).clear(); q.onsuccess = () => resolve(true); q.onerror = () => resolve(false); } catch { resolve(false); } }); },
+        delete(store, key) { return new Promise(resolve => { try { const q = db.transaction(store, "readwrite").objectStore(store).delete(key); q.onsuccess = () => resolve(true); q.onerror = () => resolve(false); } catch { resolve(false); } }); }
+    };
+
+    async function getMeta() {
+        return await idb.get("meta", "global") || {key: "global", settings: DEFAULT_SETTINGS, syncHistory: {}, ui: {}};
+    }
+
+    async function saveMetaSettings(patch) {
+        const m = await getMeta();
+        m.settings = mergeSettings({...m.settings, ...patch});
+        await idb.put("meta", m);
+        settings = m.settings;
+    }
+
+    async function saveSync(modeName, patch) {
+        const m = await getMeta();
+        m.syncHistory = m.syncHistory || {};
+        m.syncHistory[modeName] = {...(m.syncHistory[modeName] || {}), ...patch};
+        await idb.put("meta", m);
+    }
+
+    async function ensureApiKey(force = false) {
+        if (!force && settings.apiKey && settings.apiKey.length >= 8) return settings.apiKey;
+        const key = String(prompt("Enter your Torn PUBLIC API key:", settings.apiKey || "") || "").trim();
+        if (!key) throw new Error("A Torn API key is required.");
+        await saveMetaSettings({apiKey: key});
+        return key;
+    }
+
+    async function rawTorn(path, params = {}) {
+        const key = await ensureApiKey(false);
+        const u = new URL(`${API_BASE}/${String(path).replace(/^\/+/, "")}`);
+        u.searchParams.set("key", key);
+        u.searchParams.set("comment", API_COMMENT);
+        Object.entries(params).forEach(([k, v]) => { if (v !== undefined && v !== null && v !== "") u.searchParams.set(k, String(v)); });
+        const r = await fetch(u.toString(), {method: "GET", cache: "no-store", credentials: "omit"});
+        let data;
+        try { data = await r.json(); } catch { throw new Error(`Torn returned HTTP ${r.status}.`); }
+        if (!r.ok || data?.error) {
+            const err = new Error(data?.error?.error || data?.error?.message || `Torn API error ${data?.error?.code || r.status}`);
+            err.code = Number(data?.error?.code || 0);
+            err.http = r.status;
+            throw err;
+        }
+        return data;
+    }
+
+    async function validateApiKey() { await rawTorn("key/info"); return true; }
+
+    async function reserveScoutCall() {
+        let unlock;
+        const previous = scoutRuntime.gate;
+        scoutRuntime.gate = new Promise(resolve => { unlock = resolve; });
+        await previous;
+        try {
+            while (scoutRuntime.paused && !scoutRuntime.cancelled) await sleep(200);
+            if (scoutRuntime.cancelled) throw Object.assign(new Error("Scout cancelled."), {cancelled: true});
+            if (scoutRuntime.calls >= Math.max(1, n(settings.scout.budget, 900))) throw Object.assign(new Error("Scout API budget reached."), {budget: true});
+            const gap = 60000 / Math.max(10, Math.min(95, n(settings.scout.rate, 95)));
+            const wait = Math.max(0, scoutRuntime.nextAt - Date.now());
+            if (wait) await sleep(wait);
+            scoutRuntime.nextAt = Date.now() + gap;
+            scoutRuntime.calls++;
+        } finally { unlock(); }
+    }
+
+    async function scoutTorn(path, params = {}, attempt = 0) {
+        await reserveScoutCall();
+        try { return await rawTorn(path, params); }
+        catch (e) {
+            if (e.code === 5 && attempt < 2 && !scoutRuntime.cancelled) { await sleep(1200 * (attempt + 1)); return scoutTorn(path, params, attempt + 1); }
+            if ([2, 8, 14, 16].includes(e.code)) scoutRuntime.cancelled = true;
+            throw e;
+        }
+    }
+
+    function extractStats(data) {
+        const p = data?.personalstats || data?.personal_stats || data?.personalStats || {};
+        return (p && typeof p === "object") ? p : {};
+    }
+
+    function extractProfile(data, userId) {
+        const p = data?.profile?.profile || data?.profile || data?.basic?.basic || data?.basic || data || {};
+        const factionObj = p.faction || {};
+        const last = p.last_action || p.lastAction || {};
+        const statusObj = p.status || {};
+        return {
+            id: Number(p.id || p.player_id || userId),
+            name: String(p.name || p.username || `User ${userId}`),
+            level: n(p.level),
+            age: n(p.age),
+            factionId: n(factionObj.id || p.faction_id),
+            factionName: String(factionObj.name || p.faction_name || ""),
+            status: String(statusObj.state || statusObj.description || p.online_status || last.status || "Unknown"),
+            lastActionTs: n(last.timestamp || last.time || p.last_action_timestamp)
+        };
+    }
+
+    async function fetchCurrentScout(userId) {
+        return scoutTorn(`user/${userId}`, {selections: "profile,personalstats", stat: SCOUT_STAT_LIST});
+    }
+
+    async function fetchHistoricalStats(userId, timestamp) {
+        const data = await scoutTorn(`user/${userId}`, {selections: "personalstats", stat: SCOUT_STAT_LIST, timestamp});
+        return extractStats(data);
+    }
+
+    async function waitHistoryGap(label) {
+        const ms = Math.max(0, n(settings.scout.historyGapMs));
+        if (!ms) return;
+        const until = Date.now() + ms;
+        while (Date.now() < until) {
+            if (scoutRuntime.cancelled) throw Object.assign(new Error("Scout cancelled."), {cancelled: true});
+            while (scoutRuntime.paused) await sleep(200);
+            setStatus(`${label} (${Math.ceil((until-Date.now())/1000)}s)`);
+            await sleep(Math.min(1000, Math.max(0, until-Date.now())));
+        }
+    }
+
+    function snapshotFit(snapshot, scoring = settings.scout.scoring) {
+        if (snapshot.official && snapshot.w30) return Core.scoreFit(snapshot.w30, scoring).score;
+        if (snapshot.provisionalSource && snapshot.provisionalDays) return Core.provisionalFit(snapshot.provisionalSource, snapshot.provisionalDays, scoring).score;
+        return null;
+    }
+
+    async function persistScout(snapshot) {
+        await idb.put("scoutLatest", snapshot);
+        await idb.put("scoutHistory", snapshot);
+    }
+
+    async function scoutPlayer(userId, options = {}) {
+        const id = Number(userId);
+        if (!id) throw new Error("Invalid player ID.");
+        const cached = await idb.get("scoutLatest", id);
+        if (!options.force && cached && Date.now() - cached.capturedAt < CACHE_TTL) return {...cached, cacheHit: true};
+
+        setStatus(`Scouting ${id}: current totals...`);
+        const currentData = await fetchCurrentScout(id);
+        const current = extractStats(currentData);
+        const profile = extractProfile(currentData, id);
+        const now = Math.floor(Date.now() / 1000);
+        let past7 = null, past30 = null, w7 = null, w30 = null;
+
+        if (profile.age >= 7) {
+            await waitHistoryGap(`Scouting ${id}: waiting before 7d history`);
+            setStatus(`Scouting ${id}: 7 days ago...`);
+            past7 = await fetchHistoricalStats(id, now - 7 * 86400);
+            w7 = Core.deltaStats(current, past7);
+        }
+
+        if (profile.age >= 30) {
+            await waitHistoryGap(`Scouting ${id}: waiting before 30d history`);
+            setStatus(`Scouting ${id}: 30 days ago...`);
+            past30 = await fetchHistoricalStats(id, now - 30 * 86400);
+            w30 = Core.deltaStats(current, past30);
+        }
+
+        const official = profile.age >= 30 && !!w30;
+        let provisionalSource = null;
+        let provisionalDays = 0;
+        if (!official) {
+            if (profile.age > 0 && profile.age < 30) {
+                provisionalSource = Core.metricsFromTotals(current);
+                provisionalDays = Math.max(1, Math.min(29, profile.age));
+            } else if (w7) {
+                provisionalSource = w7;
+                provisionalDays = 7;
+            }
+        }
+
+        const fitObj = official ? Core.scoreFit(w30, settings.scout.scoring) : null;
+        const provisionalObj = !official && provisionalSource ? Core.provisionalFit(provisionalSource, provisionalDays, settings.scout.scoring) : null;
+        const trendObj = w7 && w30 ? Core.computeTrend(w7, w30, settings.scout.scoring) : {percent: null, components: {}};
+        const capturedAt = Date.now();
+        const snapshot = {
+            snapshotId: `${id}:${capturedAt}`,
+            userId: id,
+            capturedAt,
+            source: options.source || "scout",
+            profile,
+            currentRaw: current,
+            past7Raw: past7,
+            past30Raw: past30,
+            w7,
+            w30,
+            official,
+            provisionalSource,
+            provisionalDays,
+            provisionalConfidence: provisionalObj?.confidence || null,
+            originalFit: fitObj?.score ?? provisionalObj?.score ?? null,
+            originalFitType: official ? "official" : (provisionalObj ? "provisional" : "unmeasured"),
+            trend: trendObj.percent,
+            trendComponents: trendObj.components,
+            formula: Core.normalizeScoring(settings.scout.scoring),
+            extra: {
+                networth: n(current.networth),
+                activeStreak: n(current.activestreak),
+                bestActiveStreak: n(current.bestactivestreak),
+                statEnhancers30: w30?.statEnhancers ?? (provisionalSource?.statEnhancers ?? 0)
+            }
+        };
+        await persistScout(snapshot);
+        return snapshot;
+    }
+
+    function pauseScout() { if (scoutRuntime.running) { scoutRuntime.paused = true; setStatus("Scout paused."); syncScoutButtons(); } }
+    function resumeScout() { if (scoutRuntime.running) { scoutRuntime.paused = false; setStatus("Scout resumed."); syncScoutButtons(); } }
+    function cancelScout() { if (scoutRuntime.running) { scoutRuntime.cancelled = true; scoutRuntime.paused = false; setStatus("Cancelling Scout..."); syncScoutButtons(); } }
+
+    function syncScoutButtons() {
+        const pause = document.getElementById("ra-pause-scout");
+        if (pause) pause.textContent = scoutRuntime.paused ? "Resume" : "Pause";
+        const cancel = document.getElementById("ra-cancel-scout");
+        if (cancel) cancel.disabled = !scoutRuntime.running;
+    }
+
+    async function runScoutQueue(ids, options = {}) {
+        if (scoutRuntime.running) throw new Error("A Scout run is already active.");
+        const unique = [...new Set(ids.map(Number).filter(Boolean))].slice(0, Math.max(1, n(settings.scout.maxCandidates, 60)));
+        if (!unique.length) { setStatus("No players to Scout.", true); return []; }
+        scoutRuntime.running = true; scoutRuntime.paused = false; scoutRuntime.cancelled = false; scoutRuntime.calls = 0; scoutRuntime.done = 0; scoutRuntime.total = unique.length; scoutRuntime.nextAt = 0; scoutRuntime.gate = Promise.resolve(); scoutRuntime.ids = unique;
+        syncScoutButtons();
+        const output = [];
+        let cursor = 0;
+        const worker = async () => {
+            while (!scoutRuntime.cancelled) {
+                const idx = cursor++;
+                if (idx >= unique.length) break;
+                const id = unique[idx];
+                try {
+                    const snap = await scoutPlayer(id, options);
+                    output.push(snap);
+                } catch (e) {
+                    if (!e.cancelled) console.warn(`[RA] Scout ${id} failed`, e);
+                    if ([2,8,14,16].includes(e.code)) setStatus(`Scout stopped: ${e.message}`, true);
+                } finally {
+                    scoutRuntime.done++;
+                    setProgress(scoutRuntime.done, scoutRuntime.total, `Scout ${scoutRuntime.done}/${scoutRuntime.total} · ${scoutRuntime.calls} API calls`);
+                }
+            }
+        };
+        try {
+            const count = Math.max(1, Math.min(8, n(settings.scout.workers, 3), unique.length));
+            await Promise.all(Array.from({length: count}, worker));
+        } finally {
+            scoutRuntime.running = false; scoutRuntime.paused = false; syncScoutButtons();
+            setStatus(scoutRuntime.cancelled ? `Scout stopped. ${output.length} completed.` : `Scout complete. ${output.length} player(s).`);
+            await refreshResults();
+        }
+        return output;
+    }
+
+    async function runCacheDiagnostic(userId) {
+        if (scoutRuntime.running) throw new Error("Finish the current Scout run first.");
+        const id = Number(userId) || Core.parseIds(prompt("Active player ID for cache test (blank = your own ID if Torn accepts it):", "") || "", 1)[0] || "";
+        if (!id) throw new Error("A player ID is required for the cache test.");
+        scoutRuntime.running = true; scoutRuntime.cancelled = false; scoutRuntime.paused = false; scoutRuntime.calls = 0; scoutRuntime.nextAt = 0; scoutRuntime.gate = Promise.resolve();
+        try {
+            const now = Math.floor(Date.now()/1000);
+            const params = {selections: "personalstats", stat: SCOUT_STAT_LIST};
+            setStatus("Cache test: 7-day request...");
+            const a = Core.signature(extractStats(await scoutTorn(`user/${id}`, {...params, timestamp: now - 7 * 86400})));
+            setStatus("Cache test: immediate 30-day request...");
+            const b = Core.signature(extractStats(await scoutTorn(`user/${id}`, {...params, timestamp: now - 30 * 86400})));
+            for (let left = 35; left > 0; left--) { setStatus(`Cache test: waiting ${left}s...`); await sleep(1000); if (scoutRuntime.cancelled) throw new Error("Cache test cancelled."); }
+            setStatus("Cache test: repeating 30-day request...");
+            const c = Core.signature(extractStats(await scoutTorn(`user/${id}`, {...params, timestamp: now - 30 * 86400})));
+            const verdict = a === b && b === c ? "flat" : a === b && b !== c ? "cached" : a !== b && b === c ? "clear" : "odd";
+            const scout = {...settings.scout, cacheVerdict: verdict, historyGapMs: verdict === "cached" ? 32000 : settings.scout.historyGapMs};
+            await saveMetaSettings({scout});
+            if (verdict === "cached") setStatus("Cache test: cached responses detected. Historical gap set to 32s.", true);
+            else if (verdict === "clear") setStatus("Cache test: historical responses look clear.");
+            else if (verdict === "flat") setStatus("Cache test: player appears flat; no automatic gap change.");
+            else setStatus("Cache test: inconclusive; settings unchanged.", true);
+            populateSettingsUI();
+            return verdict;
+        } finally { scoutRuntime.running = false; syncScoutButtons(); }
+    }
+
+    function parseThreadId(value) {
+        const s = String(value || "").trim();
+        if (!s) return "";
+        return s.match(/[?&]t=(\d+)/i)?.[1] || s.match(/\b(\d{5,})\b/)?.[1] || s;
+    }
+
+    function parseCompanyFromText(text) {
+        const names = COMPANY_OPTIONS.map(x => x.replaceAll("_", " ").replace("gents strip club", "gentleman's club")).join("|");
+        const m = String(text).match(new RegExp(`\\b(${names})\\b`, "i"));
+        if (!m) return "";
+        return m[1].toLowerCase().replace("gentleman's club", "gents strip club").replace(/\s+/g, "_");
+    }
+
+    function parseUserFromApiPost(post) {
+        if (!post?.author?.id) return null;
+        const text = String(post.content || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+        if (!text) return null;
+        const grab = re => { const m = text.match(re); return m ? n(String(m[1]).replace(/,/g, "")) : 0; };
+        const man = grab(/(?:manual\s+labou?r|manual|man)[:\s-]*([0-9,]+)/i);
+        const intel = grab(/(?:intelligence|int)[:\s-]*([0-9,]+)/i);
+        const end = grab(/(?:endurance|end)[:\s-]*([0-9,]+)/i);
+        const ee = text.match(/\b(\d{1,2})\s*(?:\/\s*10\s*)?(?:ee\b|effectiveness)/i);
+        return {
+            userId: Number(post.author.id),
+            name: String(post.author.username || post.author.name || `User ${post.author.id}`),
+            stats: {man, int: intel, end, total: man + intel + end},
+            ee: ee ? n(ee[1]) : null,
+            company: parseCompanyFromText(text),
+            status: /closed|found|filled|job found|not looking|no longer looking|position filled/i.test(text) ? "inactive" : "active",
+            rawText: text.slice(0, 1600),
+            postId: n(post.id),
+            lastSeenPost: n(post.created_time || post.created_at) * 1000
+        };
+    }
+
+    async function fetchForumThreads(categoryId, from, to) {
+        return rawTorn(`forum/${categoryId}/threads`, {limit: THREAD_LIST_LIMIT, sort: "DESC", from, to});
+    }
+
+    async function fetchForumPosts(threadId, offset, from, to) {
+        return rawTorn(`forum/${threadId}/posts`, {limit: PAGE_SIZE, offset, sort: "DESC", from, to});
+    }
+
+    async function persistForumUser(user, threadId, sourceMode) {
+        const recordId = `${sourceMode}::${threadId}::${user.userId}`;
+        const old = await idb.get("users", recordId);
+        await idb.put("users", {
+            ...(old || {}), ...user, recordId, sourceMode, threadId: String(threadId),
+            lastSeenPost: Math.max(old?.lastSeenPost || 0, user.lastSeenPost || 0)
+        });
+    }
+
+    async function clearForumMode(sourceMode, threadId = "") {
+        const all = await idb.getAll("users");
+        for (const row of all) if (row.sourceMode === sourceMode && (!threadId || String(row.threadId) === String(threadId))) await idb.delete("users", row.recordId);
+    }
+
+    async function enrichForumRecord(row) {
+        try {
+            const d = await rawTorn(`user/${row.userId}`, {selections: "profile"});
+            const p = extractProfile(d, row.userId);
+            row.name = p.name || row.name;
+            row.api = p;
+            await idb.put("users", row);
+        } catch (e) { console.warn("[RA] Forum enrichment failed", row.userId, e); }
+    }
+
+    async function scanOneThread(threadId, from, to, sourceMode) {
+        let offset = 0;
+        const found = [];
+        for (let page = 1; page <= 200; page++) {
+            if (!forumScanning) break;
+            setStatus(`Scanning thread ${threadId}, page ${page}...`);
+            const data = await fetchForumPosts(threadId, offset, from, to);
+            const posts = Array.isArray(data?.posts) ? data.posts : [];
+            if (!posts.length) break;
+            for (const post of posts) {
+                const user = parseUserFromApiPost(post);
+                if (!user) continue;
+                await persistForumUser(user, threadId, sourceMode);
+                found.push(user);
+            }
+            if (!data?._metadata?.links?.next || posts.length < PAGE_SIZE) break;
+            offset += posts.length;
+            await sleep(650);
+        }
+        return found;
+    }
+
+    async function runForumScan(full) {
+        if (forumScanning || scoutRuntime.running || mode === "scout") return;
+        forumScanning = true;
+        try {
+            await ensureApiKey(); await validateApiKey();
+            const scope = document.getElementById("ra-forum-scope")?.value || settings.forumScope;
+            const days = Math.max(0, n(document.getElementById("ra-forum-days")?.value, settings.forumDays));
+            activeThreadId = parseThreadId(document.getElementById("ra-target-thread")?.value || activeThreadId);
+            const now = Math.floor(Date.now()/1000); const from = days ? now - days * 86400 : ""; const to = now;
+            await saveMetaSettings({forumScope: scope, forumDays: days});
+            await saveSync(mode, {lastThreadId: activeThreadId, lastRunAt: Date.now()});
+            if (full) await clearForumMode(mode, scope === "thread" ? activeThreadId : "");
+            let threads;
+            if (scope === "thread") {
+                if (!activeThreadId) throw new Error("Set a target thread first.");
+                threads = [{id: activeThreadId}];
+            } else {
+                const categoryId = mode === "company" ? DEFAULT_COMPANY_CATEGORY_ID : DEFAULT_FACTION_CATEGORY_ID;
+                const data = await fetchForumThreads(categoryId, from, to);
+                threads = Array.isArray(data?.threads) ? data.threads : [];
+            }
+            const discovered = new Set();
+            for (let i = 0; i < threads.length && forumScanning; i++) {
+                setProgress(i, threads.length, `Thread ${i+1}/${threads.length}`);
+                const users = await scanOneThread(String(threads[i].id), from, to, mode);
+                users.forEach(u => discovered.add(u.userId));
+            }
+            if (settings.forumEnrich) {
+                const rows = (await idb.getAll("users")).filter(r => r.sourceMode === mode && discovered.has(r.userId));
+                for (let i = 0; i < rows.length && forumScanning; i++) { setStatus(`Enriching ${i+1}/${rows.length}...`); await enrichForumRecord(rows[i]); await sleep(450); }
+            }
+            setStatus(`Forum scan complete. ${discovered.size} player(s) discovered.`);
+            if (settings.scout.autoScoutNew && discovered.size) await runScoutQueue([...discovered], {source: mode});
+            await refreshResults();
+        } catch (e) { setStatus(`Forum scan failed: ${e.message}`, true); console.error(e); }
+        finally { forumScanning = false; setProgress(0, 0, "Idle"); }
+    }
+
+    function readSearchUsersPage() {
+        const selectors = ['a[href*="profiles.php?XID="]','a[href*="UserProfile&XID="]','a[href*="XID="]'];
+        const seen = new Set(); const out = [];
+        document.querySelectorAll(selectors.join(",")).forEach(a => {
+            let id = 0;
+            try { const u = new URL(a.href, location.origin); id = n(u.searchParams.get("XID") || u.searchParams.get("ID") || u.searchParams.get("userId")); } catch {}
+            if (!id || seen.has(id)) return;
+            const row = a.closest("li,tr,[class*='user'],[class*='profile'],[class*='row']") || a.parentElement;
+            const name = String(a.textContent || "").trim();
+            if (!name) return;
+            seen.add(id); out.push({id, name, rowText: String(row?.textContent || "")});
+        });
+        return out.slice(0, Math.max(1, n(settings.scout.maxCandidates, 60)));
+    }
+
+    function passesScoutFilters(s) {
+        const f = settings.scout.filters;
+        const p = s.profile || {};
+        const fit = snapshotFit(s);
+        const idleDays = p.lastActionTs ? (Date.now()/1000 - p.lastActionTs) / 86400 : 0;
+        if (f.faction === "none" && p.factionId) return false;
+        if (f.faction === "has" && !p.factionId) return false;
+        if (f.activity === "online" && !/online/i.test(p.status)) return false;
+        if (f.activity === "active" && p.lastActionTs && idleDays > 1) return false;
+        if (n(f.minLevel) && p.level < n(f.minLevel)) return false;
+        if (n(f.maxLevel) && p.level > n(f.maxLevel)) return false;
+        if (n(f.maxIdleDays) && idleDays > n(f.maxIdleDays)) return false;
+        if (n(f.minFit) && (fit === null || fit < n(f.minFit))) return false;
+        if (n(f.minNetworth) && n(s.extra?.networth) < n(f.minNetworth)) return false;
+        if (n(f.minActiveStreak) && n(s.extra?.activeStreak) < n(f.minActiveStreak)) return false;
+        if (n(f.minBestStreak) && n(s.extra?.bestActiveStreak) < n(f.minBestStreak)) return false;
+        if (n(f.minStatEnhancers) && n(s.extra?.statEnhancers30) < n(f.minStatEnhancers)) return false;
+        return true;
+    }
+
+    function sortScoutRows(rows) {
+        const sort = document.getElementById("ra-sort")?.value || settings.resultSort;
+        const fit = x => snapshotFit(x) ?? -1e9;
+        return rows.sort((a,b) => {
+            if (sort === "name") return String(a.profile?.name || "").localeCompare(String(b.profile?.name || ""));
+            if (sort === "trend") return n(b.trend, -1e9) - n(a.trend, -1e9);
+            if (sort === "level") return n(b.profile?.level) - n(a.profile?.level);
+            if (sort === "networth") return n(b.extra?.networth) - n(a.extra?.networth);
+            if (sort === "recent") return n(b.capturedAt) - n(a.capturedAt);
+            return fit(b) - fit(a);
+        });
+    }
+
+    async function currentFitLabel(s) {
+        const currentFit = snapshotFit(s);
+        return currentFit === null ? "Not measured" : `${currentFit.toFixed(1)}${s.official ? "" : " P"}`;
+    }
+
+    async function refreshResults() {
+        if (!db) return;
+        if (mode === "scout") {
+            const all = (await idb.getAll("scoutLatest")).filter(passesScoutFilters);
+            resultRows = sortScoutRows(all);
+        } else {
+            const users = (await idb.getAll("users")).filter(r => r.sourceMode === mode);
+            const latest = new Map((await idb.getAll("scoutLatest")).map(s => [Number(s.userId), s]));
+            const q = String(document.getElementById("ra-search")?.value || "").toLowerCase().trim();
+            const minMan = n(document.getElementById("ra-min-man")?.value); const minInt = n(document.getElementById("ra-min-int")?.value); const minEnd = n(document.getElementById("ra-min-end")?.value); const minTotal = n(document.getElementById("ra-min-total")?.value);
+            resultRows = users.filter(u => {
+                if (!settings.includeInactive && u.status === "inactive") return false;
+                if (q && !String(u.name).toLowerCase().includes(q) && !String(u.userId).includes(q)) return false;
+                if (minMan && n(u.stats?.man) < minMan) return false; if (minInt && n(u.stats?.int) < minInt) return false; if (minEnd && n(u.stats?.end) < minEnd) return false; if (minTotal && n(u.stats?.total) < minTotal) return false;
+                return true;
+            }).map(u => ({...u, scout: latest.get(Number(u.userId)) || null}));
+            const sort = document.getElementById("ra-sort")?.value || settings.resultSort;
+            resultRows.sort((a,b) => sort === "name" ? String(a.name).localeCompare(String(b.name)) : sort === "fit" ? (snapshotFit(b.scout || {}) ?? -1e9) - (snapshotFit(a.scout || {}) ?? -1e9) : n(b.lastSeenPost)-n(a.lastSeenPost));
+        }
+        renderResults();
+    }
+
+    function scoutFitText(s) {
+        if (!s) return "—";
+        const fit = snapshotFit(s);
+        if (fit === null) return "Not measured";
+        return `${fit.toFixed(1)}${s.official ? "" : ` P/${s.provisionalConfidence || "?"}`}`;
+    }
+
+    function trendText(v) { if (v === null || v === undefined || !Number.isFinite(Number(v))) return "—"; const x = Number(v); return `${x >= 0 ? "+" : ""}${x.toFixed(1)}%`; }
+
+    function renderResults() {
+        const wrap = document.getElementById("ra-results-body");
+        const meta = document.getElementById("ra-results-meta");
+        if (!wrap) return;
+        if (meta) meta.textContent = `${resultRows.length} result(s) · ${modeLabel(mode)}`;
+        if (!resultRows.length) { wrap.innerHTML = '<div class="ra-empty">No matching results. The database is practicing minimalism.</div>'; return; }
+        const view = settings.view || "table";
+        if (view === "cards") {
+            wrap.innerHTML = `<div class="ra-cards">${resultRows.map(row => mode === "scout" ? scoutCard(row) : forumCard(row)).join("")}</div>`;
+        } else {
+            wrap.innerHTML = mode === "scout" ? scoutTable(resultRows) : forumTable(resultRows);
+        }
+        bindResultActions();
+    }
+
+    function scoutCard(s) {
+        const id = s.userId; const w = s.w30 || s.provisionalSource || {};
+        return `<div class="ra-card"><div class="ra-card-head"><label><input type="checkbox" class="ra-select" data-id="${id}" ${selectedIds.has(id)?"checked":""}> <a href="${profileUrl(id)}" target="_blank">${esc(s.profile?.name || `User ${id}`)}</a></label><b class="ra-fit">${scoutFitText(s)}</b></div><div class="ra-kpis"><span>Trend <b>${trendText(s.trend)}</b></span><span>Lvl <b>${fmt(s.profile?.level)}</b></span><span>NW <b>${money(s.extra?.networth)}</b></span><span>Xan30 <b>${fmt(w.xanax,1)}</b></span><span>Hrs30 <b>${fmt(w.activityHours,1)}</b></span><span>Ref30 <b>${fmt(w.refills,1)}</b></span><span>Atk30 <b>${fmt(w.attacks,1)}</b></span><span>RW30 <b>${fmt(w.rwHits,1)}</b></span></div><div class="ra-row-actions"><button data-scout="${id}">Scout</button><button data-history="${id}">History</button><a href="${messageUrl(id)}" target="_blank">Message</a><small>${ageText(s.capturedAt)} old</small></div></div>`;
+    }
+
+    function forumCard(r) {
+        const s = r.scout; return `<div class="ra-card"><div class="ra-card-head"><label><input type="checkbox" class="ra-select" data-id="${r.userId}" ${selectedIds.has(r.userId)?"checked":""}> <a href="${profileUrl(r.userId)}" target="_blank">${esc(r.name)}</a></label><b class="ra-fit">${scoutFitText(s)}</b></div><div class="ra-kpis"><span>MAN <b>${fmt(r.stats?.man)}</b></span><span>INT <b>${fmt(r.stats?.int)}</b></span><span>END <b>${fmt(r.stats?.end)}</b></span><span>TOTAL <b>${fmt(r.stats?.total)}</b></span><span>EE <b>${r.ee ?? "—"}</b></span><span>Trend <b>${trendText(s?.trend)}</b></span></div><div class="ra-row-actions"><button data-scout="${r.userId}">Scout</button>${s?`<button data-history="${r.userId}">History</button>`:""}<a href="${messageUrl(r.userId)}" target="_blank">Message</a></div></div>`;
+    }
+
+    function scoutTable(rows) {
+        return `<table class="ra-table"><thead><tr><th></th><th>Player</th><th>Fit</th><th>Trend</th><th>Lvl</th><th>Age</th><th>Xan30</th><th>Hrs30</th><th>Ref30</th><th>Atk30</th><th>RW30</th><th>Net worth</th><th>Streak</th><th>Data</th><th>Actions</th></tr></thead><tbody>${rows.map(s => { const w=s.w30||s.provisionalSource||{}; return `<tr><td><input type="checkbox" class="ra-select" data-id="${s.userId}" ${selectedIds.has(s.userId)?"checked":""}></td><td><a href="${profileUrl(s.userId)}" target="_blank">${esc(s.profile?.name || s.userId)}</a><small>${s.userId}</small></td><td class="ra-fit">${scoutFitText(s)}</td><td>${trendText(s.trend)}</td><td>${fmt(s.profile?.level)}</td><td>${fmt(s.profile?.age)}d</td><td>${fmt(w.xanax,1)}</td><td>${fmt(w.activityHours,1)}</td><td>${fmt(w.refills,1)}</td><td>${fmt(w.attacks,1)}</td><td>${fmt(w.rwHits,1)}</td><td>${money(s.extra?.networth)}</td><td>${fmt(s.extra?.activeStreak)}/${fmt(s.extra?.bestActiveStreak)}</td><td>${ageText(s.capturedAt)}</td><td><button data-scout="${s.userId}">Scout</button><button data-history="${s.userId}">History</button></td></tr>`; }).join("")}</tbody></table>`;
+    }
+
+    function forumTable(rows) {
+        return `<table class="ra-table"><thead><tr><th></th><th>Player</th><th>MAN</th><th>INT</th><th>END</th><th>TOTAL</th><th>EE</th><th>Company</th><th>Status</th><th>Fit</th><th>Trend</th><th>Scout data</th><th>Actions</th></tr></thead><tbody>${rows.map(r => `<tr><td><input type="checkbox" class="ra-select" data-id="${r.userId}" ${selectedIds.has(r.userId)?"checked":""}></td><td><a href="${profileUrl(r.userId)}" target="_blank">${esc(r.name)}</a><small>${r.userId}</small></td><td>${fmt(r.stats?.man)}</td><td>${fmt(r.stats?.int)}</td><td>${fmt(r.stats?.end)}</td><td>${fmt(r.stats?.total)}</td><td>${r.ee ?? "—"}</td><td>${esc((r.company||"").replaceAll("_"," ") || "—")}</td><td>${esc(r.status)}</td><td class="ra-fit">${scoutFitText(r.scout)}</td><td>${trendText(r.scout?.trend)}</td><td>${r.scout?ageText(r.scout.capturedAt):"—"}</td><td><button data-scout="${r.userId}">Scout</button>${r.scout?`<button data-history="${r.userId}">History</button>`:""}</td></tr>`).join("")}</tbody></table>`;
+    }
+
+    function bindResultActions() {
+        document.querySelectorAll(".ra-select").forEach(c => c.onchange = () => { const id=Number(c.dataset.id); c.checked ? selectedIds.add(id) : selectedIds.delete(id); });
+        document.querySelectorAll("[data-scout]").forEach(b => b.onclick = () => runScoutQueue([Number(b.dataset.scout)], {force: true, source: mode}).catch(e => setStatus(e.message,true)));
+        document.querySelectorAll("[data-history]").forEach(b => b.onclick = () => showHistory(Number(b.dataset.history)));
+    }
+
+    async function showHistory(userId) {
+        const rows = (await idb.getAll("scoutHistory")).filter(x => Number(x.userId) === Number(userId)).sort((a,b)=>b.capturedAt-a.capturedAt);
+        const box = document.getElementById("ra-history");
+        const body = document.getElementById("ra-history-body");
+        if (!box || !body) return;
+        body.innerHTML = rows.length ? `<table class="ra-table"><thead><tr><th>Date</th><th>Original Fit</th><th>Current Fit</th><th>Type</th><th>Trend</th><th>Window</th></tr></thead><tbody>${rows.map(s=>`<tr><td>${new Date(s.capturedAt).toLocaleString()}</td><td>${s.originalFit??"—"}</td><td>${snapshotFit(s)??"—"}</td><td>${esc(s.originalFitType)}</td><td>${trendText(s.trend)}</td><td>${s.official?"30d":`${s.provisionalDays||"?"}d provisional`}</td></tr>`).join("")}</tbody></table>` : '<div class="ra-empty">No Scout history for this player.</div>';
+        box.style.display = "flex";
+    }
+
+    async function copyCsv() {
+        const lines = [];
+        if (mode === "scout") {
+            lines.push("ID,Name,Fit,FitType,Trend,Level,AgeDays,NetWorth,Xan30,Hrs30,Ref30,Atk30,RW30,DataAge");
+            for (const s of resultRows) { const w=s.w30||s.provisionalSource||{}; lines.push([s.userId,`"${String(s.profile?.name||"").replaceAll('"','""')}"`,snapshotFit(s)??"",s.official?"official":"provisional",s.trend??"",s.profile?.level??"",s.profile?.age??"",s.extra?.networth??"",w.xanax??"",w.activityHours??"",w.refills??"",w.attacks??"",w.rwHits??"",ageText(s.capturedAt)].join(",")); }
+        } else {
+            lines.push("ID,Name,MAN,INT,END,TOTAL,EE,Company,Status,Fit,Trend");
+            for (const r of resultRows) lines.push([r.userId,`"${String(r.name||"").replaceAll('"','""')}"`,r.stats?.man||0,r.stats?.int||0,r.stats?.end||0,r.stats?.total||0,r.ee??"",r.company||"",r.status||"",snapshotFit(r.scout||{})??"",r.scout?.trend??""].join(","));
+        }
+        await navigator.clipboard.writeText(lines.join("\n"));
+        setStatus(`Copied ${resultRows.length} row(s) as CSV.`);
+    }
+
+    function applyTheme() { document.documentElement.dataset.raTheme = settings.theme; document.documentElement.dataset.raDensity = settings.density; }
+
+    async function saveScoutSettingsFromUI() {
+        const targets = {}, weights = {};
+        for (const key of Core.METRICS) { targets[key] = n(document.getElementById(`ra-target-${key}`)?.value, Core.DEFAULT_SCORING.targets[key]); weights[key] = n(document.getElementById(`ra-weight-${key}`)?.value, Core.DEFAULT_SCORING.weights[key]); }
+        const filters = {...settings.scout.filters};
+        ["minLevel","maxLevel","maxIdleDays","minFit","minNetworth","minActiveStreak","minBestStreak","minStatEnhancers"].forEach(k => filters[k] = n(document.getElementById(`ra-filter-${k}`)?.value));
+        filters.faction = document.getElementById("ra-filter-faction")?.value || "any"; filters.activity = document.getElementById("ra-filter-activity")?.value || "any";
+        const scout = {...settings.scout,
+            rate: n(document.getElementById("ra-rate")?.value,95), workers:n(document.getElementById("ra-workers")?.value,3), budget:n(document.getElementById("ra-budget")?.value,900), historyGapMs:n(document.getElementById("ra-history-gap")?.value,0), maxCandidates:n(document.getElementById("ra-max-candidates")?.value,60), autoScoutNew:!!document.getElementById("ra-auto-scout")?.checked,
+            scoring: Core.normalizeScoring({targets,weights}), filters
+        };
+        await saveMetaSettings({scout}); populateSettingsUI(); setStatus("Scout settings saved."); await refreshResults();
+    }
+
+    function populateSettingsUI() {
+        if (!settings) return;
+        for (const key of Core.METRICS) { const t=document.getElementById(`ra-target-${key}`), w=document.getElementById(`ra-weight-${key}`); if(t)t.value=settings.scout.scoring.targets[key]; if(w)w.value=settings.scout.scoring.weights[key]; }
+        const fields={rate:settings.scout.rate,workers:settings.scout.workers,budget:settings.scout.budget,"history-gap":settings.scout.historyGapMs,"max-candidates":settings.scout.maxCandidates}; Object.entries(fields).forEach(([k,v])=>{const e=document.getElementById(`ra-${k}`);if(e)e.value=v;});
+        const auto=document.getElementById("ra-auto-scout"); if(auto)auto.checked=!!settings.scout.autoScoutNew;
+        ["minLevel","maxLevel","maxIdleDays","minFit","minNetworth","minActiveStreak","minBestStreak","minStatEnhancers"].forEach(k=>{const e=document.getElementById(`ra-filter-${k}`);if(e)e.value=settings.scout.filters[k]||"";});
+        const ff=document.getElementById("ra-filter-faction");if(ff)ff.value=settings.scout.filters.faction; const fa=document.getElementById("ra-filter-activity");if(fa)fa.value=settings.scout.filters.activity;
+        const cv=document.getElementById("ra-cache-verdict");if(cv)cv.textContent=`Cache test: ${settings.scout.cacheVerdict}`;
+    }
+
+    function injectStyles() {
+        if (document.getElementById("ra-v4-css")) return;
+        const s=document.createElement("style");s.id="ra-v4-css";s.textContent=`
+:root{--ra-bg:#111827;--ra-bg2:#1f2937;--ra-line:#374151;--ra-text:#f3f4f6;--ra-muted:#9ca3af;--ra-accent:#22c55e;--ra-danger:#ef4444;--ra-pad:12px}
+:root[data-ra-theme="light"]{--ra-bg:#f8fafc;--ra-bg2:#fff;--ra-line:#cbd5e1;--ra-text:#0f172a;--ra-muted:#64748b;--ra-accent:#15803d;--ra-danger:#b91c1c}
+:root[data-ra-density="compact"]{--ra-pad:7px}
+#ra-launch,#ra-panel,#ra-results-panel,.ra-modal-box{font:12px/1.35 Arial,sans-serif;color:var(--ra-text);background:var(--ra-bg);border:1px solid var(--ra-line);box-shadow:0 12px 35px #0008;box-sizing:border-box}
+#ra-launch{position:fixed;right:12px;bottom:70px;z-index:2147483645;border-radius:999px;width:52px;height:52px;font-weight:900;color:white;background:linear-gradient(#22c55e,#15803d);cursor:pointer}
+#ra-panel{position:fixed;right:18px;top:70px;width:560px;max-width:calc(100vw - 24px);max-height:calc(100vh - 90px);z-index:2147483644;border-radius:12px;display:none;overflow:auto}
+#ra-results-panel{position:fixed;left:5vw;top:8vh;width:90vw;height:78vh;z-index:2147483643;border-radius:12px;display:none;overflow:hidden;flex-direction:column}
+.ra-head{padding:10px 12px;background:var(--ra-bg2);border-bottom:1px solid var(--ra-line);display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:move;position:sticky;top:0;z-index:4}.ra-head b{font-size:14px}.ra-head-actions{display:flex;gap:5px}.ra-head button,.ra-btn,.ra-row-actions button,.ra-row-actions a,.ra-table button{border:1px solid var(--ra-line);border-radius:7px;padding:6px 8px;background:var(--ra-bg2);color:var(--ra-text);cursor:pointer;text-decoration:none;font-weight:700}.ra-btn-primary{border-color:var(--ra-accent)!important}.ra-btn-danger{border-color:var(--ra-danger)!important}.ra-inner{padding:var(--ra-pad)}#ra-status{font-weight:700;margin:0 0 9px;color:var(--ra-accent)}#ra-status.ra-bad{color:var(--ra-danger)}.ra-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.ra-grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.ra-field label{display:block;color:var(--ra-muted);font-size:10px;font-weight:900;text-transform:uppercase;margin-bottom:3px}.ra-field input,.ra-field select{width:100%;box-sizing:border-box;padding:7px;border-radius:7px;border:1px solid var(--ra-line);background:var(--ra-bg2);color:var(--ra-text)}.ra-actions{display:flex;gap:6px;flex-wrap:wrap;margin:9px 0}.ra-actions .ra-btn{flex:1}.ra-section{border-top:1px solid var(--ra-line);padding-top:10px;margin-top:10px}.ra-section summary{cursor:pointer;font-weight:900}.ra-mode-only{display:none}.ra-progress{height:7px;background:var(--ra-line);border-radius:9px;overflow:hidden}.ra-progress>div{height:100%;width:0;background:var(--ra-accent)}#ra-progress-text{color:var(--ra-muted);font-size:10px;text-align:center}.ra-results-tools{padding:8px;border-bottom:1px solid var(--ra-line);display:flex;gap:7px;align-items:center;flex-wrap:wrap;background:var(--ra-bg2)}#ra-results-body{overflow:auto;flex:1}.ra-table{border-collapse:collapse;width:100%;min-width:900px}.ra-table th,.ra-table td{padding:6px;border-bottom:1px solid var(--ra-line);white-space:nowrap;text-align:left}.ra-table th{position:sticky;top:0;background:var(--ra-bg2);z-index:2}.ra-table td small{display:block;color:var(--ra-muted)}.ra-table a,.ra-card a{color:var(--ra-text)}.ra-fit{color:#fbbf24}.ra-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:8px;padding:8px}.ra-card{border:1px solid var(--ra-line);border-radius:10px;padding:10px;background:var(--ra-bg2)}.ra-card-head{display:flex;justify-content:space-between;gap:8px}.ra-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin:8px 0}.ra-kpis span{background:color-mix(in srgb,var(--ra-bg) 80%,transparent);padding:5px;border-radius:5px;color:var(--ra-muted)}.ra-kpis b{display:block;color:var(--ra-text)}.ra-row-actions{display:flex;align-items:center;gap:5px;flex-wrap:wrap}.ra-row-actions small{margin-left:auto;color:var(--ra-muted)}.ra-empty{padding:18px;color:var(--ra-muted)}.ra-modal{position:fixed;inset:0;background:#0009;z-index:2147483647;display:none;align-items:center;justify-content:center;padding:15px}.ra-modal-box{width:min(900px,96vw);max-height:88vh;overflow:auto;border-radius:12px}.ra-modal-body{padding:12px}.ra-score-row{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:6px;align-items:end;margin:5px 0}.ra-score-row span{font-weight:900}.ra-note{color:var(--ra-muted);font-size:10px}@media(max-width:700px){#ra-panel{left:6px;right:6px;top:45px;width:auto}.ra-grid,.ra-grid3{grid-template-columns:1fr}.ra-kpis{grid-template-columns:repeat(2,1fr)}#ra-results-panel{left:2vw;top:5vh;width:96vw;height:85vh}}
+`;document.head.appendChild(s);
+    }
+
+    function makeDraggable(box, handle) {
+        let down=false,dx=0,dy=0;
+        handle.addEventListener("pointerdown",e=>{if(e.target.closest("button,input,select,a"))return;down=true;const r=box.getBoundingClientRect();dx=e.clientX-r.left;dy=e.clientY-r.top;handle.setPointerCapture?.(e.pointerId);e.preventDefault();});
+        handle.addEventListener("pointermove",e=>{if(!down)return;box.style.left=`${Math.max(4,Math.min(innerWidth-box.offsetWidth-4,e.clientX-dx))}px`;box.style.top=`${Math.max(4,Math.min(innerHeight-box.offsetHeight-4,e.clientY-dy))}px`;box.style.right="auto";});
+        handle.addEventListener("pointerup",e=>{down=false;try{handle.releasePointerCapture(e.pointerId);}catch{}});
+    }
+
+    function scoreRowsHtml() {
+        const labels={xanax:"Xanax / 30d",activityHours:"Activity hours / 30d",refills:"Refills / 30d",attacks:"Attacks / 30d",rwHits:"RW hits / 30d"};
+        return Core.METRICS.map(k=>`<div class="ra-score-row"><span>${labels[k]}</span><div class="ra-field"><label>Target</label><input id="ra-target-${k}" type="number" min="0"></div><div class="ra-field"><label>Weight</label><input id="ra-weight-${k}" type="number" min="0"></div></div>`).join("");
+    }
+
+    function mountUI() {
+        if (uiMounted) return; uiMounted=true; injectStyles();
+        const launch=document.createElement("button");launch.id="ra-launch";launch.textContent="RA";launch.title="Recruitment Agency v4";document.body.appendChild(launch);
+        const panel=document.createElement("div");panel.id="ra-panel";panel.innerHTML=`<div class="ra-head" id="ra-drag"><b>Recruitment Agency <span class="ra-note">v${SCRIPT_VERSION}</span></b><div class="ra-head-actions"><button id="ra-open-results">Results</button><button id="ra-close">×</button></div></div><div class="ra-inner"><div id="ra-status">Ready.</div><div class="ra-grid"><div class="ra-field"><label>Mode</label><select id="ra-mode"><option value="company">Company</option><option value="faction">Faction</option><option value="scout">Scout</option></select></div><div class="ra-field"><label>Sort</label><select id="ra-sort"><option value="fit">Fit</option><option value="recent">Newest / recent</option><option value="trend">Trend</option><option value="name">Name</option><option value="level">Level</option><option value="networth">Net worth</option></select></div></div>
+<div id="ra-forum-controls" class="ra-mode-only"><div class="ra-grid"><div class="ra-field"><label>Target thread ID / URL</label><input id="ra-target-thread" placeholder="Thread ID or URL"></div><div class="ra-field"><label>Scope</label><select id="ra-forum-scope"><option value="thread">Single thread</option><option value="category">Whole category</option></select></div><div class="ra-field"><label>Days back (0 = all)</label><input id="ra-forum-days" type="number" min="0"></div><div class="ra-field"><label>Name / ID filter</label><input id="ra-search"></div></div><div class="ra-grid3"><div class="ra-field"><label>MAN ≥</label><input id="ra-min-man" type="number"></div><div class="ra-field"><label>INT ≥</label><input id="ra-min-int" type="number"></div><div class="ra-field"><label>END ≥</label><input id="ra-min-end" type="number"></div></div><div class="ra-field"><label>TOTAL ≥</label><input id="ra-min-total" type="number"></div><div class="ra-actions"><button class="ra-btn ra-btn-primary" id="ra-full-scan">Full Scan</button><button class="ra-btn ra-btn-primary" id="ra-update-scan">Update Scan</button><button class="ra-btn" id="ra-open-thread">Open Thread</button></div></div>
+<div id="ra-scout-controls" class="ra-mode-only"><div class="ra-field"><label>Player IDs / profile URLs</label><textarea id="ra-direct-ids" style="width:100%;height:54px;box-sizing:border-box;background:var(--ra-bg2);color:var(--ra-text);border:1px solid var(--ra-line);border-radius:7px" placeholder="3877028, profile URLs, etc."></textarea></div><div class="ra-actions"><button class="ra-btn ra-btn-primary" id="ra-scout-ids">Scout IDs</button><button class="ra-btn ra-btn-primary" id="ra-scout-page">Scout Search Users Page</button><button class="ra-btn" id="ra-reread-page">Read Page</button></div><div id="ra-page-count" class="ra-note"></div></div>
+<div class="ra-progress"><div id="ra-progress-fill"></div></div><div id="ra-progress-text">Idle</div><div class="ra-actions"><button class="ra-btn" id="ra-pause-scout">Pause</button><button class="ra-btn ra-btn-danger" id="ra-cancel-scout" disabled>Cancel</button><button class="ra-btn" id="ra-scout-selected">Scout Selected</button><button class="ra-btn" id="ra-scout-all">Scout All</button></div>
+<details class="ra-section"><summary>Scout filters</summary><div class="ra-grid3"><div class="ra-field"><label>Faction</label><select id="ra-filter-faction"><option value="any">Any</option><option value="none">No faction</option><option value="has">Has faction</option></select></div><div class="ra-field"><label>Activity</label><select id="ra-filter-activity"><option value="any">Any</option><option value="online">Online</option><option value="active">Active ≤1d</option></select></div>${["minLevel","maxLevel","maxIdleDays","minFit","minNetworth","minActiveStreak","minBestStreak","minStatEnhancers"].map(k=>`<div class="ra-field"><label>${k}</label><input id="ra-filter-${k}" type="number"></div>`).join("")}</div><button class="ra-btn" id="ra-apply-filters">Apply filters</button></details>
+<details class="ra-section"><summary>Settings & Fit formula</summary><div class="ra-grid3"><div class="ra-field"><label>API calls/min</label><input id="ra-rate" type="number"></div><div class="ra-field"><label>Workers</label><input id="ra-workers" type="number"></div><div class="ra-field"><label>Call budget</label><input id="ra-budget" type="number"></div><div class="ra-field"><label>History gap ms</label><input id="ra-history-gap" type="number"></div><div class="ra-field"><label>Max candidates</label><input id="ra-max-candidates" type="number"></div><div class="ra-field"><label>Auto Scout new</label><input id="ra-auto-scout" type="checkbox" style="width:auto"></div></div>${scoreRowsHtml()}<div class="ra-actions"><button class="ra-btn ra-btn-primary" id="ra-save-scout-settings">Save Scout Settings</button><button class="ra-btn" id="ra-cache-test">Run cache test</button><span id="ra-cache-verdict" class="ra-note"></span></div><div class="ra-actions"><button class="ra-btn" id="ra-change-key">Set / Change API Key</button><button class="ra-btn" id="ra-theme">Theme</button><button class="ra-btn" id="ra-density">Density</button><button class="ra-btn" id="ra-view">Table / Cards</button><label><input id="ra-include-inactive" type="checkbox"> Include inactive forum posts</label></div></details></div>`;document.body.appendChild(panel);
+        const results=document.createElement("div");results.id="ra-results-panel";results.innerHTML=`<div class="ra-head" id="ra-results-drag"><b>Recruitment Results</b><div class="ra-head-actions"><button id="ra-copy">Copy CSV</button><button id="ra-results-close">×</button></div></div><div class="ra-results-tools"><span id="ra-results-meta"></span><button class="ra-btn" id="ra-results-refresh">Refresh</button><button class="ra-btn" id="ra-select-all">Select all</button><button class="ra-btn" id="ra-clear-select">Clear selection</button></div><div id="ra-results-body"></div>`;document.body.appendChild(results);
+        const history=document.createElement("div");history.id="ra-history";history.className="ra-modal";history.innerHTML=`<div class="ra-modal-box"><div class="ra-head"><b>Scout History</b><button id="ra-history-close">×</button></div><div class="ra-modal-body" id="ra-history-body"></div></div>`;document.body.appendChild(history);
+        makeDraggable(panel,panel.querySelector("#ra-drag"));makeDraggable(results,results.querySelector("#ra-results-drag"));
+        bindUI(); applyTheme(); populateSettingsUI(); syncModeUI();
+    }
+
+    function syncModeUI() {
+        document.getElementById("ra-mode").value=mode; document.getElementById("ra-sort").value=settings.resultSort || "fit";
+        const forum=document.getElementById("ra-forum-controls"), scout=document.getElementById("ra-scout-controls"); if(forum)forum.style.display=mode==="scout"?"none":"block";if(scout)scout.style.display=mode==="scout"?"block":"none";
+        const thread=document.getElementById("ra-target-thread"); if(thread)thread.value=activeThreadId || ""; const scope=document.getElementById("ra-forum-scope");if(scope)scope.value=settings.forumScope;const days=document.getElementById("ra-forum-days");if(days)days.value=settings.forumDays;const inc=document.getElementById("ra-include-inactive");if(inc)inc.checked=!!settings.includeInactive;
+        refreshPageCount();
+    }
+
+    function refreshPageCount() { const el=document.getElementById("ra-page-count");if(!el)return;const c=readSearchUsersPage();el.textContent=`${c.length} unique player(s) detected on this page.`; }
+
+    async function switchMode(newMode) {
+        mode=newMode; selectedIds.clear(); const meta=await getMeta();activeThreadId=meta.syncHistory?.[mode]?.lastThreadId || (mode==="company"?DEFAULT_COMPANY_THREAD_ID:mode==="faction"?DEFAULT_FACTION_THREAD_ID:"");await saveMetaSettings({activeMode:mode});syncModeUI();await refreshResults();setStatus(`${modeLabel(mode)} mode loaded.`);
+    }
+
+    function bindUI() {
+        document.getElementById("ra-launch").onclick=()=>{document.getElementById("ra-panel").style.display="block";};
+        document.getElementById("ra-close").onclick=()=>document.getElementById("ra-panel").style.display="none";
+        document.getElementById("ra-open-results").onclick=async()=>{document.getElementById("ra-results-panel").style.display="flex";await refreshResults();};document.getElementById("ra-results-close").onclick=()=>document.getElementById("ra-results-panel").style.display="none";
+        document.getElementById("ra-mode").onchange=e=>switchMode(e.target.value);document.getElementById("ra-sort").onchange=async e=>{await saveMetaSettings({resultSort:e.target.value});await refreshResults();};
+        document.getElementById("ra-full-scan").onclick=()=>runForumScan(true);document.getElementById("ra-update-scan").onclick=()=>runForumScan(false);document.getElementById("ra-open-thread").onclick=()=>{const id=parseThreadId(document.getElementById("ra-target-thread").value);if(id)window.open(forumUrl(id),"_blank");};
+        document.getElementById("ra-scout-ids").onclick=()=>{const ids=Core.parseIds(document.getElementById("ra-direct-ids").value,settings.scout.maxCandidates);runScoutQueue(ids,{source:"direct"}).catch(e=>setStatus(e.message,true));};
+        document.getElementById("ra-scout-page").onclick=()=>{const ids=readSearchUsersPage().map(x=>x.id);runScoutQueue(ids,{source:"search-users"}).catch(e=>setStatus(e.message,true));};document.getElementById("ra-reread-page").onclick=refreshPageCount;
+        document.getElementById("ra-pause-scout").onclick=()=>scoutRuntime.paused?resumeScout():pauseScout();document.getElementById("ra-cancel-scout").onclick=cancelScout;
+        document.getElementById("ra-scout-selected").onclick=()=>runScoutQueue([...selectedIds],{force:true,source:mode}).catch(e=>setStatus(e.message,true));document.getElementById("ra-scout-all").onclick=()=>{const ids=mode==="scout"?resultRows.map(x=>x.userId):resultRows.map(x=>x.userId);runScoutQueue(ids,{source:mode}).catch(e=>setStatus(e.message,true));};
+        document.getElementById("ra-save-scout-settings").onclick=()=>saveScoutSettingsFromUI().catch(e=>setStatus(e.message,true));document.getElementById("ra-apply-filters").onclick=()=>saveScoutSettingsFromUI().catch(e=>setStatus(e.message,true));document.getElementById("ra-cache-test").onclick=()=>runCacheDiagnostic(0).catch(e=>setStatus(e.message,true));
+        document.getElementById("ra-change-key").onclick=()=>ensureApiKey(true).then(()=>setStatus("API key saved.")).catch(e=>setStatus(e.message,true));document.getElementById("ra-theme").onclick=async()=>{await saveMetaSettings({theme:settings.theme==="dark"?"light":"dark"});applyTheme();};document.getElementById("ra-density").onclick=async()=>{await saveMetaSettings({density:settings.density==="compact"?"comfortable":"compact"});applyTheme();};document.getElementById("ra-view").onclick=async()=>{await saveMetaSettings({view:settings.view==="table"?"cards":"table"});renderResults();};
+        document.getElementById("ra-include-inactive").onchange=async e=>{await saveMetaSettings({includeInactive:e.target.checked});await refreshResults();};document.getElementById("ra-results-refresh").onclick=refreshResults;document.getElementById("ra-copy").onclick=()=>copyCsv().catch(e=>setStatus(e.message,true));
+        document.getElementById("ra-select-all").onclick=()=>{resultRows.forEach(r=>selectedIds.add(Number(r.userId)));renderResults();};document.getElementById("ra-clear-select").onclick=()=>{selectedIds.clear();renderResults();};document.getElementById("ra-history-close").onclick=()=>document.getElementById("ra-history").style.display="none";
+        ["ra-search","ra-min-man","ra-min-int","ra-min-end","ra-min-total"].forEach(id=>document.getElementById(id)?.addEventListener("input",()=>refreshResults()));
+    }
+
+    async function init() {
+        try {
+            db=await openDB();
+            const meta=await getMeta();settings=mergeSettings(meta.settings || {});mode=settings.activeMode || "company";activeThreadId=meta.syncHistory?.[mode]?.lastThreadId || (mode==="company"?DEFAULT_COMPANY_THREAD_ID:mode==="faction"?DEFAULT_FACTION_THREAD_ID:"");
+            meta.settings=settings;await idb.put("meta",meta);
+            if (document.readyState === "loading") await new Promise(resolve=>document.addEventListener("DOMContentLoaded",resolve,{once:true}));
+            mountUI();await refreshResults();setStatus("Ready.");
+            const observer=new MutationObserver(()=>{if(!document.getElementById("ra-launch")){uiMounted=false;mountUI();refreshResults();}});observer.observe(document.documentElement,{childList:true,subtree:true});
+        } catch(e){console.error("[RA] init failed",e);alert(`Recruitment Agency could not start: ${e.message}`);}
+    }
+
+    init();
+})();
