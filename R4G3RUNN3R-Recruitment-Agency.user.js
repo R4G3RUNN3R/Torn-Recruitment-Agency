@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         R4G3RUNN3R's Recruitment Agency
 // @namespace    r4g3runn3r.recruitment.agency
-// @version      4.0.0
+// @version      4.1.0
 // @description  Company/faction recruitment scanner plus local Scout intelligence, Fit, Trend and history for Torn.
 // @author       R4G3RUNN3R[3877028]
 // @license      MIT
@@ -24,7 +24,7 @@
         return;
     }
 
-    const SCRIPT_VERSION = "4.0.0";
+    const SCRIPT_VERSION = "4.1.0";
     const DB_NAME = "tornWorkerDB";
     const REQUIRED_DB_VERSION = 9;
     const API_BASE = "https://api.torn.com/v2";
@@ -37,6 +37,7 @@
     const DEFAULT_COMPANY_CATEGORY_ID = 46;
     const DEFAULT_FACTION_CATEGORY_ID = 24;
     const SCOUT_STAT_LIST = "xantaken,useractivity,refills,statenhancersused,attackswon,attackslost,rankedwarhits,networth,activestreak,bestactivestreak";
+    const MIN_API_GAP_MS = 800;
 
     const COMPANY_OPTIONS = [
         "adult_novelties", "amusement_park", "candle_shop", "car_dealership", "clothing_store", "cruise_line",
@@ -49,7 +50,7 @@
     ];
 
     const DEFAULT_SCOUT = {
-        rate: 95,
+        rate: 75,
         workers: 3,
         budget: 900,
         historyGapMs: 0,
@@ -74,6 +75,7 @@
     const DEFAULT_SETTINGS = {
         theme: "dark",
         density: "comfortable",
+        complexity: "simple",
         dockEnabled: true,
         includeInactive: false,
         activeMode: "company",
@@ -94,6 +96,15 @@
     let settings = null;
     let uiMounted = false;
     let forumScanning = false;
+    let observerTimer = null;
+
+    const managedWindows = new Map();
+    let topZ = 2147483400;
+
+    const apiRuntime = {
+        gate: Promise.resolve(),
+        nextAt: 0
+    };
 
     const scoutRuntime = {
         running: false,
@@ -102,8 +113,6 @@
         calls: 0,
         done: 0,
         total: 0,
-        nextAt: 0,
-        gate: Promise.resolve(),
         ids: []
     };
 
@@ -117,6 +126,7 @@
     function messageUrl(id) { return `https://www.torn.com/messages.php#/p=compose&XID=${id}`; }
     function forumUrl(threadId) { return `https://www.torn.com/forums.php?a=0&p=threads&t=${threadId}`; }
     function modeLabel(m) { return m === "company" ? "Company" : m === "faction" ? "Faction" : "Scout"; }
+    function clampScoutRate(value) { return Math.max(10, Math.min(75, n(value, 75))); }
     function setStatus(text, bad = false) { const el = document.getElementById("ra-status"); if (el) { el.textContent = text; el.classList.toggle("ra-bad", bad); } }
     function setProgress(done, total, text = "") { const p = document.getElementById("ra-progress-fill"); const t = document.getElementById("ra-progress-text"); if (p) p.style.width = `${total ? Math.min(100, done/total*100) : 0}%`; if (t) t.textContent = text || `${done}/${total}`; }
 
@@ -129,9 +139,11 @@
         return {
             ...DEFAULT_SETTINGS,
             ...raw,
+            complexity: raw.complexity === "advanced" ? "advanced" : "simple",
             scout: {
                 ...DEFAULT_SCOUT,
                 ...scout,
+                rate: clampScoutRate(scout.rate),
                 scoring,
                 filters: {...DEFAULT_SCOUT.filters, ...(scout.filters || {})}
             }
@@ -167,7 +179,7 @@
     };
 
     async function getMeta() {
-        return await idb.get("meta", "global") || {key: "global", settings: DEFAULT_SETTINGS, syncHistory: {}, ui: {}};
+        return await idb.get("meta", "global") || {key: "global", settings: DEFAULT_SETTINGS, syncHistory: {}, ui: {windowGeometry: {}}};
     }
 
     async function saveMetaSettings(patch) {
@@ -184,12 +196,46 @@
         await idb.put("meta", m);
     }
 
+    async function saveWindowGeometry(id, geometry) {
+        const m = await getMeta();
+        m.ui = m.ui || {};
+        m.ui.windowGeometry = m.ui.windowGeometry || {};
+        m.ui.windowGeometry[id] = geometry;
+        await idb.put("meta", m);
+    }
+
     async function ensureApiKey(force = false) {
         if (!force && settings.apiKey && settings.apiKey.length >= 8) return settings.apiKey;
         const key = String(prompt("Enter your Torn PUBLIC API key:", settings.apiKey || "") || "").trim();
         if (!key) throw new Error("A Torn API key is required.");
         await saveMetaSettings({apiKey: key});
         return key;
+    }
+
+    async function reserveApiCall({scout = false} = {}) {
+        let unlock;
+        const previous = apiRuntime.gate;
+        apiRuntime.gate = new Promise(resolve => { unlock = resolve; });
+        await previous;
+        try {
+            if (scout) {
+                while (scoutRuntime.paused && !scoutRuntime.cancelled) await sleep(200);
+                if (scoutRuntime.cancelled) throw Object.assign(new Error("Scout cancelled."), {cancelled: true});
+                if (scoutRuntime.calls >= Math.max(1, n(settings.scout.budget, 900))) throw Object.assign(new Error("Scout API budget reached."), {budget: true});
+            }
+            const rateGap = 60000 / clampScoutRate(settings.scout.rate);
+            const gap = Math.max(MIN_API_GAP_MS, rateGap);
+            const wait = Math.max(0, apiRuntime.nextAt - Date.now());
+            if (wait) await sleep(wait);
+            apiRuntime.nextAt = Date.now() + gap;
+            if (scout) scoutRuntime.calls++;
+        } finally {
+            unlock();
+        }
+    }
+
+    async function reserveScoutCall() {
+        return reserveApiCall({scout: true});
     }
 
     async function rawTorn(path, params = {}) {
@@ -210,24 +256,12 @@
         return data;
     }
 
-    async function validateApiKey() { await rawTorn("key/info"); return true; }
-
-    async function reserveScoutCall() {
-        let unlock;
-        const previous = scoutRuntime.gate;
-        scoutRuntime.gate = new Promise(resolve => { unlock = resolve; });
-        await previous;
-        try {
-            while (scoutRuntime.paused && !scoutRuntime.cancelled) await sleep(200);
-            if (scoutRuntime.cancelled) throw Object.assign(new Error("Scout cancelled."), {cancelled: true});
-            if (scoutRuntime.calls >= Math.max(1, n(settings.scout.budget, 900))) throw Object.assign(new Error("Scout API budget reached."), {budget: true});
-            const gap = 60000 / Math.max(10, Math.min(95, n(settings.scout.rate, 95)));
-            const wait = Math.max(0, scoutRuntime.nextAt - Date.now());
-            if (wait) await sleep(wait);
-            scoutRuntime.nextAt = Date.now() + gap;
-            scoutRuntime.calls++;
-        } finally { unlock(); }
+    async function tornTorn(path, params = {}) {
+        await reserveApiCall();
+        return rawTorn(path, params);
     }
+
+    async function validateApiKey() { await tornTorn("key/info"); return true; }
 
     async function scoutTorn(path, params = {}, attempt = 0) {
         await reserveScoutCall();
@@ -283,8 +317,8 @@
     }
 
     function snapshotFit(snapshot, scoring = settings.scout.scoring) {
-        if (snapshot.official && snapshot.w30) return Core.scoreFit(snapshot.w30, scoring).score;
-        if (snapshot.provisionalSource && snapshot.provisionalDays) return Core.provisionalFit(snapshot.provisionalSource, snapshot.provisionalDays, scoring).score;
+        if (snapshot?.official && snapshot.w30) return Core.scoreFit(snapshot.w30, scoring).score;
+        if (snapshot?.provisionalSource && snapshot.provisionalDays) return Core.provisionalFit(snapshot.provisionalSource, snapshot.provisionalDays, scoring).score;
         return null;
     }
 
@@ -383,7 +417,13 @@
         if (scoutRuntime.running) throw new Error("A Scout run is already active.");
         const unique = [...new Set(ids.map(Number).filter(Boolean))].slice(0, Math.max(1, n(settings.scout.maxCandidates, 60)));
         if (!unique.length) { setStatus("No players to Scout.", true); return []; }
-        scoutRuntime.running = true; scoutRuntime.paused = false; scoutRuntime.cancelled = false; scoutRuntime.calls = 0; scoutRuntime.done = 0; scoutRuntime.total = unique.length; scoutRuntime.nextAt = 0; scoutRuntime.gate = Promise.resolve(); scoutRuntime.ids = unique;
+        scoutRuntime.running = true;
+        scoutRuntime.paused = false;
+        scoutRuntime.cancelled = false;
+        scoutRuntime.calls = 0;
+        scoutRuntime.done = 0;
+        scoutRuntime.total = unique.length;
+        scoutRuntime.ids = unique;
         syncScoutButtons();
         const output = [];
         let cursor = 0;
@@ -408,7 +448,9 @@
             const count = Math.max(1, Math.min(8, n(settings.scout.workers, 3), unique.length));
             await Promise.all(Array.from({length: count}, worker));
         } finally {
-            scoutRuntime.running = false; scoutRuntime.paused = false; syncScoutButtons();
+            scoutRuntime.running = false;
+            scoutRuntime.paused = false;
+            syncScoutButtons();
             setStatus(scoutRuntime.cancelled ? `Scout stopped. ${output.length} completed.` : `Scout complete. ${output.length} player(s).`);
             await refreshResults();
         }
@@ -417,9 +459,12 @@
 
     async function runCacheDiagnostic(userId) {
         if (scoutRuntime.running) throw new Error("Finish the current Scout run first.");
-        const id = Number(userId) || Core.parseIds(prompt("Active player ID for cache test (blank = your own ID if Torn accepts it):", "") || "", 1)[0] || "";
+        const id = Number(userId) || Core.parseIds(prompt("Active player ID for cache test:", "") || "", 1)[0] || "";
         if (!id) throw new Error("A player ID is required for the cache test.");
-        scoutRuntime.running = true; scoutRuntime.cancelled = false; scoutRuntime.paused = false; scoutRuntime.calls = 0; scoutRuntime.nextAt = 0; scoutRuntime.gate = Promise.resolve();
+        scoutRuntime.running = true;
+        scoutRuntime.cancelled = false;
+        scoutRuntime.paused = false;
+        scoutRuntime.calls = 0;
         try {
             const now = Math.floor(Date.now()/1000);
             const params = {selections: "personalstats", stat: SCOUT_STAT_LIST};
@@ -439,7 +484,10 @@
             else setStatus("Cache test: inconclusive; settings unchanged.", true);
             populateSettingsUI();
             return verdict;
-        } finally { scoutRuntime.running = false; syncScoutButtons(); }
+        } finally {
+            scoutRuntime.running = false;
+            syncScoutButtons();
+        }
     }
 
     function parseThreadId(value) {
@@ -478,11 +526,11 @@
     }
 
     async function fetchForumThreads(categoryId, from, to) {
-        return rawTorn(`forum/${categoryId}/threads`, {limit: THREAD_LIST_LIMIT, sort: "DESC", from, to});
+        return tornTorn(`forum/${categoryId}/threads`, {limit: THREAD_LIST_LIMIT, sort: "DESC", from, to});
     }
 
     async function fetchForumPosts(threadId, offset, from, to) {
-        return rawTorn(`forum/${threadId}/posts`, {limit: PAGE_SIZE, offset, sort: "DESC", from, to});
+        return tornTorn(`forum/${threadId}/posts`, {limit: PAGE_SIZE, offset, sort: "DESC", from, to});
     }
 
     async function persistForumUser(user, threadId, sourceMode) {
@@ -501,12 +549,14 @@
 
     async function enrichForumRecord(row) {
         try {
-            const d = await rawTorn(`user/${row.userId}`, {selections: "profile"});
+            const d = await tornTorn(`user/${row.userId}`, {selections: "profile"});
             const p = extractProfile(d, row.userId);
             row.name = p.name || row.name;
             row.api = p;
             await idb.put("users", row);
-        } catch (e) { console.warn("[RA] Forum enrichment failed", row.userId, e); }
+        } catch (e) {
+            console.warn("[RA] Forum enrichment failed", row.userId, e);
+        }
     }
 
     async function scanOneThread(threadId, from, to, sourceMode) {
@@ -526,7 +576,6 @@
             }
             if (!data?._metadata?.links?.next || posts.length < PAGE_SIZE) break;
             offset += posts.length;
-            await sleep(650);
         }
         return found;
     }
@@ -535,11 +584,14 @@
         if (forumScanning || scoutRuntime.running || mode === "scout") return;
         forumScanning = true;
         try {
-            await ensureApiKey(); await validateApiKey();
+            await ensureApiKey();
+            await validateApiKey();
             const scope = document.getElementById("ra-forum-scope")?.value || settings.forumScope;
             const days = Math.max(0, n(document.getElementById("ra-forum-days")?.value, settings.forumDays));
             activeThreadId = parseThreadId(document.getElementById("ra-target-thread")?.value || activeThreadId);
-            const now = Math.floor(Date.now()/1000); const from = days ? now - days * 86400 : ""; const to = now;
+            const now = Math.floor(Date.now()/1000);
+            const from = days ? now - days * 86400 : "";
+            const to = now;
             await saveMetaSettings({forumScope: scope, forumDays: days});
             await saveSync(mode, {lastThreadId: activeThreadId, lastRunAt: Date.now()});
             if (full) await clearForumMode(mode, scope === "thread" ? activeThreadId : "");
@@ -560,26 +612,39 @@
             }
             if (settings.forumEnrich) {
                 const rows = (await idb.getAll("users")).filter(r => r.sourceMode === mode && discovered.has(r.userId));
-                for (let i = 0; i < rows.length && forumScanning; i++) { setStatus(`Enriching ${i+1}/${rows.length}...`); await enrichForumRecord(rows[i]); await sleep(450); }
+                for (let i = 0; i < rows.length && forumScanning; i++) {
+                    setStatus(`Enriching ${i+1}/${rows.length}...`);
+                    await enrichForumRecord(rows[i]);
+                }
             }
             setStatus(`Forum scan complete. ${discovered.size} player(s) discovered.`);
             if (settings.scout.autoScoutNew && discovered.size) await runScoutQueue([...discovered], {source: mode});
             await refreshResults();
-        } catch (e) { setStatus(`Forum scan failed: ${e.message}`, true); console.error(e); }
-        finally { forumScanning = false; setProgress(0, 0, "Idle"); }
+        } catch (e) {
+            setStatus(`Forum scan failed: ${e.message}`, true);
+            console.error(e);
+        } finally {
+            forumScanning = false;
+            setProgress(0, 0, "Idle");
+        }
     }
 
     function readSearchUsersPage() {
         const selectors = ['a[href*="profiles.php?XID="]','a[href*="UserProfile&XID="]','a[href*="XID="]'];
-        const seen = new Set(); const out = [];
+        const seen = new Set();
+        const out = [];
         document.querySelectorAll(selectors.join(",")).forEach(a => {
             let id = 0;
-            try { const u = new URL(a.href, location.origin); id = n(u.searchParams.get("XID") || u.searchParams.get("ID") || u.searchParams.get("userId")); } catch {}
+            try {
+                const u = new URL(a.href, location.origin);
+                id = n(u.searchParams.get("XID") || u.searchParams.get("ID") || u.searchParams.get("userId"));
+            } catch {}
             if (!id || seen.has(id)) return;
             const row = a.closest("li,tr,[class*='user'],[class*='profile'],[class*='row']") || a.parentElement;
             const name = String(a.textContent || "").trim();
             if (!name) return;
-            seen.add(id); out.push({id, name, rowText: String(row?.textContent || "")});
+            seen.add(id);
+            out.push({id, name, rowText: String(row?.textContent || "")});
         });
         return out.slice(0, Math.max(1, n(settings.scout.maxCandidates, 60)));
     }
@@ -617,11 +682,6 @@
         });
     }
 
-    async function currentFitLabel(s) {
-        const currentFit = snapshotFit(s);
-        return currentFit === null ? "Not measured" : `${currentFit.toFixed(1)}${s.official ? "" : " P"}`;
-    }
-
     async function refreshResults() {
         if (!db) return;
         if (mode === "scout") {
@@ -631,11 +691,17 @@
             const users = (await idb.getAll("users")).filter(r => r.sourceMode === mode);
             const latest = new Map((await idb.getAll("scoutLatest")).map(s => [Number(s.userId), s]));
             const q = String(document.getElementById("ra-search")?.value || "").toLowerCase().trim();
-            const minMan = n(document.getElementById("ra-min-man")?.value); const minInt = n(document.getElementById("ra-min-int")?.value); const minEnd = n(document.getElementById("ra-min-end")?.value); const minTotal = n(document.getElementById("ra-min-total")?.value);
+            const minMan = n(document.getElementById("ra-min-man")?.value);
+            const minInt = n(document.getElementById("ra-min-int")?.value);
+            const minEnd = n(document.getElementById("ra-min-end")?.value);
+            const minTotal = n(document.getElementById("ra-min-total")?.value);
             resultRows = users.filter(u => {
                 if (!settings.includeInactive && u.status === "inactive") return false;
                 if (q && !String(u.name).toLowerCase().includes(q) && !String(u.userId).includes(q)) return false;
-                if (minMan && n(u.stats?.man) < minMan) return false; if (minInt && n(u.stats?.int) < minInt) return false; if (minEnd && n(u.stats?.end) < minEnd) return false; if (minTotal && n(u.stats?.total) < minTotal) return false;
+                if (minMan && n(u.stats?.man) < minMan) return false;
+                if (minInt && n(u.stats?.int) < minInt) return false;
+                if (minEnd && n(u.stats?.end) < minEnd) return false;
+                if (minTotal && n(u.stats?.total) < minTotal) return false;
                 return true;
             }).map(u => ({...u, scout: latest.get(Number(u.userId)) || null}));
             const sort = document.getElementById("ra-sort")?.value || settings.resultSort;
@@ -651,30 +717,36 @@
         return `${fit.toFixed(1)}${s.official ? "" : ` P/${s.provisionalConfidence || "?"}`}`;
     }
 
-    function trendText(v) { if (v === null || v === undefined || !Number.isFinite(Number(v))) return "—"; const x = Number(v); return `${x >= 0 ? "+" : ""}${x.toFixed(1)}%`; }
+    function trendText(v) {
+        if (v === null || v === undefined || !Number.isFinite(Number(v))) return "—";
+        const x = Number(v);
+        return `${x >= 0 ? "+" : ""}${x.toFixed(1)}%`;
+    }
 
     function renderResults() {
         const wrap = document.getElementById("ra-results-body");
         const meta = document.getElementById("ra-results-meta");
         if (!wrap) return;
         if (meta) meta.textContent = `${resultRows.length} result(s) · ${modeLabel(mode)}`;
-        if (!resultRows.length) { wrap.innerHTML = '<div class="ra-empty">No matching results. The database is practicing minimalism.</div>'; return; }
-        const view = settings.view || "table";
-        if (view === "cards") {
-            wrap.innerHTML = `<div class="ra-cards">${resultRows.map(row => mode === "scout" ? scoutCard(row) : forumCard(row)).join("")}</div>`;
-        } else {
-            wrap.innerHTML = mode === "scout" ? scoutTable(resultRows) : forumTable(resultRows);
+        if (!resultRows.length) {
+            wrap.innerHTML = '<div class="ra-empty">No matching results.</div>';
+            return;
         }
+        const view = settings.view || "table";
+        if (view === "cards") wrap.innerHTML = `<div class="ra-cards">${resultRows.map(row => mode === "scout" ? scoutCard(row) : forumCard(row)).join("")}</div>`;
+        else wrap.innerHTML = mode === "scout" ? scoutTable(resultRows) : forumTable(resultRows);
         bindResultActions();
     }
 
     function scoutCard(s) {
-        const id = s.userId; const w = s.w30 || s.provisionalSource || {};
+        const id = s.userId;
+        const w = s.w30 || s.provisionalSource || {};
         return `<div class="ra-card"><div class="ra-card-head"><label><input type="checkbox" class="ra-select" data-id="${id}" ${selectedIds.has(id)?"checked":""}> <a href="${profileUrl(id)}" target="_blank">${esc(s.profile?.name || `User ${id}`)}</a></label><b class="ra-fit">${scoutFitText(s)}</b></div><div class="ra-kpis"><span>Trend <b>${trendText(s.trend)}</b></span><span>Lvl <b>${fmt(s.profile?.level)}</b></span><span>NW <b>${money(s.extra?.networth)}</b></span><span>Xan30 <b>${fmt(w.xanax,1)}</b></span><span>Hrs30 <b>${fmt(w.activityHours,1)}</b></span><span>Ref30 <b>${fmt(w.refills,1)}</b></span><span>Atk30 <b>${fmt(w.attacks,1)}</b></span><span>RW30 <b>${fmt(w.rwHits,1)}</b></span></div><div class="ra-row-actions"><button data-scout="${id}">Scout</button><button data-history="${id}">History</button><a href="${messageUrl(id)}" target="_blank">Message</a><small>${ageText(s.capturedAt)} old</small></div></div>`;
     }
 
     function forumCard(r) {
-        const s = r.scout; return `<div class="ra-card"><div class="ra-card-head"><label><input type="checkbox" class="ra-select" data-id="${r.userId}" ${selectedIds.has(r.userId)?"checked":""}> <a href="${profileUrl(r.userId)}" target="_blank">${esc(r.name)}</a></label><b class="ra-fit">${scoutFitText(s)}</b></div><div class="ra-kpis"><span>MAN <b>${fmt(r.stats?.man)}</b></span><span>INT <b>${fmt(r.stats?.int)}</b></span><span>END <b>${fmt(r.stats?.end)}</b></span><span>TOTAL <b>${fmt(r.stats?.total)}</b></span><span>EE <b>${r.ee ?? "—"}</b></span><span>Trend <b>${trendText(s?.trend)}</b></span></div><div class="ra-row-actions"><button data-scout="${r.userId}">Scout</button>${s?`<button data-history="${r.userId}">History</button>`:""}<a href="${messageUrl(r.userId)}" target="_blank">Message</a></div></div>`;
+        const s = r.scout;
+        return `<div class="ra-card"><div class="ra-card-head"><label><input type="checkbox" class="ra-select" data-id="${r.userId}" ${selectedIds.has(r.userId)?"checked":""}> <a href="${profileUrl(r.userId)}" target="_blank">${esc(r.name)}</a></label><b class="ra-fit">${scoutFitText(s)}</b></div><div class="ra-kpis"><span>MAN <b>${fmt(r.stats?.man)}</b></span><span>INT <b>${fmt(r.stats?.int)}</b></span><span>END <b>${fmt(r.stats?.end)}</b></span><span>TOTAL <b>${fmt(r.stats?.total)}</b></span><span>EE <b>${r.ee ?? "—"}</b></span><span>Trend <b>${trendText(s?.trend)}</b></span></div><div class="ra-row-actions"><button data-scout="${r.userId}">Scout</button>${s?`<button data-history="${r.userId}">History</button>`:""}<a href="${messageUrl(r.userId)}" target="_blank">Message</a></div></div>`;
     }
 
     function scoutTable(rows) {
@@ -698,13 +770,17 @@
         if (!box || !body) return;
         body.innerHTML = rows.length ? `<table class="ra-table"><thead><tr><th>Date</th><th>Original Fit</th><th>Current Fit</th><th>Type</th><th>Trend</th><th>Window</th></tr></thead><tbody>${rows.map(s=>`<tr><td>${new Date(s.capturedAt).toLocaleString()}</td><td>${s.originalFit??"—"}</td><td>${snapshotFit(s)??"—"}</td><td>${esc(s.originalFitType)}</td><td>${trendText(s.trend)}</td><td>${s.official?"30d":`${s.provisionalDays||"?"}d provisional`}</td></tr>`).join("")}</tbody></table>` : '<div class="ra-empty">No Scout history for this player.</div>';
         box.style.display = "flex";
+        bringManagedWindowToFront("history");
     }
 
     async function copyCsv() {
         const lines = [];
         if (mode === "scout") {
             lines.push("ID,Name,Fit,FitType,Trend,Level,AgeDays,NetWorth,Xan30,Hrs30,Ref30,Atk30,RW30,DataAge");
-            for (const s of resultRows) { const w=s.w30||s.provisionalSource||{}; lines.push([s.userId,`"${String(s.profile?.name||"").replaceAll('"','""')}"`,snapshotFit(s)??"",s.official?"official":"provisional",s.trend??"",s.profile?.level??"",s.profile?.age??"",s.extra?.networth??"",w.xanax??"",w.activityHours??"",w.refills??"",w.attacks??"",w.rwHits??"",ageText(s.capturedAt)].join(",")); }
+            for (const s of resultRows) {
+                const w=s.w30||s.provisionalSource||{};
+                lines.push([s.userId,`"${String(s.profile?.name||"").replaceAll('"','""')}"`,snapshotFit(s)??"",s.official?"official":"provisional",s.trend??"",s.profile?.level??"",s.profile?.age??"",s.extra?.networth??"",w.xanax??"",w.activityHours??"",w.refills??"",w.attacks??"",w.rwHits??"",ageText(s.capturedAt)].join(","));
+            }
         } else {
             lines.push("ID,Name,MAN,INT,END,TOTAL,EE,Company,Status,Fit,Trend");
             for (const r of resultRows) lines.push([r.userId,`"${String(r.name||"").replaceAll('"','""')}"`,r.stats?.man||0,r.stats?.int||0,r.stats?.end||0,r.stats?.total||0,r.ee??"",r.company||"",r.status||"",snapshotFit(r.scout||{})??"",r.scout?.trend??""].join(","));
@@ -713,50 +789,182 @@
         setStatus(`Copied ${resultRows.length} row(s) as CSV.`);
     }
 
-    function applyTheme() { document.documentElement.dataset.raTheme = settings.theme; document.documentElement.dataset.raDensity = settings.density; }
+    function applyTheme() {
+        document.documentElement.dataset.raTheme = settings.theme === "light" ? "light" : "dark";
+        document.documentElement.dataset.raDensity = settings.density;
+    }
+
+    function applyComplexityMode() {
+        const advanced = settings.complexity === "advanced";
+        document.documentElement.dataset.raComplexity = advanced ? "advanced" : "simple";
+        document.querySelectorAll(".ra-advanced-only").forEach(el => { el.hidden = !advanced; });
+        const simple = document.getElementById("ra-complexity-simple");
+        const adv = document.getElementById("ra-complexity-advanced");
+        simple?.classList.toggle("ra-active-toggle", !advanced);
+        adv?.classList.toggle("ra-active-toggle", advanced);
+    }
 
     async function saveScoutSettingsFromUI() {
-        const targets = {}, weights = {};
-        for (const key of Core.METRICS) { targets[key] = n(document.getElementById(`ra-target-${key}`)?.value, Core.DEFAULT_SCORING.targets[key]); weights[key] = n(document.getElementById(`ra-weight-${key}`)?.value, Core.DEFAULT_SCORING.weights[key]); }
+        const targets = {};
+        const weights = {};
+        for (const key of Core.METRICS) {
+            targets[key] = n(document.getElementById(`ra-target-${key}`)?.value, Core.DEFAULT_SCORING.targets[key]);
+            weights[key] = n(document.getElementById(`ra-weight-${key}`)?.value, Core.DEFAULT_SCORING.weights[key]);
+        }
         const filters = {...settings.scout.filters};
         ["minLevel","maxLevel","maxIdleDays","minFit","minNetworth","minActiveStreak","minBestStreak","minStatEnhancers"].forEach(k => filters[k] = n(document.getElementById(`ra-filter-${k}`)?.value));
-        filters.faction = document.getElementById("ra-filter-faction")?.value || "any"; filters.activity = document.getElementById("ra-filter-activity")?.value || "any";
-        const scout = {...settings.scout,
-            rate: n(document.getElementById("ra-rate")?.value,95), workers:n(document.getElementById("ra-workers")?.value,3), budget:n(document.getElementById("ra-budget")?.value,900), historyGapMs:n(document.getElementById("ra-history-gap")?.value,0), maxCandidates:n(document.getElementById("ra-max-candidates")?.value,60), autoScoutNew:!!document.getElementById("ra-auto-scout")?.checked,
-            scoring: Core.normalizeScoring({targets,weights}), filters
+        filters.faction = document.getElementById("ra-filter-faction")?.value || "any";
+        filters.activity = document.getElementById("ra-filter-activity")?.value || "any";
+        const scout = {
+            ...settings.scout,
+            rate: clampScoutRate(document.getElementById("ra-rate")?.value),
+            workers: n(document.getElementById("ra-workers")?.value,3),
+            budget: n(document.getElementById("ra-budget")?.value,900),
+            historyGapMs: n(document.getElementById("ra-history-gap")?.value,0),
+            maxCandidates: n(document.getElementById("ra-max-candidates")?.value,60),
+            autoScoutNew: !!document.getElementById("ra-auto-scout")?.checked,
+            scoring: Core.normalizeScoring({targets,weights}),
+            filters
         };
-        await saveMetaSettings({scout}); populateSettingsUI(); setStatus("Scout settings saved."); await refreshResults();
+        await saveMetaSettings({scout});
+        populateSettingsUI();
+        setStatus("Scout settings saved.");
+        await refreshResults();
     }
 
     function populateSettingsUI() {
         if (!settings) return;
-        for (const key of Core.METRICS) { const t=document.getElementById(`ra-target-${key}`), w=document.getElementById(`ra-weight-${key}`); if(t)t.value=settings.scout.scoring.targets[key]; if(w)w.value=settings.scout.scoring.weights[key]; }
-        const fields={rate:settings.scout.rate,workers:settings.scout.workers,budget:settings.scout.budget,"history-gap":settings.scout.historyGapMs,"max-candidates":settings.scout.maxCandidates}; Object.entries(fields).forEach(([k,v])=>{const e=document.getElementById(`ra-${k}`);if(e)e.value=v;});
-        const auto=document.getElementById("ra-auto-scout"); if(auto)auto.checked=!!settings.scout.autoScoutNew;
+        for (const key of Core.METRICS) {
+            const t=document.getElementById(`ra-target-${key}`);
+            const w=document.getElementById(`ra-weight-${key}`);
+            if(t)t.value=settings.scout.scoring.targets[key];
+            if(w)w.value=settings.scout.scoring.weights[key];
+        }
+        const fields={rate:settings.scout.rate,workers:settings.scout.workers,budget:settings.scout.budget,"history-gap":settings.scout.historyGapMs,"max-candidates":settings.scout.maxCandidates};
+        Object.entries(fields).forEach(([k,v])=>{const e=document.getElementById(`ra-${k}`);if(e)e.value=v;});
+        const auto=document.getElementById("ra-auto-scout");
+        if(auto)auto.checked=!!settings.scout.autoScoutNew;
         ["minLevel","maxLevel","maxIdleDays","minFit","minNetworth","minActiveStreak","minBestStreak","minStatEnhancers"].forEach(k=>{const e=document.getElementById(`ra-filter-${k}`);if(e)e.value=settings.scout.filters[k]||"";});
-        const ff=document.getElementById("ra-filter-faction");if(ff)ff.value=settings.scout.filters.faction; const fa=document.getElementById("ra-filter-activity");if(fa)fa.value=settings.scout.filters.activity;
+        const ff=document.getElementById("ra-filter-faction");if(ff)ff.value=settings.scout.filters.faction;
+        const fa=document.getElementById("ra-filter-activity");if(fa)fa.value=settings.scout.filters.activity;
         const cv=document.getElementById("ra-cache-verdict");if(cv)cv.textContent=`Cache test: ${settings.scout.cacheVerdict}`;
+        applyComplexityMode();
     }
 
     function injectStyles() {
         if (document.getElementById("ra-v4-css")) return;
-        const s=document.createElement("style");s.id="ra-v4-css";s.textContent=`
-:root{--ra-bg:#111827;--ra-bg2:#1f2937;--ra-line:#374151;--ra-text:#f3f4f6;--ra-muted:#9ca3af;--ra-accent:#22c55e;--ra-danger:#ef4444;--ra-pad:12px}
-:root[data-ra-theme="light"]{--ra-bg:#f8fafc;--ra-bg2:#fff;--ra-line:#cbd5e1;--ra-text:#0f172a;--ra-muted:#64748b;--ra-accent:#15803d;--ra-danger:#b91c1c}
+        const s=document.createElement("style");
+        s.id="ra-v4-css";
+        s.textContent=`
+:root{--ra-bg:#070b08;--ra-bg2:#101710;--ra-line:#245a2b;--ra-text:#39ff14;--ra-muted:#39ff14;--ra-accent:#39ff14;--ra-danger:#ff5757;--ra-pad:12px}
+:root[data-ra-theme="light"]{--ra-bg:#f8fafc;--ra-bg2:#ffffff;--ra-line:#cbd5e1;--ra-text:#000000;--ra-muted:#111111;--ra-accent:#15803d;--ra-danger:#b91c1c}
 :root[data-ra-density="compact"]{--ra-pad:7px}
-#ra-launch,#ra-panel,#ra-results-panel,.ra-modal-box{font:12px/1.35 Arial,sans-serif;color:var(--ra-text);background:var(--ra-bg);border:1px solid var(--ra-line);box-shadow:0 12px 35px #0008;box-sizing:border-box}
-#ra-launch{position:fixed;right:12px;bottom:70px;z-index:2147483645;border-radius:999px;width:52px;height:52px;font-weight:900;color:white;background:linear-gradient(#22c55e,#15803d);cursor:pointer}
-#ra-panel{position:fixed;right:18px;top:70px;width:560px;max-width:calc(100vw - 24px);max-height:calc(100vh - 90px);z-index:2147483644;border-radius:12px;display:none;overflow:auto}
-#ra-results-panel{position:fixed;left:5vw;top:8vh;width:90vw;height:78vh;z-index:2147483643;border-radius:12px;display:none;overflow:hidden;flex-direction:column}
-.ra-head{padding:10px 12px;background:var(--ra-bg2);border-bottom:1px solid var(--ra-line);display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:move;position:sticky;top:0;z-index:4}.ra-head b{font-size:14px}.ra-head-actions{display:flex;gap:5px}.ra-head button,.ra-btn,.ra-row-actions button,.ra-row-actions a,.ra-table button{border:1px solid var(--ra-line);border-radius:7px;padding:6px 8px;background:var(--ra-bg2);color:var(--ra-text);cursor:pointer;text-decoration:none;font-weight:700}.ra-btn-primary{border-color:var(--ra-accent)!important}.ra-btn-danger{border-color:var(--ra-danger)!important}.ra-inner{padding:var(--ra-pad)}#ra-status{font-weight:700;margin:0 0 9px;color:var(--ra-accent)}#ra-status.ra-bad{color:var(--ra-danger)}.ra-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.ra-grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.ra-field label{display:block;color:var(--ra-muted);font-size:10px;font-weight:900;text-transform:uppercase;margin-bottom:3px}.ra-field input,.ra-field select{width:100%;box-sizing:border-box;padding:7px;border-radius:7px;border:1px solid var(--ra-line);background:var(--ra-bg2);color:var(--ra-text)}.ra-actions{display:flex;gap:6px;flex-wrap:wrap;margin:9px 0}.ra-actions .ra-btn{flex:1}.ra-section{border-top:1px solid var(--ra-line);padding-top:10px;margin-top:10px}.ra-section summary{cursor:pointer;font-weight:900}.ra-mode-only{display:none}.ra-progress{height:7px;background:var(--ra-line);border-radius:9px;overflow:hidden}.ra-progress>div{height:100%;width:0;background:var(--ra-accent)}#ra-progress-text{color:var(--ra-muted);font-size:10px;text-align:center}.ra-results-tools{padding:8px;border-bottom:1px solid var(--ra-line);display:flex;gap:7px;align-items:center;flex-wrap:wrap;background:var(--ra-bg2)}#ra-results-body{overflow:auto;flex:1}.ra-table{border-collapse:collapse;width:100%;min-width:900px}.ra-table th,.ra-table td{padding:6px;border-bottom:1px solid var(--ra-line);white-space:nowrap;text-align:left}.ra-table th{position:sticky;top:0;background:var(--ra-bg2);z-index:2}.ra-table td small{display:block;color:var(--ra-muted)}.ra-table a,.ra-card a{color:var(--ra-text)}.ra-fit{color:#fbbf24}.ra-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:8px;padding:8px}.ra-card{border:1px solid var(--ra-line);border-radius:10px;padding:10px;background:var(--ra-bg2)}.ra-card-head{display:flex;justify-content:space-between;gap:8px}.ra-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin:8px 0}.ra-kpis span{background:color-mix(in srgb,var(--ra-bg) 80%,transparent);padding:5px;border-radius:5px;color:var(--ra-muted)}.ra-kpis b{display:block;color:var(--ra-text)}.ra-row-actions{display:flex;align-items:center;gap:5px;flex-wrap:wrap}.ra-row-actions small{margin-left:auto;color:var(--ra-muted)}.ra-empty{padding:18px;color:var(--ra-muted)}.ra-modal{position:fixed;inset:0;background:#0009;z-index:2147483647;display:none;align-items:center;justify-content:center;padding:15px}.ra-modal-box{width:min(900px,96vw);max-height:88vh;overflow:auto;border-radius:12px}.ra-modal-body{padding:12px}.ra-score-row{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:6px;align-items:end;margin:5px 0}.ra-score-row span{font-weight:900}.ra-note{color:var(--ra-muted);font-size:10px}@media(max-width:700px){#ra-panel{left:6px;right:6px;top:45px;width:auto}.ra-grid,.ra-grid3{grid-template-columns:1fr}.ra-kpis{grid-template-columns:repeat(2,1fr)}#ra-results-panel{left:2vw;top:5vh;width:96vw;height:85vh}}
-`;document.head.appendChild(s);
+#ra-launch,#ra-panel,#ra-results-panel,#ra-history{font:12px/1.35 Arial,sans-serif;color:var(--ra-text);background:var(--ra-bg);border:1px solid var(--ra-line);box-shadow:0 12px 35px #0008;box-sizing:border-box}
+#ra-panel input,#ra-panel select,#ra-panel textarea,#ra-panel button,#ra-panel a,#ra-panel label,#ra-panel summary,#ra-results-panel input,#ra-results-panel select,#ra-results-panel textarea,#ra-results-panel button,#ra-results-panel a,#ra-results-panel table,#ra-results-panel th,#ra-results-panel td,#ra-history input,#ra-history button,#ra-history a,#ra-history table,#ra-history th,#ra-history td{color:var(--ra-text)}
+#ra-launch{position:fixed;right:12px;bottom:70px;z-index:2147483645;border-radius:999px;width:52px;height:52px;font-weight:900;color:#001900;background:var(--ra-accent);cursor:pointer;display:none}
+#ra-panel{position:fixed;left:calc(100vw - 590px);top:70px;width:560px;height:620px;z-index:2147483401;border-radius:12px;display:none;overflow:auto;resize:both;min-width:360px;min-height:300px;max-width:calc(100vw - 8px);max-height:calc(100vh - 8px)}
+#ra-results-panel{position:fixed;left:5vw;top:8vh;width:90vw;height:78vh;z-index:2147483402;border-radius:12px;display:none;overflow:hidden;flex-direction:column;resize:both;min-width:520px;min-height:320px;max-width:calc(100vw - 8px);max-height:calc(100vh - 8px)}
+#ra-history{position:fixed;left:18vw;top:14vh;width:760px;height:500px;z-index:2147483403;border-radius:12px;display:none;overflow:hidden;flex-direction:column;resize:both;min-width:420px;min-height:260px;max-width:calc(100vw - 8px);max-height:calc(100vh - 8px)}
+.ra-head{padding:10px 12px;background:var(--ra-bg2);border-bottom:1px solid var(--ra-line);display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:move;position:sticky;top:0;z-index:4}.ra-head b{font-size:14px}.ra-head-actions{display:flex;gap:5px;align-items:center}.ra-head button,.ra-btn,.ra-row-actions button,.ra-row-actions a,.ra-table button{border:1px solid var(--ra-line);border-radius:7px;padding:6px 8px;background:var(--ra-bg2);color:var(--ra-text);cursor:pointer;text-decoration:none;font-weight:700}.ra-btn-primary{border-color:var(--ra-accent)!important}.ra-btn-danger{border-color:var(--ra-danger)!important}.ra-inner{padding:var(--ra-pad)}#ra-status{font-weight:700;margin:0 0 9px;color:var(--ra-accent)}#ra-status.ra-bad{color:var(--ra-danger)}.ra-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.ra-grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.ra-field label{display:block;color:var(--ra-muted);font-size:10px;font-weight:900;text-transform:uppercase;margin-bottom:3px}.ra-field input,.ra-field select,.ra-field textarea{width:100%;box-sizing:border-box;padding:7px;border-radius:7px;border:1px solid var(--ra-line);background:var(--ra-bg2);color:var(--ra-text)}.ra-actions{display:flex;gap:6px;flex-wrap:wrap;margin:9px 0}.ra-actions .ra-btn{flex:1}.ra-section{border-top:1px solid var(--ra-line);padding-top:10px;margin-top:10px}.ra-section summary{cursor:pointer;font-weight:900}.ra-mode-only{display:none}.ra-progress{height:7px;background:var(--ra-line);border-radius:9px;overflow:hidden}.ra-progress>div{height:100%;width:0;background:var(--ra-accent)}#ra-progress-text{color:var(--ra-muted);font-size:10px;text-align:center}.ra-results-tools{padding:8px;border-bottom:1px solid var(--ra-line);display:flex;gap:7px;align-items:center;flex-wrap:wrap;background:var(--ra-bg2)}#ra-results-body,.ra-history-body{overflow:auto;flex:1}.ra-table{border-collapse:collapse;width:100%;min-width:900px;color:var(--ra-text)}.ra-table th,.ra-table td{padding:6px;border-bottom:1px solid var(--ra-line);white-space:nowrap;text-align:left}.ra-table th{position:sticky;top:0;background:var(--ra-bg2);z-index:2}.ra-table td small{display:block;color:var(--ra-muted)}.ra-table a,.ra-card a{color:var(--ra-text)}.ra-fit{color:#fbbf24}.ra-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:8px;padding:8px}.ra-card{border:1px solid var(--ra-line);border-radius:10px;padding:10px;background:var(--ra-bg2)}.ra-card-head{display:flex;justify-content:space-between;gap:8px}.ra-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin:8px 0}.ra-kpis span{background:color-mix(in srgb,var(--ra-bg) 80%,transparent);padding:5px;border-radius:5px;color:var(--ra-muted)}.ra-kpis b{display:block;color:var(--ra-text)}.ra-row-actions{display:flex;align-items:center;gap:5px;flex-wrap:wrap}.ra-row-actions small{margin-left:auto;color:var(--ra-muted)}.ra-empty{padding:18px;color:var(--ra-muted)}.ra-score-row{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:6px;align-items:end;margin:5px 0}.ra-score-row span{font-weight:900}.ra-note{color:var(--ra-muted);font-size:10px}.ra-complexity-toggle{display:flex;gap:3px}.ra-complexity-toggle button{padding:4px 7px;font-size:10px}.ra-active-toggle{outline:1px solid var(--ra-accent);box-shadow:0 0 8px color-mix(in srgb,var(--ra-accent) 55%,transparent)}.ra-advanced-only[hidden]{display:none!important}
+#ra-sidebar-launcher{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;margin:0 2px;cursor:pointer;border-radius:5px;color:#39ff14}.ra-sidebar-launcher-svg{width:18px;height:18px;display:block}.ra-sidebar-launcher-svg path,.ra-sidebar-launcher-svg circle{stroke:currentColor}
+@media(max-width:700px){#ra-panel{left:6px;top:45px;width:calc(100vw - 12px);height:70vh}.ra-grid,.ra-grid3{grid-template-columns:1fr}.ra-kpis{grid-template-columns:repeat(2,1fr)}#ra-results-panel{left:2vw;top:5vh;width:96vw;height:85vh}#ra-history{left:4vw;top:10vh;width:92vw;height:70vh}}
+`;
+        document.head.appendChild(s);
     }
 
-    function makeDraggable(box, handle) {
-        let down=false,dx=0,dy=0;
-        handle.addEventListener("pointerdown",e=>{if(e.target.closest("button,input,select,a"))return;down=true;const r=box.getBoundingClientRect();dx=e.clientX-r.left;dy=e.clientY-r.top;handle.setPointerCapture?.(e.pointerId);e.preventDefault();});
-        handle.addEventListener("pointermove",e=>{if(!down)return;box.style.left=`${Math.max(4,Math.min(innerWidth-box.offsetWidth-4,e.clientX-dx))}px`;box.style.top=`${Math.max(4,Math.min(innerHeight-box.offsetHeight-4,e.clientY-dy))}px`;box.style.right="auto";});
-        handle.addEventListener("pointerup",e=>{down=false;try{handle.releasePointerCapture(e.pointerId);}catch{}});
+    function clampGeometry(geometry, defaults = {}) {
+        const margin = 4;
+        const minW = defaults.minWidth || 320;
+        const minH = defaults.minHeight || 220;
+        const width = Math.max(minW, Math.min(n(geometry?.width, defaults.width || 560), Math.max(minW, innerWidth - margin * 2)));
+        const height = Math.max(minH, Math.min(n(geometry?.height, defaults.height || 500), Math.max(minH, innerHeight - margin * 2)));
+        const maxX = Math.max(margin, innerWidth - 48);
+        const maxY = Math.max(margin, innerHeight - 48);
+        const x = Math.max(margin, Math.min(n(geometry?.x, defaults.x ?? margin), maxX));
+        const y = Math.max(margin, Math.min(n(geometry?.y, defaults.y ?? margin), maxY));
+        return {x, y, width, height};
+    }
+
+    async function restoreWindowGeometry(id, element, defaults) {
+        const meta = await getMeta();
+        const saved = meta.ui?.windowGeometry?.[id];
+        const g = clampGeometry(saved, defaults);
+        element.style.left = `${g.x}px`;
+        element.style.top = `${g.y}px`;
+        element.style.width = `${g.width}px`;
+        element.style.height = `${g.height}px`;
+        element.style.right = "auto";
+        return g;
+    }
+
+    async function persistWindowGeometry(id, element) {
+        if (!element?.isConnected) return;
+        const r = element.getBoundingClientRect();
+        const defaults = managedWindows.get(id)?.defaults || {};
+        const g = clampGeometry({x:r.left,y:r.top,width:r.width,height:r.height}, defaults);
+        await saveWindowGeometry(id, g);
+    }
+
+    function bringManagedWindowToFront(id) {
+        const item = managedWindows.get(id);
+        if (!item) return;
+        topZ += 1;
+        item.element.style.zIndex = String(topZ);
+    }
+
+    function registerManagedWindow(id, element, handle, defaults = {}) {
+        if (!element || !handle) return;
+        managedWindows.set(id, {element, handle, defaults});
+        restoreWindowGeometry(id, element, defaults).catch(console.warn);
+        element.style.resize = "both";
+        element.addEventListener("pointerdown", () => bringManagedWindowToFront(id));
+
+        let dragging = false;
+        let dx = 0;
+        let dy = 0;
+        handle.addEventListener("pointerdown", e => {
+            if (e.target.closest("button,input,select,a,label")) return;
+            dragging = true;
+            bringManagedWindowToFront(id);
+            const r = element.getBoundingClientRect();
+            dx = e.clientX - r.left;
+            dy = e.clientY - r.top;
+            handle.setPointerCapture?.(e.pointerId);
+            e.preventDefault();
+        });
+        handle.addEventListener("pointermove", e => {
+            if (!dragging) return;
+            const g = clampGeometry({x:e.clientX-dx,y:e.clientY-dy,width:element.offsetWidth,height:element.offsetHeight}, defaults);
+            element.style.left = `${g.x}px`;
+            element.style.top = `${g.y}px`;
+            element.style.right = "auto";
+        });
+        handle.addEventListener("pointerup", e => {
+            if (!dragging) return;
+            dragging = false;
+            try { handle.releasePointerCapture(e.pointerId); } catch {}
+            persistWindowGeometry(id, element).catch(console.warn);
+        });
+
+        let resizeTimer = null;
+        const ro = new ResizeObserver(() => {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(() => persistWindowGeometry(id, element).catch(console.warn), 250);
+        });
+        ro.observe(element);
+        managedWindows.get(id).resizeObserver = ro;
+    }
+
+    function recoverManagedWindows() {
+        for (const [id, item] of managedWindows) {
+            const r = item.element.getBoundingClientRect();
+            const g = clampGeometry({x:r.left,y:r.top,width:r.width,height:r.height}, item.defaults);
+            item.element.style.left = `${g.x}px`;
+            item.element.style.top = `${g.y}px`;
+            item.element.style.width = `${g.width}px`;
+            item.element.style.height = `${g.height}px`;
+            persistWindowGeometry(id, item.element).catch(console.warn);
+        }
     }
 
     function scoreRowsHtml() {
@@ -764,60 +972,211 @@
         return Core.METRICS.map(k=>`<div class="ra-score-row"><span>${labels[k]}</span><div class="ra-field"><label>Target</label><input id="ra-target-${k}" type="number" min="0"></div><div class="ra-field"><label>Weight</label><input id="ra-weight-${k}" type="number" min="0"></div></div>`).join("");
     }
 
+    function simpleScoutFiltersHtml() {
+        return `<div class="ra-grid3"><div class="ra-field"><label>Faction</label><select id="ra-filter-faction"><option value="any">Any</option><option value="none">No faction</option><option value="has">Has faction</option></select></div><div class="ra-field"><label>Activity</label><select id="ra-filter-activity"><option value="any">Any</option><option value="online">Online</option><option value="active">Active ≤1d</option></select></div><div class="ra-field"><label>Min level</label><input id="ra-filter-minLevel" type="number"></div><div class="ra-field"><label>Min Fit</label><input id="ra-filter-minFit" type="number"></div></div>`;
+    }
+
+    function advancedScoutFiltersHtml() {
+        return `<div class="ra-advanced-only"><div class="ra-grid3"><div class="ra-field"><label>Max level</label><input id="ra-filter-maxLevel" type="number"></div><div class="ra-field"><label>Max idle days</label><input id="ra-filter-maxIdleDays" type="number"></div><div class="ra-field"><label>Min net worth</label><input id="ra-filter-minNetworth" type="number"></div><div class="ra-field"><label>Min active streak</label><input id="ra-filter-minActiveStreak" type="number"></div><div class="ra-field"><label>Min best streak</label><input id="ra-filter-minBestStreak" type="number"></div><div class="ra-field"><label>Min stat enhancers</label><input id="ra-filter-minStatEnhancers" type="number"></div></div></div>`;
+    }
+
     function mountUI() {
-        if (uiMounted) return; uiMounted=true; injectStyles();
-        const launch=document.createElement("button");launch.id="ra-launch";launch.textContent="RA";launch.title="Recruitment Agency v4";document.body.appendChild(launch);
-        const panel=document.createElement("div");panel.id="ra-panel";panel.innerHTML=`<div class="ra-head" id="ra-drag"><b>Recruitment Agency <span class="ra-note">v${SCRIPT_VERSION}</span></b><div class="ra-head-actions"><button id="ra-open-results">Results</button><button id="ra-close">×</button></div></div><div class="ra-inner"><div id="ra-status">Ready.</div><div class="ra-grid"><div class="ra-field"><label>Mode</label><select id="ra-mode"><option value="company">Company</option><option value="faction">Faction</option><option value="scout">Scout</option></select></div><div class="ra-field"><label>Sort</label><select id="ra-sort"><option value="fit">Fit</option><option value="recent">Newest / recent</option><option value="trend">Trend</option><option value="name">Name</option><option value="level">Level</option><option value="networth">Net worth</option></select></div></div>
-<div id="ra-forum-controls" class="ra-mode-only"><div class="ra-grid"><div class="ra-field"><label>Target thread ID / URL</label><input id="ra-target-thread" placeholder="Thread ID or URL"></div><div class="ra-field"><label>Scope</label><select id="ra-forum-scope"><option value="thread">Single thread</option><option value="category">Whole category</option></select></div><div class="ra-field"><label>Days back (0 = all)</label><input id="ra-forum-days" type="number" min="0"></div><div class="ra-field"><label>Name / ID filter</label><input id="ra-search"></div></div><div class="ra-grid3"><div class="ra-field"><label>MAN ≥</label><input id="ra-min-man" type="number"></div><div class="ra-field"><label>INT ≥</label><input id="ra-min-int" type="number"></div><div class="ra-field"><label>END ≥</label><input id="ra-min-end" type="number"></div></div><div class="ra-field"><label>TOTAL ≥</label><input id="ra-min-total" type="number"></div><div class="ra-actions"><button class="ra-btn ra-btn-primary" id="ra-full-scan">Full Scan</button><button class="ra-btn ra-btn-primary" id="ra-update-scan">Update Scan</button><button class="ra-btn" id="ra-open-thread">Open Thread</button></div></div>
-<div id="ra-scout-controls" class="ra-mode-only"><div class="ra-field"><label>Player IDs / profile URLs</label><textarea id="ra-direct-ids" style="width:100%;height:54px;box-sizing:border-box;background:var(--ra-bg2);color:var(--ra-text);border:1px solid var(--ra-line);border-radius:7px" placeholder="3877028, profile URLs, etc."></textarea></div><div class="ra-actions"><button class="ra-btn ra-btn-primary" id="ra-scout-ids">Scout IDs</button><button class="ra-btn ra-btn-primary" id="ra-scout-page">Scout Search Users Page</button><button class="ra-btn" id="ra-reread-page">Read Page</button></div><div id="ra-page-count" class="ra-note"></div></div>
-<div class="ra-progress"><div id="ra-progress-fill"></div></div><div id="ra-progress-text">Idle</div><div class="ra-actions"><button class="ra-btn" id="ra-pause-scout">Pause</button><button class="ra-btn ra-btn-danger" id="ra-cancel-scout" disabled>Cancel</button><button class="ra-btn" id="ra-scout-selected">Scout Selected</button><button class="ra-btn" id="ra-scout-all">Scout All</button></div>
-<details class="ra-section"><summary>Scout filters</summary><div class="ra-grid3"><div class="ra-field"><label>Faction</label><select id="ra-filter-faction"><option value="any">Any</option><option value="none">No faction</option><option value="has">Has faction</option></select></div><div class="ra-field"><label>Activity</label><select id="ra-filter-activity"><option value="any">Any</option><option value="online">Online</option><option value="active">Active ≤1d</option></select></div>${["minLevel","maxLevel","maxIdleDays","minFit","minNetworth","minActiveStreak","minBestStreak","minStatEnhancers"].map(k=>`<div class="ra-field"><label>${k}</label><input id="ra-filter-${k}" type="number"></div>`).join("")}</div><button class="ra-btn" id="ra-apply-filters">Apply filters</button></details>
-<details class="ra-section"><summary>Settings & Fit formula</summary><div class="ra-grid3"><div class="ra-field"><label>API calls/min</label><input id="ra-rate" type="number"></div><div class="ra-field"><label>Workers</label><input id="ra-workers" type="number"></div><div class="ra-field"><label>Call budget</label><input id="ra-budget" type="number"></div><div class="ra-field"><label>History gap ms</label><input id="ra-history-gap" type="number"></div><div class="ra-field"><label>Max candidates</label><input id="ra-max-candidates" type="number"></div><div class="ra-field"><label>Auto Scout new</label><input id="ra-auto-scout" type="checkbox" style="width:auto"></div></div>${scoreRowsHtml()}<div class="ra-actions"><button class="ra-btn ra-btn-primary" id="ra-save-scout-settings">Save Scout Settings</button><button class="ra-btn" id="ra-cache-test">Run cache test</button><span id="ra-cache-verdict" class="ra-note"></span></div><div class="ra-actions"><button class="ra-btn" id="ra-change-key">Set / Change API Key</button><button class="ra-btn" id="ra-theme">Theme</button><button class="ra-btn" id="ra-density">Density</button><button class="ra-btn" id="ra-view">Table / Cards</button><label><input id="ra-include-inactive" type="checkbox"> Include inactive forum posts</label></div></details></div>`;document.body.appendChild(panel);
-        const results=document.createElement("div");results.id="ra-results-panel";results.innerHTML=`<div class="ra-head" id="ra-results-drag"><b>Recruitment Results</b><div class="ra-head-actions"><button id="ra-copy">Copy CSV</button><button id="ra-results-close">×</button></div></div><div class="ra-results-tools"><span id="ra-results-meta"></span><button class="ra-btn" id="ra-results-refresh">Refresh</button><button class="ra-btn" id="ra-select-all">Select all</button><button class="ra-btn" id="ra-clear-select">Clear selection</button></div><div id="ra-results-body"></div>`;document.body.appendChild(results);
-        const history=document.createElement("div");history.id="ra-history";history.className="ra-modal";history.innerHTML=`<div class="ra-modal-box"><div class="ra-head"><b>Scout History</b><button id="ra-history-close">×</button></div><div class="ra-modal-body" id="ra-history-body"></div></div>`;document.body.appendChild(history);
-        makeDraggable(panel,panel.querySelector("#ra-drag"));makeDraggable(results,results.querySelector("#ra-results-drag"));
-        bindUI(); applyTheme(); populateSettingsUI(); syncModeUI();
+        if (uiMounted) return;
+        uiMounted=true;
+        injectStyles();
+
+        const launch=document.createElement("button");
+        launch.id="ra-launch";
+        launch.textContent="RA";
+        launch.title="Recruitment Agency fallback launcher";
+        document.body.appendChild(launch);
+
+        const panel=document.createElement("div");
+        panel.id="ra-panel";
+        panel.innerHTML=`<div class="ra-head" id="ra-drag"><b>Recruitment Agency <span class="ra-note">v${SCRIPT_VERSION}</span></b><div class="ra-head-actions"><div class="ra-complexity-toggle"><button id="ra-complexity-simple">Simple</button><button id="ra-complexity-advanced">Advanced</button></div><button id="ra-open-results">Results</button><button id="ra-close">×</button></div></div><div class="ra-inner"><div id="ra-status">Ready.</div><div class="ra-grid"><div class="ra-field"><label>Mode</label><select id="ra-mode"><option value="company">Company</option><option value="faction">Faction</option><option value="scout">Scout</option></select></div><div class="ra-field"><label>Sort</label><select id="ra-sort"><option value="fit">Fit</option><option value="recent">Newest / recent</option><option value="trend">Trend</option><option value="name">Name</option><option value="level">Level</option><option value="networth">Net worth</option></select></div></div>
+<div id="ra-forum-controls" class="ra-mode-only"><div class="ra-grid"><div class="ra-field"><label>Target thread ID / URL</label><input id="ra-target-thread" placeholder="Thread ID or URL"></div><div class="ra-field ra-advanced-only"><label>Scope</label><select id="ra-forum-scope"><option value="thread">Single thread</option><option value="category">Whole category</option></select></div><div class="ra-field ra-advanced-only"><label>Days back (0 = all)</label><input id="ra-forum-days" type="number" min="0"></div><div class="ra-field"><label>Name / ID filter</label><input id="ra-search"></div></div><div class="ra-grid3"><div class="ra-field"><label>MAN ≥</label><input id="ra-min-man" type="number"></div><div class="ra-field"><label>INT ≥</label><input id="ra-min-int" type="number"></div><div class="ra-field"><label>END ≥</label><input id="ra-min-end" type="number"></div></div><div class="ra-field"><label>TOTAL ≥</label><input id="ra-min-total" type="number"></div><div class="ra-actions"><button class="ra-btn ra-btn-primary" id="ra-full-scan">Full Scan</button><button class="ra-btn ra-btn-primary" id="ra-update-scan">Update Scan</button><button class="ra-btn" id="ra-open-thread">Open Thread</button></div></div>
+<div id="ra-scout-controls" class="ra-mode-only"><div class="ra-field"><label>Player IDs / profile URLs</label><textarea id="ra-direct-ids" placeholder="3877028, profile URLs, etc."></textarea></div><div class="ra-actions"><button class="ra-btn ra-btn-primary" id="ra-scout-ids">Scout IDs</button><button class="ra-btn ra-btn-primary" id="ra-scout-page">Scout Search Users Page</button><button class="ra-btn ra-advanced-only" id="ra-reread-page">Read Page</button></div><div id="ra-page-count" class="ra-note"></div></div>
+<div class="ra-progress"><div id="ra-progress-fill"></div></div><div id="ra-progress-text">Idle</div><div class="ra-actions"><button class="ra-btn ra-advanced-only" id="ra-pause-scout">Pause</button><button class="ra-btn ra-btn-danger ra-advanced-only" id="ra-cancel-scout" disabled>Cancel</button><button class="ra-btn" id="ra-scout-selected">Scout Selected</button><button class="ra-btn" id="ra-scout-all">Scout All</button></div>
+<details class="ra-section"><summary>Scout filters</summary>${simpleScoutFiltersHtml()}${advancedScoutFiltersHtml()}<button class="ra-btn" id="ra-apply-filters">Apply filters</button></details>
+<details class="ra-section"><summary>Fit Settings</summary>${scoreRowsHtml()}<div class="ra-actions"><button class="ra-btn ra-btn-primary" id="ra-save-scout-settings">Save Fit / Scout Settings</button></div></details>
+<details class="ra-section ra-advanced-only"><summary>Advanced Settings</summary><div class="ra-grid3"><div class="ra-field"><label>API calls/min</label><input id="ra-rate" type="number" min="10" max="75" step="1"></div><div class="ra-field"><label>Workers</label><input id="ra-workers" type="number" min="1" max="8"></div><div class="ra-field"><label>Call budget</label><input id="ra-budget" type="number" min="1"></div><div class="ra-field"><label>History gap ms</label><input id="ra-history-gap" type="number" min="0"></div><div class="ra-field"><label>Max candidates</label><input id="ra-max-candidates" type="number" min="1"></div><div class="ra-field"><label>Auto Scout new</label><input id="ra-auto-scout" type="checkbox" style="width:auto"></div></div><div class="ra-actions"><button class="ra-btn" id="ra-cache-test">Run cache test</button><span id="ra-cache-verdict" class="ra-note"></span></div><div class="ra-actions"><button class="ra-btn" id="ra-change-key">Set / Change API Key</button><button class="ra-btn" id="ra-density">Density</button><button class="ra-btn" id="ra-view">Table / Cards</button><label><input id="ra-include-inactive" type="checkbox"> Include inactive forum posts</label></div></details><div class="ra-actions"><button class="ra-btn" id="ra-theme">Theme</button></div></div>`;
+        document.body.appendChild(panel);
+
+        const results=document.createElement("div");
+        results.id="ra-results-panel";
+        results.innerHTML=`<div class="ra-head" id="ra-results-drag"><b>Recruitment Results</b><div class="ra-head-actions"><button id="ra-copy">Copy CSV</button><button id="ra-results-close">×</button></div></div><div class="ra-results-tools"><span id="ra-results-meta"></span><button class="ra-btn" id="ra-results-refresh">Refresh</button><button class="ra-btn" id="ra-select-all">Select all</button><button class="ra-btn" id="ra-clear-select">Clear selection</button></div><div id="ra-results-body"></div>`;
+        document.body.appendChild(results);
+
+        const history=document.createElement("div");
+        history.id="ra-history";
+        history.innerHTML=`<div class="ra-head" id="ra-history-drag"><b>Scout History</b><div class="ra-head-actions"><button id="ra-history-close">×</button></div></div><div class="ra-history-body" id="ra-history-body"></div>`;
+        document.body.appendChild(history);
+
+        registerManagedWindow("main", panel, panel.querySelector("#ra-drag"), {x:Math.max(4,innerWidth-590),y:70,width:560,height:620,minWidth:360,minHeight:300});
+        registerManagedWindow("results", results, results.querySelector("#ra-results-drag"), {x:Math.max(4,innerWidth*0.05),y:Math.max(4,innerHeight*0.08),width:Math.max(520,innerWidth*0.9),height:Math.max(320,innerHeight*0.78),minWidth:520,minHeight:320});
+        registerManagedWindow("history", history, history.querySelector("#ra-history-drag"), {x:Math.max(4,innerWidth*0.18),y:Math.max(4,innerHeight*0.14),width:760,height:500,minWidth:420,minHeight:260});
+
+        bindUI();
+        applyTheme();
+        populateSettingsUI();
+        syncModeUI();
+        ensureSidebarLauncher();
+        syncFallbackLauncher();
     }
 
     function syncModeUI() {
-        document.getElementById("ra-mode").value=mode; document.getElementById("ra-sort").value=settings.resultSort || "fit";
-        const forum=document.getElementById("ra-forum-controls"), scout=document.getElementById("ra-scout-controls"); if(forum)forum.style.display=mode==="scout"?"none":"block";if(scout)scout.style.display=mode==="scout"?"block":"none";
-        const thread=document.getElementById("ra-target-thread"); if(thread)thread.value=activeThreadId || ""; const scope=document.getElementById("ra-forum-scope");if(scope)scope.value=settings.forumScope;const days=document.getElementById("ra-forum-days");if(days)days.value=settings.forumDays;const inc=document.getElementById("ra-include-inactive");if(inc)inc.checked=!!settings.includeInactive;
+        const modeEl = document.getElementById("ra-mode");
+        const sortEl = document.getElementById("ra-sort");
+        if (modeEl) modeEl.value=mode;
+        if (sortEl) sortEl.value=settings.resultSort || "fit";
+        const forum=document.getElementById("ra-forum-controls");
+        const scout=document.getElementById("ra-scout-controls");
+        if(forum)forum.style.display=mode==="scout"?"none":"block";
+        if(scout)scout.style.display=mode==="scout"?"block":"none";
+        const thread=document.getElementById("ra-target-thread"); if(thread)thread.value=activeThreadId || "";
+        const scope=document.getElementById("ra-forum-scope");if(scope)scope.value=settings.forumScope;
+        const days=document.getElementById("ra-forum-days");if(days)days.value=settings.forumDays;
+        const inc=document.getElementById("ra-include-inactive");if(inc)inc.checked=!!settings.includeInactive;
         refreshPageCount();
+        applyComplexityMode();
     }
 
-    function refreshPageCount() { const el=document.getElementById("ra-page-count");if(!el)return;const c=readSearchUsersPage();el.textContent=`${c.length} unique player(s) detected on this page.`; }
+    function refreshPageCount() {
+        const el=document.getElementById("ra-page-count");
+        if(!el)return;
+        const c=readSearchUsersPage();
+        el.textContent=`${c.length} unique player(s) detected on this page.`;
+    }
 
     async function switchMode(newMode) {
-        mode=newMode; selectedIds.clear(); const meta=await getMeta();activeThreadId=meta.syncHistory?.[mode]?.lastThreadId || (mode==="company"?DEFAULT_COMPANY_THREAD_ID:mode==="faction"?DEFAULT_FACTION_THREAD_ID:"");await saveMetaSettings({activeMode:mode});syncModeUI();await refreshResults();setStatus(`${modeLabel(mode)} mode loaded.`);
+        mode=newMode;
+        selectedIds.clear();
+        const meta=await getMeta();
+        activeThreadId=meta.syncHistory?.[mode]?.lastThreadId || (mode==="company"?DEFAULT_COMPANY_THREAD_ID:mode==="faction"?DEFAULT_FACTION_THREAD_ID:"");
+        await saveMetaSettings({activeMode:mode});
+        syncModeUI();
+        await refreshResults();
+        setStatus(`${modeLabel(mode)} mode loaded.`);
+    }
+
+    function openMainWindow() {
+        const panel = document.getElementById("ra-panel");
+        if (!panel) return;
+        panel.style.display = "block";
+        bringManagedWindowToFront("main");
+    }
+
+    function findInformationSection() {
+        const nodes = [...document.querySelectorAll("h1,h2,h3,h4,h5,h6,div,span")].filter(el => /^information$/i.test(String(el.textContent || "").trim()));
+        for (const label of nodes) {
+            let section = label.parentElement;
+            for (let depth = 0; section && depth < 5; depth++, section = section.parentElement) {
+                const links = section.querySelectorAll("a,button,[role='button']");
+                if (links.length >= 2 && links.length <= 30) return section;
+            }
+        }
+        return null;
+    }
+
+    function ensureSidebarLauncher() {
+        if (document.getElementById("ra-sidebar-launcher")) return true;
+        const section = findInformationSection();
+        if (!section) return false;
+        const candidates = [...section.querySelectorAll("div,nav,ul")].filter(el => {
+            const count = el.querySelectorAll(":scope > a,:scope > button,:scope > [role='button']").length;
+            return count >= 2 && count <= 15;
+        });
+        const row = candidates.sort((a,b) => b.querySelectorAll("a,button,[role='button']").length - a.querySelectorAll("a,button,[role='button']").length)[0] || section;
+        const launcher = document.createElement("button");
+        launcher.id = "ra-sidebar-launcher";
+        launcher.type = "button";
+        launcher.title = "Recruitment Agency";
+        launcher.setAttribute("aria-label", "Recruitment Agency");
+        launcher.style.cssText = "border:0;background:transparent;padding:0;vertical-align:middle;";
+        launcher.innerHTML = `<svg class="ra-sidebar-launcher-svg" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="3" stroke-width="2"/><circle cx="16" cy="8" r="3" stroke-width="2"/><path d="M3 19c.6-3.2 2.4-5 5-5s4.4 1.8 5 5M11 19c.5-2.7 2.2-4.5 5-4.5 2.5 0 4.2 1.6 5 4.5" stroke-width="2" stroke-linecap="round"/></svg>`;
+        launcher.addEventListener("click", openMainWindow);
+        row.appendChild(launcher);
+        return true;
+    }
+
+    function syncFallbackLauncher() {
+        const fallback = document.getElementById("ra-launch");
+        if (!fallback) return;
+        fallback.style.display = document.getElementById("ra-sidebar-launcher") ? "none" : "block";
     }
 
     function bindUI() {
-        document.getElementById("ra-launch").onclick=()=>{document.getElementById("ra-panel").style.display="block";};
+        document.getElementById("ra-launch").onclick=openMainWindow;
         document.getElementById("ra-close").onclick=()=>document.getElementById("ra-panel").style.display="none";
-        document.getElementById("ra-open-results").onclick=async()=>{document.getElementById("ra-results-panel").style.display="flex";await refreshResults();};document.getElementById("ra-results-close").onclick=()=>document.getElementById("ra-results-panel").style.display="none";
-        document.getElementById("ra-mode").onchange=e=>switchMode(e.target.value);document.getElementById("ra-sort").onchange=async e=>{await saveMetaSettings({resultSort:e.target.value});await refreshResults();};
-        document.getElementById("ra-full-scan").onclick=()=>runForumScan(true);document.getElementById("ra-update-scan").onclick=()=>runForumScan(false);document.getElementById("ra-open-thread").onclick=()=>{const id=parseThreadId(document.getElementById("ra-target-thread").value);if(id)window.open(forumUrl(id),"_blank");};
+        document.getElementById("ra-open-results").onclick=async()=>{const r=document.getElementById("ra-results-panel");r.style.display="flex";bringManagedWindowToFront("results");await refreshResults();};
+        document.getElementById("ra-results-close").onclick=()=>document.getElementById("ra-results-panel").style.display="none";
+        document.getElementById("ra-history-close").onclick=()=>document.getElementById("ra-history").style.display="none";
+        document.getElementById("ra-complexity-simple").onclick=async()=>{await saveMetaSettings({complexity:"simple"});applyComplexityMode();};
+        document.getElementById("ra-complexity-advanced").onclick=async()=>{await saveMetaSettings({complexity:"advanced"});applyComplexityMode();};
+        document.getElementById("ra-mode").onchange=e=>switchMode(e.target.value);
+        document.getElementById("ra-sort").onchange=async e=>{await saveMetaSettings({resultSort:e.target.value});await refreshResults();};
+        document.getElementById("ra-full-scan").onclick=()=>runForumScan(true);
+        document.getElementById("ra-update-scan").onclick=()=>runForumScan(false);
+        document.getElementById("ra-open-thread").onclick=()=>{const id=parseThreadId(document.getElementById("ra-target-thread").value);if(id)window.open(forumUrl(id),"_blank");};
         document.getElementById("ra-scout-ids").onclick=()=>{const ids=Core.parseIds(document.getElementById("ra-direct-ids").value,settings.scout.maxCandidates);runScoutQueue(ids,{source:"direct"}).catch(e=>setStatus(e.message,true));};
-        document.getElementById("ra-scout-page").onclick=()=>{const ids=readSearchUsersPage().map(x=>x.id);runScoutQueue(ids,{source:"search-users"}).catch(e=>setStatus(e.message,true));};document.getElementById("ra-reread-page").onclick=refreshPageCount;
-        document.getElementById("ra-pause-scout").onclick=()=>scoutRuntime.paused?resumeScout():pauseScout();document.getElementById("ra-cancel-scout").onclick=cancelScout;
-        document.getElementById("ra-scout-selected").onclick=()=>runScoutQueue([...selectedIds],{force:true,source:mode}).catch(e=>setStatus(e.message,true));document.getElementById("ra-scout-all").onclick=()=>{const ids=mode==="scout"?resultRows.map(x=>x.userId):resultRows.map(x=>x.userId);runScoutQueue(ids,{source:mode}).catch(e=>setStatus(e.message,true));};
-        document.getElementById("ra-save-scout-settings").onclick=()=>saveScoutSettingsFromUI().catch(e=>setStatus(e.message,true));document.getElementById("ra-apply-filters").onclick=()=>saveScoutSettingsFromUI().catch(e=>setStatus(e.message,true));document.getElementById("ra-cache-test").onclick=()=>runCacheDiagnostic(0).catch(e=>setStatus(e.message,true));
-        document.getElementById("ra-change-key").onclick=()=>ensureApiKey(true).then(()=>setStatus("API key saved.")).catch(e=>setStatus(e.message,true));document.getElementById("ra-theme").onclick=async()=>{await saveMetaSettings({theme:settings.theme==="dark"?"light":"dark"});applyTheme();};document.getElementById("ra-density").onclick=async()=>{await saveMetaSettings({density:settings.density==="compact"?"comfortable":"compact"});applyTheme();};document.getElementById("ra-view").onclick=async()=>{await saveMetaSettings({view:settings.view==="table"?"cards":"table"});renderResults();};
-        document.getElementById("ra-include-inactive").onchange=async e=>{await saveMetaSettings({includeInactive:e.target.checked});await refreshResults();};document.getElementById("ra-results-refresh").onclick=refreshResults;document.getElementById("ra-copy").onclick=()=>copyCsv().catch(e=>setStatus(e.message,true));
-        document.getElementById("ra-select-all").onclick=()=>{resultRows.forEach(r=>selectedIds.add(Number(r.userId)));renderResults();};document.getElementById("ra-clear-select").onclick=()=>{selectedIds.clear();renderResults();};document.getElementById("ra-history-close").onclick=()=>document.getElementById("ra-history").style.display="none";
+        document.getElementById("ra-scout-page").onclick=()=>{const ids=readSearchUsersPage().map(x=>x.id);runScoutQueue(ids,{source:"search-users"}).catch(e=>setStatus(e.message,true));};
+        document.getElementById("ra-reread-page").onclick=refreshPageCount;
+        document.getElementById("ra-pause-scout").onclick=()=>scoutRuntime.paused?resumeScout():pauseScout();
+        document.getElementById("ra-cancel-scout").onclick=cancelScout;
+        document.getElementById("ra-scout-selected").onclick=()=>runScoutQueue([...selectedIds],{force:true,source:mode}).catch(e=>setStatus(e.message,true));
+        document.getElementById("ra-scout-all").onclick=()=>runScoutQueue(resultRows.map(x=>x.userId),{source:mode}).catch(e=>setStatus(e.message,true));
+        document.getElementById("ra-save-scout-settings").onclick=()=>saveScoutSettingsFromUI().catch(e=>setStatus(e.message,true));
+        document.getElementById("ra-apply-filters").onclick=()=>saveScoutSettingsFromUI().catch(e=>setStatus(e.message,true));
+        document.getElementById("ra-cache-test").onclick=()=>runCacheDiagnostic(0).catch(e=>setStatus(e.message,true));
+        document.getElementById("ra-change-key").onclick=()=>ensureApiKey(true).then(()=>setStatus("API key saved.")).catch(e=>setStatus(e.message,true));
+        document.getElementById("ra-theme").onclick=async()=>{await saveMetaSettings({theme:settings.theme==="dark"?"light":"dark"});applyTheme();};
+        document.getElementById("ra-density").onclick=async()=>{await saveMetaSettings({density:settings.density==="compact"?"comfortable":"compact"});applyTheme();};
+        document.getElementById("ra-view").onclick=async()=>{await saveMetaSettings({view:settings.view==="table"?"cards":"table"});renderResults();};
+        document.getElementById("ra-include-inactive").onchange=async e=>{await saveMetaSettings({includeInactive:e.target.checked});await refreshResults();};
+        document.getElementById("ra-results-refresh").onclick=refreshResults;
+        document.getElementById("ra-copy").onclick=()=>copyCsv().catch(e=>setStatus(e.message,true));
+        document.getElementById("ra-select-all").onclick=()=>{resultRows.forEach(r=>selectedIds.add(Number(r.userId)));renderResults();};
+        document.getElementById("ra-clear-select").onclick=()=>{selectedIds.clear();renderResults();};
         ["ra-search","ra-min-man","ra-min-int","ra-min-end","ra-min-total"].forEach(id=>document.getElementById(id)?.addEventListener("input",()=>refreshResults()));
+        window.addEventListener("resize", () => {
+            clearTimeout(window.__raResizeTimer);
+            window.__raResizeTimer = setTimeout(recoverManagedWindows, 150);
+        });
     }
 
     async function init() {
         try {
             db=await openDB();
-            const meta=await getMeta();settings=mergeSettings(meta.settings || {});mode=settings.activeMode || "company";activeThreadId=meta.syncHistory?.[mode]?.lastThreadId || (mode==="company"?DEFAULT_COMPANY_THREAD_ID:mode==="faction"?DEFAULT_FACTION_THREAD_ID:"");
-            meta.settings=settings;await idb.put("meta",meta);
+            const meta=await getMeta();
+            settings=mergeSettings(meta.settings || {});
+            mode=settings.activeMode || "company";
+            activeThreadId=meta.syncHistory?.[mode]?.lastThreadId || (mode==="company"?DEFAULT_COMPANY_THREAD_ID:mode==="faction"?DEFAULT_FACTION_THREAD_ID:"");
+            meta.settings=settings;
+            meta.ui = meta.ui || {};
+            meta.ui.windowGeometry = meta.ui.windowGeometry || {};
+            await idb.put("meta",meta);
             if (document.readyState === "loading") await new Promise(resolve=>document.addEventListener("DOMContentLoaded",resolve,{once:true}));
-            mountUI();await refreshResults();setStatus("Ready.");
-            const observer=new MutationObserver(()=>{if(!document.getElementById("ra-launch")){uiMounted=false;mountUI();refreshResults();}});observer.observe(document.documentElement,{childList:true,subtree:true});
-        } catch(e){console.error("[RA] init failed",e);alert(`Recruitment Agency could not start: ${e.message}`);}
+            mountUI();
+            await refreshResults();
+            setStatus("Ready.");
+            const observer=new MutationObserver(()=>{
+                clearTimeout(observerTimer);
+                observerTimer=setTimeout(()=>{
+                    if(!document.getElementById("ra-panel")){
+                        uiMounted=false;
+                        mountUI();
+                        refreshResults();
+                    }
+                    ensureSidebarLauncher();
+                    syncFallbackLauncher();
+                },120);
+            });
+            observer.observe(document.documentElement,{childList:true,subtree:true});
+            setTimeout(()=>{ensureSidebarLauncher();syncFallbackLauncher();},800);
+        } catch(e){
+            console.error("[RA] init failed",e);
+            alert(`Recruitment Agency could not start: ${e.message}`);
+        }
     }
 
     init();
