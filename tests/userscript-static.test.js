@@ -55,6 +55,12 @@ test('Scout API scheduler defaults to and hard-caps at 75 calls per minute', () 
   assert.match(s, /60000\s*\/\s*Math\.max\(10,\s*Math\.min\(75,/);
 });
 
+test('dark theme uses neon green text and light theme uses black text', () => {
+  const s = source();
+  assert.match(s, /:root\{[^}]*--ra-text:#39ff14[^}]*--ra-muted:#39ff14/);
+  assert.match(s, /:root\[data-ra-theme="light"\]\{[^}]*--ra-text:#000000[^}]*--ra-muted:#111111/);
+});
+
 test('userscript contains cache, queue and cache-diagnostic controls', () => {
   const s = source();
   assert.match(s, /12\s*\*\s*60\s*\*\s*60\s*\*\s*1000/);
