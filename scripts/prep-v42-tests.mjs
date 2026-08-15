@@ -41,8 +41,8 @@ const userscript = 'R4G3RUNN3R-Recruitment-Agency.user.js';
 if (fs.existsSync(userscript)) {
   replaceIn(
     userscript,
-    '                company: parseCompanyFromText(text),',
-    '                company: ResultsCore.parsePreferredCompany(text),',
+    '            company: parseCompanyFromText(text),',
+    '            company: ResultsCore.parsePreferredCompany(text),',
     'conservative preferred-company parsing'
   );
 
@@ -72,6 +72,13 @@ if (fs.existsSync(userscript)) {
     '        document.getElementById("ra-results-search").oninput=()=>renderResults();',
     '        let resultsSearchSaveTimer=null;\n        document.getElementById("ra-results-search").oninput=e=>{renderResults();clearTimeout(resultsSearchSaveTimer);resultsSearchSaveTimer=setTimeout(async()=>{const next={...getModeResultsSettings().filters};const value=String(e.target.value||"").trim();if(value)next.search=value;else delete next.search;await saveResultsModeState({filters:next});},250);};',
     'persisted Results search'
+  );
+
+  replaceIn(
+    userscript,
+    '        const thread=document.getElementById("ra-target-thread"); if(thread)thread.value=activeThreadId || "";',
+    '        const resultSearch=document.getElementById("ra-results-search"); if(resultSearch)resultSearch.value=getModeResultsSettings().filters?.search || "";\n        const thread=document.getElementById("ra-target-thread"); if(thread)thread.value=activeThreadId || "";',
+    'restore persisted Results search'
   );
 
   replaceIn(
