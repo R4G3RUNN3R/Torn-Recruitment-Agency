@@ -21,6 +21,7 @@ The v4.4 implementation must include the already-approved Settings/help addition
 - Reuse existing persisted settings rather than duplicating controls/state where possible.
 - Put a contextual `info` control beside every major section/panel, not beside every individual input.
 - Centralize help copy in one static registry/helper.
+- Prefer automatic major-panel help decoration through one shared helper/registry instead of hand-wiring bespoke info controls into every panel.
 - Each help entry explains:
   1. what the section does;
   2. what it checks/changes;
@@ -29,7 +30,7 @@ The v4.4 implementation must include the already-approved Settings/help addition
   5. privacy/important limitations when relevant.
 - Help must support pointer hover/focus, click/tap, Escape close, keyboard access, a single open popover, and viewport clamping.
 - Help display performs no network requests and must never block the underlying section.
-- Add static/integration coverage for the Settings button/hub, moved Simple/Advanced control, subsection presence, centralized help controls, keyboard/tap behavior, and privacy/API wording expectations.
+- Add static/integration coverage for the Settings button/hub, moved Simple/Advanced control, subsection presence, centralized help controls, automatic major-panel decoration, keyboard/tap behavior, and privacy/API wording expectations.
 
 ## v4.5 Forum Discovery and Candidate Pipeline
 
@@ -92,6 +93,15 @@ Unknown placeholders are removed cleanly rather than left visible in the generat
 
 The default message, prepared message text, and message editor state remain local-only and must never enter Global Intelligence.
 
+### Forum continuation and sync UX
+
+- Persist only sanitized Torn API continuation/cursor information.
+- Never persist an API key or authentication material inside a saved pagination URL.
+- Validate any saved continuation URL before reuse: it must resolve to `api.torn.com` and a supported `/v2/` path.
+- Forum Discovery sync must expose meaningful progress counters/status, including pages checked, posts examined, recent posts, candidates created/updated, and train-buyer count where available.
+- Cancel/partial failure preserves completed local imports and the last safe checkpoint.
+- Reuse the shared Torn scheduler and local-first failure behavior; optional/global failures must not destroy local recruitment state.
+
 ## Later Named Context-Aware Message Templates
 
 Named templates are intentionally deferred until after the initial v4.5 messaging foundation is stable, but the architecture must avoid blocking them.
@@ -145,6 +155,22 @@ The UI may suggest a template based on candidate context, for example:
 
 Suggestions are advisory only. The recruiter can select a different template before opening Torn mail. No template is auto-sent.
 
+## Later UX upgrades inspired by CIS
+
+After the v4.4/v4.5 foundation is stable, add a separately scoped UX upgrade for:
+
+- **Privacy Mode** that visually obscures sensitive fields for screenshots without changing or deleting the underlying values. Candidate notes, expected salary, API key, prepared/default messages, and other recruiter-private fields are the primary targets.
+- **Guided Tutorial / Start Tutorial** using numbered targets, scrolling/highlighting, Previous/Next/Finish controls, and reset/restart support.
+- **Local notifications** can later build on stable pipeline/history data for events such as newly discovered train buyers, high-Match candidates, stale forum sync, or candidates stalled in a stage.
+
+These are not required to land inside v4.4 or v4.5 unless explicitly promoted by the user later.
+
+## CIS / PPPE reference permission boundary
+
+The user reports that MoDuL explicitly permitted use of any **ideas** from CIS/PPPE. Therefore Recruitment Agency may deliberately adopt concepts, workflows, UX patterns, sync behavior, and architectural ideas observed in those projects.
+
+Unless MoDuL separately grants explicit source-code reuse permission, implementation should remain clean-room: do not copy substantial source code from his All Rights Reserved scripts. Recreate approved behavior within Recruitment Agency's own architecture, scheduler, privacy model, and tests.
+
 ## Privacy boundary
 
 Recruiter-specific template text, local company/faction recruitment wording, message history/preview text, pipeline state, notes, salary expectations, availability overrides, Match Profiles, and forum-source CRM data remain local-only. The v4.3 Global Intelligence whitelist is not expanded for these fields.
@@ -156,4 +182,5 @@ Implementation order remains:
 1. Finish v4.4 Smart Match + Settings + Contextual Help.
 2. Build v4.5 Forum Discovery + Candidate Pipeline + default-message workflow on top of the v4.4 local candidate/settings foundation.
 3. Add named context-aware message templates in a later scoped upgrade after the v4.5 foundation is proven.
-4. Analytics & History follows once pipeline stages exist and are stable.
+4. Add the later Privacy Mode / guided tutorial / notification UX as separately scoped work unless promoted earlier.
+5. Analytics & History follows once pipeline stages exist and are stable.
