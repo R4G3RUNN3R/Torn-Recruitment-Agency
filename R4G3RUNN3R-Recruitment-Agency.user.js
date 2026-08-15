@@ -6,7 +6,9 @@
 // @author       R4G3RUNN3R[3877028]
 // @license      MIT
 // @match        https://www.torn.com/*
-// @grant        none
+// @grant        GM_xmlhttpRequest
+// @connect      script.google.com
+// @connect      script.googleusercontent.com
 // @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/main/src/scout-core.js
 // @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/main/src/results-core.js
 // @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/main/src/global-core.js
@@ -446,7 +448,30 @@
     }
 
     async function globalJson(url, options = {}) {
-        const response = await fetch(url, {redirect:"follow", cache:"no-store", ...options});
+        const method = String(options.method || "GET").toUpperCase();
+        const body = options.body == null ? null : String(options.body);
+        const headers = {...(options.headers || {})};
+        if (typeof GM_xmlhttpRequest === "function") {
+            return new Promise((resolve, reject) => {
+                GM_xmlhttpRequest({
+                    method,
+                    url,
+                    headers,
+                    data: body,
+                    anonymous: true,
+                    timeout: 15000,
+                    onload: response => {
+                        const status = Number(response.status || 0);
+                        if (status < 200 || status >= 300) return reject(new Error("Global service HTTP " + status));
+                        try { resolve(JSON.parse(String(response.responseText || ""))); }
+                        catch { reject(new Error("Global service returned invalid JSON")); }
+                    },
+                    ontimeout: () => reject(new Error("Global service timed out")),
+                    onerror: () => reject(new Error("Global service request failed"))
+                });
+            });
+        }
+        const response = await fetch(url, {redirect:"follow", cache:"no-store", method, headers, body});
         if (!response.ok) throw new Error("Global service HTTP " + response.status);
         const text = await response.text();
         try { return JSON.parse(text); } catch { throw new Error("Global service returned invalid JSON"); }
