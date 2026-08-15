@@ -9,13 +9,15 @@ function source() {
   return fs.readFileSync(file, 'utf8');
 }
 
-test('userscript is version 4.2.0 and loads the tested Scout and Results cores', () => {
+test('userscript is version 4.3.0 and loads Scout, Results and Global cores', () => {
   const s = source();
-  assert.match(s, /@version\s+4\.2\.0/);
-  assert.match(s, /SCRIPT_VERSION\s*=\s*["']4\.2\.0["']/);
+  assert.match(s, /@version\s+4\.3\.0/);
+  assert.match(s, /SCRIPT_VERSION\s*=\s*["']4\.3\.0["']/);
   assert.match(s, /@require\s+https:\/\/raw\.githubusercontent\.com\/R4G3RUNN3R\/Torn-Recruitment-Agency\/main\/src\/scout-core\.js/);
   assert.match(s, /@require\s+https:\/\/raw\.githubusercontent\.com\/R4G3RUNN3R\/Torn-Recruitment-Agency\/main\/src\/results-core\.js/);
+  assert.match(s, /@require\s+https:\/\/raw\.githubusercontent\.com\/R4G3RUNN3R\/Torn-Recruitment-Agency\/main\/src\/global-core\.js/);
   assert.match(s, /RA_ResultsCore/);
+  assert.match(s, /RA_GlobalCore/);
 });
 
 test('userscript never depends on the Recruit Scout paid backend', () => {
@@ -24,12 +26,15 @@ test('userscript never depends on the Recruit Scout paid backend', () => {
   assert.doesNotMatch(s, /script-session|\/api\/grade|membership/i);
 });
 
-test('userscript upgrades IndexedDB additively and defines Scout stores', () => {
+test('userscript upgrades IndexedDB additively and defines Scout and Global stores', () => {
   const s = source();
-  assert.match(s, /REQUIRED_DB_VERSION\s*=\s*9/);
+  assert.match(s, /REQUIRED_DB_VERSION\s*=\s*10/);
   assert.match(s, /scoutLatest/);
   assert.match(s, /scoutHistory/);
-  assert.doesNotMatch(s, /deleteObjectStore\s*\(\s*["']users["']/);
+  assert.match(s, /globalLatest/);
+  assert.match(s, /globalHistory/);
+  assert.match(s, /globalSyncQueue/);
+  assert.doesNotMatch(s, /deleteObjectStore\s*\(/);
 });
 
 test('userscript exposes all three modes and hybrid Scout actions', () => {
@@ -115,8 +120,7 @@ test('userscript retains forum recruitment scanning and work-stat parsing', () =
   assert.match(s, /fetchForumPosts/);
 });
 
-
-test('v4.2 Results workspace is simple by default and expandable', () => {
+test('v4.2 Results workspace remains simple by default and expandable', () => {
   const s = source();
   assert.match(s, /ra-results-search/);
   assert.match(s, /ra-results-filters-toggle/);
@@ -129,7 +133,7 @@ test('v4.2 Results workspace is simple by default and expandable', () => {
   assert.match(s, /DEFAULT_VISIBLE_COLUMNS/);
 });
 
-test('v4.2 Results state is per mode and includes UX hardening', () => {
+test('v4.2 Results state and UX hardening remain present', () => {
   const s = source();
   assert.match(s, /resultsByMode/);
   assert.match(s, /normalizeResultsSettings/);
@@ -137,4 +141,32 @@ test('v4.2 Results state is per mode and includes UX hardening', () => {
   assert.match(s, /syncBusyControls/);
   assert.match(s, /scheduleSidebarRecovery/);
   assert.match(s, /SIDEBAR_RETRY/);
+});
+
+test('v4.3 Global Intelligence client exposes sync, cache and service controls', () => {
+  const s = source();
+  assert.match(s, /buildGlobalObservation/);
+  assert.match(s, /enqueueGlobalObservation/);
+  assert.match(s, /flushGlobalSyncQueue/);
+  assert.match(s, /fetchGlobalPlayerHistory/);
+  assert.match(s, /testGlobalService/);
+  assert.match(s, /ra-global-endpoint/);
+  assert.match(s, /ra-global-enabled/);
+  assert.match(s, /ra-global-test/);
+  assert.match(s, /ra-global-retry/);
+  assert.match(s, /ra-global-status/);
+  assert.match(s, /Global Intelligence/);
+  assert.match(s, /Test Global Service/);
+  assert.match(s, /Retry Global Sync/);
+});
+
+test('v4.3 keeps global data lower priority and private data out of payload construction', () => {
+  const s = source();
+  assert.match(s, /LIVE/);
+  assert.match(s, /LOCAL/);
+  assert.match(s, /GLOBAL/);
+  assert.match(s, /HISTORICAL/);
+  assert.match(s, /GlobalCore\.sanitizeObservation/);
+  assert.doesNotMatch(s, /buildObservePayload\s*\(\s*settings/);
+  assert.doesNotMatch(s, /buildObservePayload\s*\(\s*.*apiKey/);
 });
