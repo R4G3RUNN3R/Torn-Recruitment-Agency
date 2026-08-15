@@ -4,6 +4,8 @@
 
 Add local-only Smart Match vacancy profiles and candidate-specific recruitment metadata without turning the Results table into a wall of permanent columns. Smart Match answers a different question from Scout Fit: Fit measures the player's general activity/value signal, while Match measures suitability for the currently selected vacancy profile.
 
+v4.4 also restores a prominent Settings entry point inspired by the original Recruitment Agency and adds contextual help to major UI sections so users can understand what each area does, what it checks, and which data source it uses without reading external documentation.
+
 ## Scope
 
 v4.4 adds:
@@ -15,6 +17,11 @@ v4.4 adds:
 - inline editing inside the hover card
 - optional Match sorting/filtering and an optional Match column, disabled by default
 - explicit confidence/completeness information when only some criteria are known
+- a prominent `⚙ Settings` button in the main Recruitment Agency toolbar
+- a collapsible Settings hub inside the main Recruitment Agency window
+- relocation of the existing Simple/Advanced mode control into Settings
+- consistent `ⓘ` help controls beside every major section heading
+- plain-English help content describing each section's purpose, checks, and data source
 
 v4.4 does not publish vacancy profiles, salary budgets, recruiter notes, role requirements, or candidate-local CRM data to Google Sheets. Global Intelligence remains limited to the v4.3 sanitized player-intelligence schema.
 
@@ -72,9 +79,130 @@ Manual recruiter-entered values always take precedence over parser-derived guess
 
 Unknown candidate-specific values do not count as a mismatch.
 
+## Settings Hub and Contextual Help
+
+### Main Settings button
+
+The main Recruitment Agency toolbar includes a prominent `⚙ Settings` button. Clicking it expands a Settings hub inside the main Recruitment Agency window, directly beneath the existing header/status area. Clicking the button again or using the Settings close control collapses it.
+
+Settings is not a separate managed/draggable window. It is the single obvious home for configuration and replaces the current pattern where configuration is mixed into the primary workflow surface.
+
+The existing Simple/Advanced mode control moves inside Settings. The primary Recruitment Agency workflow remains uncluttered.
+
+### Settings organization
+
+The Settings hub is divided into these major subsections:
+
+```text
+GENERAL ⓘ
+Theme
+Density
+Dock / launcher behaviour
+Include inactive
+Simple / Advanced mode
+
+RECRUITMENT ⓘ
+Company thread configuration
+Faction thread configuration
+Scan defaults
+Enrichment defaults
+
+SCOUT ⓘ
+Torn API key
+API rate / workers / call budget
+Cache and history options
+
+RESULTS ⓘ
+Default view
+Cards / Table preferences
+Window layout reset
+
+SMART MATCH ⓘ
+Active Match Profile
+Manage Match Profiles
+Match display preferences
+
+GLOBAL INTELLIGENCE ⓘ
+Enable / Disable
+Google Apps Script endpoint
+Test connection
+Retry global sync
+
+DATA & RESET ⓘ
+Reset window layout
+Clear Scout cache
+Clear local candidate data
+
+DANGER ZONE ⓘ
+Hard Reset / NUKE
+```
+
+Controls that already exist are moved/reorganized rather than duplicated. Existing persisted values continue to use their current storage keys unless v4.4 explicitly introduces a new setting.
+
+The destructive hard reset remains visually isolated from ordinary reset/clear actions and keeps the project's existing confirmation behavior.
+
+### Major-section help controls
+
+Every major section or panel throughout Recruitment Agency receives a small `ⓘ` help control next to its heading. This includes, where present:
+
+- Company recruitment
+- Faction recruitment
+- Scout
+- Fit Settings
+- Results Filters
+- Results Columns
+- Settings subsections
+- Match Profiles
+- Candidate / Match Breakdown sections
+- Global Intelligence
+- Data / Reset and Danger Zone
+
+Individual inputs, checkboxes, and ordinary rows do not each receive a separate info icon. The goal is explanation without visual infestation.
+
+### Help content contract
+
+Each `ⓘ` control explains, in concise plain English:
+
+1. what the section does;
+2. what information it checks or changes;
+3. where the information comes from or is stored;
+4. whether the action can consume Torn API calls;
+5. any important limitation or privacy note relevant to that section.
+
+Examples:
+
+```text
+Scout
+Checks current and historical Torn player activity and personal-stat signals used by Fit and Smart Match. Fresh scouting uses the Torn API and follows the script's global 75 calls/minute limit. Scout history is stored locally; only the v4.3 sanitized Global Intelligence fields may be shared when Global Intelligence is enabled.
+```
+
+```text
+Smart Match
+Compares a player against your currently selected local vacancy profile. Match is calculated entirely in your browser from available Scout/Results data plus your local candidate notes. Changing a Match Profile does not make Torn API calls and Match configuration is never uploaded to Global Intelligence.
+```
+
+```text
+Global Intelligence
+Uses the configured Google Apps Script service to contribute and retrieve sanitized player history. It never uploads Torn API keys, recruiter notes, salary expectations, availability, Match Profiles, or candidate CRM data.
+```
+
+### Help interaction
+
+Help controls must work with both pointer and keyboard input:
+
+- hover or focus reveals the explanation;
+- click/tap pins or toggles it for touch devices;
+- Escape closes the currently open help popover;
+- only one help popover is open at a time;
+- help text is rendered from a centralized static registry rather than duplicated inline across many render functions;
+- popovers are clamped to the viewport and do not alter saved window geometry;
+- help display never performs network requests.
+
+The help control includes an accessible label such as `aria-label="About Scout"` and the popover is reachable by keyboard.
+
 ## Match Profiles
 
-Profiles are local-only recruiter configuration. Advanced Settings receives a `Match Profiles` section where the user can create, duplicate, rename, edit, delete, and select an active profile.
+Profiles are local-only recruiter configuration. The Settings hub contains a `Smart Match` subsection with a `Match Profiles` manager where the user can create, duplicate, rename, edit, delete, and select an active profile.
 
 Example profiles:
 
@@ -258,7 +386,10 @@ Responsibilities:
 The userscript remains responsible for:
 
 - IndexedDB persistence
-- Advanced Settings profile editor
+- Settings hub expansion/collapse and subsection rendering
+- Simple/Advanced mode control inside Settings
+- centralized section-help registry and help-popover lifecycle
+- Match Profile editor inside Settings
 - active profile state
 - hover-card lifecycle and positioning
 - candidate editing
@@ -288,9 +419,23 @@ Results sort/filter + hover intelligence card
 
 Editing a candidate or changing a profile triggers local recalculation only.
 
+Settings/help data flow is entirely local:
+
+```text
+static HELP_CONTENT registry
+        |
+        v
+ⓘ section control
+        |
+        v
+single reusable help popover
+```
+
+No help action makes a network request or changes persisted recruitment data.
+
 ## Hover Behavior
 
-The hover card should use delegated pointer events rather than attaching permanent listeners to every rerendered row.
+The candidate hover card should use delegated pointer events rather than attaching permanent listeners to every rerendered row.
 
 Behavior:
 
@@ -318,6 +463,8 @@ The following v4.4 fields remain strictly local:
 - availability
 - recruiter note
 - Match Score and Match breakdown
+- Settings layout state beyond already-existing local preferences
+- contextual help display state
 
 `src/global-core.js` and the Apps Script whitelist do not change for these fields.
 
@@ -332,6 +479,9 @@ Smart Match may consume existing global historical player intelligence as a lowe
 - Deleting the active profile selects another existing profile or creates the default profile.
 - Hover-card rendering failure must not prevent Results from rendering.
 - Match calculations never make network requests and cannot make Scout fail.
+- A Settings subsection rendering failure must not prevent the main Recruitment Agency workflow from opening.
+- Missing help text for a section must fail gracefully by hiding/disabling that section's info control rather than showing an empty popover.
+- Help popover failures must never block the underlying section controls.
 
 ## Testing
 
@@ -362,6 +512,13 @@ Assert:
 - no `deleteObjectStore`
 - `match-core.js` is loaded
 - hover-card UI and Match Profile controls exist
+- main toolbar contains a `Settings` button
+- Settings panel/hub can be toggled without creating a new managed window
+- Simple/Advanced mode control is rendered inside Settings rather than the normal workflow toolbar
+- Settings contains General, Recruitment, Scout, Results, Smart Match, Global Intelligence, Data & Reset, and Danger Zone subsections
+- major section headings render `ⓘ` controls through a shared help helper/registry
+- help supports pointer/focus/tap and Escape close behavior
+- help text includes data-source/API/privacy context where relevant
 - Match is not added to default visible columns
 - optional Match filter/sort integration exists
 - v4.3 Google whitelist remains unchanged and candidate/private fields cannot enter global payloads
@@ -370,7 +527,7 @@ Assert:
 
 ### Regression
 
-Run the entire existing Scout, Results, Global, static, and syntax suites. v4.4 must not alter Global Intelligence behavior, Torn API scheduling, or current Results defaults.
+Run the entire existing Scout, Results, Global, static, and syntax suites. v4.4 must not alter Global Intelligence behavior, Torn API scheduling, current Results defaults, persisted configuration values, or existing recruitment scan behavior.
 
 ## Versioning
 
@@ -390,5 +547,7 @@ The following remain for later versions:
 - company-level analytics
 - automatic salary negotiation or messaging
 - Match-based automatic rejection/contact actions
+- per-input help icons for every checkbox/text field
+- remote or dynamic help content
 
 v4.5 remains the planned Analytics & History upgrade.
