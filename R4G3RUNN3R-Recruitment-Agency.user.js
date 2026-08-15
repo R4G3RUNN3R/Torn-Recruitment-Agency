@@ -559,7 +559,7 @@
             name: String(post.author.username || post.author.name || `User ${post.author.id}`),
             stats: {man, int: intel, end, total: man + intel + end},
             ee: ee ? n(ee[1]) : null,
-            company: parseCompanyFromText(text),
+            company: ResultsCore.parsePreferredCompany(text),
             status: /closed|found|filled|job found|not looking|no longer looking|position filled/i.test(text) ? "inactive" : "active",
             rawText: text.slice(0, 1600),
             postId: n(post.id),
@@ -783,8 +783,9 @@
     function renderResultsFilters() {
         const box=document.getElementById("ra-results-filters"); if(!box)return; const f=getModeResultsSettings().filters || {};
         const companies=ResultsCore.COMPANY_KEYS.map(k=>`<option value="${k}" ${f.preferredCompany===k?"selected":""}>${esc(ResultsCore.formatCompany(k))}</option>`).join("");
-        box.innerHTML=`<div class="ra-filter-grid">${[["minMan","MAN ≥"],["minInt","INT ≥"],["minEnd","END ≥"],["minTotal","TOTAL ≥"],["minEe","EE ≥"],["minActivity30","Activity 30d ≥"],["maxIdleDays","Last Active ≤ days"],["minFit","Fit ≥"],["minLevel","Level ≥"],["minNetworth","Net Worth ≥"],["minXanax30","Xanax 30d ≥"],["minRefills30","Refills 30d ≥"],["minAttacks30","Attacks 30d ≥"],["minRwHits30","RW Hits 30d ≥"]].map(([k,l])=>`<label>${l}<input class="ra-results-filter" data-filter="${k}" value="${esc(f[k]??"")}" inputmode="decimal"></label>`).join("")}<label>Preferred Company<select class="ra-results-filter" data-filter="preferredCompany"><option value="">Any</option>${companies}</select></label><label>Scout Status<select class="ra-results-filter" data-filter="scoutStatus"><option value="">Any</option>${ResultsCore.SCOUT_STATUS_ORDER.map(x=>`<option value="${x}" ${f.scoutStatus===x?"selected":""}>${x.toUpperCase()}</option>`).join("")}</select></label></div>`;
-        box.querySelectorAll(".ra-results-filter").forEach(el=>el.addEventListener("change",async()=>{const next={...getModeResultsSettings().filters}; const key=el.dataset.filter; if(el.value) next[key]=el.value; else delete next[key]; await saveResultsModeState({filters:next}); renderResults();}));
+        box.innerHTML=`<div class="ra-filter-grid">${[["minMan","MAN ≥"],["minInt","INT ≥"],["minEnd","END ≥"],["minTotal","TOTAL ≥"],["minEe","EE ≥"],["maxEe","EE ≤"],["minActivity30","Activity 30d ≥"],["maxIdleDays","Last Active ≤ days"],["minFit","Fit ≥"],["minLevel","Level ≥"],["maxLevel","Level ≤"],["minNetworth","Net Worth ≥"],["minActiveStreak","Active Streak ≥"],["minBestStreak","Best Streak ≥"],["minStatEnhancers","Stat Enhancers ≥"],["minXanax30","Xanax 30d ≥"],["minRefills30","Refills 30d ≥"],["minAttacks30","Attacks 30d ≥"],["minRwHits30","RW Hits 30d ≥"],["maxDataAgeDays","Scout Age ≤ days"]].map(([k,l])=>`<label>${l}<input class="ra-results-filter" data-filter="${k}" value="${esc(f[k]??"")}" inputmode="decimal"></label>`).join("")}<label>Preferred Company<select class="ra-results-filter" data-filter="preferredCompany"><option value="">Any</option>${companies}</select></label><label>Scout Status<select class="ra-results-filter" data-filter="scoutStatus"><option value="">Any</option>${ResultsCore.SCOUT_STATUS_ORDER.map(x=>`<option value="${x}" ${f.scoutStatus===x?"selected":""}>${x.toUpperCase()}</option>`).join("")}</select></label><label>Faction<select class="ra-results-filter" data-filter="faction"><option value="any">Any</option><option value="none" ${f.faction==="none"?"selected":""}>No faction</option><option value="has" ${f.faction==="has"?"selected":""}>Has faction</option></select></label></div>`;
+        const numericFilters=new Set(["minMan","minInt","minEnd","minTotal","minEe","maxEe","minActivity30","maxIdleDays","minFit","minLevel","maxLevel","minNetworth","minActiveStreak","minBestStreak","minStatEnhancers","minXanax30","minRefills30","minAttacks30","minRwHits30","maxDataAgeDays"]);
+        box.querySelectorAll(".ra-results-filter").forEach(el=>el.addEventListener("change",async()=>{const next={...getModeResultsSettings().filters}; const key=el.dataset.filter; if(numericFilters.has(key) && el.value){const parsed=ResultsCore.parseCompactNumber(el.value);el.classList.toggle("ra-invalid",!parsed.valid);el.setAttribute("aria-invalid",parsed.valid?"false":"true");if(!parsed.valid)return;} if(el.value) next[key]=el.value; else delete next[key]; await saveResultsModeState({filters:next}); renderResults();}));
     }
 
     function renderResultsColumns() {
@@ -1081,6 +1082,7 @@
         const scout=document.getElementById("ra-scout-controls");
         if(forum)forum.style.display=mode==="scout"?"none":"block";
         if(scout)scout.style.display=mode==="scout"?"block":"none";
+        const resultSearch=document.getElementById("ra-results-search"); if(resultSearch)resultSearch.value=getModeResultsSettings().filters?.search || "";
         const thread=document.getElementById("ra-target-thread"); if(thread)thread.value=activeThreadId || "";
         const scope=document.getElementById("ra-forum-scope");if(scope)scope.value=settings.forumScope;
         const days=document.getElementById("ra-forum-days");if(days)days.value=settings.forumDays;
@@ -1181,7 +1183,7 @@
         document.getElementById("ra-pause-scout").onclick=()=>scoutRuntime.paused?resumeScout():pauseScout();
         document.getElementById("ra-cancel-scout").onclick=cancelScout;
         document.getElementById("ra-scout-selected").onclick=()=>runScoutQueue([...selectedIds],{force:true,source:mode}).catch(e=>setStatus(e.message,true));
-        document.getElementById("ra-scout-all").onclick=()=>runScoutQueue(resultRows.map(x=>x.userId),{source:mode}).catch(e=>setStatus(e.message,true));
+        document.getElementById("ra-scout-all").onclick=()=>runScoutQueue(getProcessedResultRows().map(x=>x.userId),{source:mode}).catch(e=>setStatus(e.message,true));
         document.getElementById("ra-save-scout-settings").onclick=()=>saveScoutSettingsFromUI().catch(e=>setStatus(e.message,true));
         document.getElementById("ra-apply-filters").onclick=()=>saveScoutSettingsFromUI().catch(e=>setStatus(e.message,true));
         document.getElementById("ra-cache-test").onclick=()=>runCacheDiagnostic(0).catch(e=>setStatus(e.message,true));
@@ -1192,12 +1194,13 @@
         document.getElementById("ra-include-inactive").onchange=async e=>{await saveMetaSettings({includeInactive:e.target.checked});await refreshResults();};
         document.getElementById("ra-reset-window-layout")?.addEventListener("click",()=>resetWindowLayout().catch(e=>setStatus(e.message,true)));
         document.getElementById("ra-results-refresh").onclick=refreshResults;
-        document.getElementById("ra-results-search").oninput=()=>renderResults();
+        let resultsSearchSaveTimer=null;
+        document.getElementById("ra-results-search").oninput=e=>{renderResults();clearTimeout(resultsSearchSaveTimer);resultsSearchSaveTimer=setTimeout(async()=>{const next={...getModeResultsSettings().filters};const value=String(e.target.value||"").trim();if(value)next.search=value;else delete next.search;await saveResultsModeState({filters:next});},250);};
         document.getElementById("ra-results-filters-toggle").onclick=()=>{const box=document.getElementById("ra-results-filters");box.hidden=!box.hidden;};
         document.getElementById("ra-results-columns-toggle").onclick=()=>{const box=document.getElementById("ra-results-columns");box.hidden=!box.hidden;};
         document.getElementById("ra-clear-filters").onclick=async()=>{await saveResultsModeState({filters:{}});document.getElementById("ra-results-search").value="";renderResults();};
         document.getElementById("ra-copy").onclick=()=>copyCsv().catch(e=>setStatus(e.message,true));
-        document.getElementById("ra-select-all").onclick=()=>{resultRows.forEach(r=>selectedIds.add(Number(r.userId)));renderResults();};
+        document.getElementById("ra-select-all").onclick=()=>{getProcessedResultRows().forEach(r=>selectedIds.add(Number(r.userId)));renderResults();};
         document.getElementById("ra-clear-select").onclick=()=>{selectedIds.clear();renderResults();};
         ["ra-search","ra-min-man","ra-min-int","ra-min-end","ra-min-total"].forEach(id=>document.getElementById(id)?.addEventListener("input",()=>refreshResults()));
         window.addEventListener("resize", () => {
