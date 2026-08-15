@@ -40,6 +40,7 @@
   }).forEach(([alias, key]) => COMPANY_ALIASES.set(alias, key));
 
   function finite(value) {
+    if (value === null || value === undefined || value === '') return null;
     const x = Number(value);
     return Number.isFinite(x) ? x : null;
   }

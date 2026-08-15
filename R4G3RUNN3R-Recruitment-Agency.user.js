@@ -1,13 +1,14 @@
 // ==UserScript==
 // @name         R4G3RUNN3R's Recruitment Agency
 // @namespace    r4g3runn3r.recruitment.agency
-// @version      4.1.0
+// @version      4.2.0
 // @description  Company/faction recruitment scanner plus local Scout intelligence, Fit, Trend and history for Torn.
 // @author       R4G3RUNN3R[3877028]
 // @license      MIT
 // @match        https://www.torn.com/*
 // @grant        none
 // @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/main/src/scout-core.js
+// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/main/src/results-core.js
 // @downloadURL  https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/main/R4G3RUNN3R-Recruitment-Agency.user.js
 // @updateURL    https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/main/R4G3RUNN3R-Recruitment-Agency.user.js
 // ==/UserScript==
@@ -19,12 +20,13 @@
     window.__R4G3_RECRUITMENT_AGENCY_V4__ = true;
 
     const Core = window.RA_ScoutCore;
-    if (!Core) {
-        console.error("[RA] Scout core did not load.");
+    const ResultsCore = window.RA_ResultsCore;
+    if (!Core || !ResultsCore) {
+        console.error("[RA] Required core module did not load.");
         return;
     }
 
-    const SCRIPT_VERSION = "4.1.0";
+    const SCRIPT_VERSION = "4.2.0";
     const DB_NAME = "tornWorkerDB";
     const REQUIRED_DB_VERSION = 9;
     const API_BASE = "https://api.torn.com/v2";
@@ -85,6 +87,12 @@
         forumEnrich: false,
         view: "table",
         resultSort: "fit",
+        resultsByMode: {
+            company: {sort:{key:"fit",direction:"desc"},filters:{},visibleColumns:[...ResultsCore.DEFAULT_VISIBLE_COLUMNS]},
+            faction: {sort:{key:"fit",direction:"desc"},filters:{},visibleColumns:[...ResultsCore.DEFAULT_VISIBLE_COLUMNS]},
+            scout: {sort:{key:"fit",direction:"desc"},filters:{},visibleColumns:[...ResultsCore.DEFAULT_VISIBLE_COLUMNS]}
+        },
+        resultsPanels: {filtersOpen:false,columnsOpen:false},
         scout: DEFAULT_SCOUT
     };
 
@@ -130,6 +138,32 @@
     function setStatus(text, bad = false) { const el = document.getElementById("ra-status"); if (el) { el.textContent = text; el.classList.toggle("ra-bad", bad); } }
     function setProgress(done, total, text = "") { const p = document.getElementById("ra-progress-fill"); const t = document.getElementById("ra-progress-text"); if (p) p.style.width = `${total ? Math.min(100, done/total*100) : 0}%`; if (t) t.textContent = text || `${done}/${total}`; }
 
+    function normalizeResultsSettings(raw = {}) {
+        const legacy = {fit:{key:"fit",direction:"desc"},recent:{key:"postDate",direction:"desc"},trend:{key:"trend",direction:"desc"},name:{key:"player",direction:"asc"},level:{key:"level",direction:"desc"},networth:{key:"networth",direction:"desc"}};
+        const fallbackSort = legacy[raw.resultSort] || ResultsCore.DEFAULT_SORT;
+        const out = {};
+        for (const key of ["company","faction","scout"]) {
+            const prior = raw.resultsByMode?.[key] || {};
+            out[key] = {
+                sort: {key:prior.sort?.key || fallbackSort.key,direction:prior.sort?.direction === "asc" ? "asc" : "desc"},
+                filters: {...(prior.filters || {})},
+                visibleColumns: Array.isArray(prior.visibleColumns) && prior.visibleColumns.length ? [...new Set(["player",...prior.visibleColumns])] : [...ResultsCore.DEFAULT_VISIBLE_COLUMNS]
+            };
+        }
+        return out;
+    }
+
+    function getModeResultsSettings() {
+        settings.resultsByMode = settings.resultsByMode || normalizeResultsSettings(settings);
+        return settings.resultsByMode[mode] || settings.resultsByMode.company;
+    }
+
+    async function saveResultsModeState(patch) {
+        const all = normalizeResultsSettings(settings);
+        all[mode] = {...all[mode],...patch};
+        await saveMetaSettings({resultsByMode:all});
+    }
+
     function mergeSettings(raw = {}) {
         const scout = raw.scout || {};
         const scoring = Core.normalizeScoring({
@@ -140,6 +174,8 @@
             ...DEFAULT_SETTINGS,
             ...raw,
             complexity: raw.complexity === "advanced" ? "advanced" : "simple",
+            resultsByMode: normalizeResultsSettings(raw),
+            resultsPanels: {...DEFAULT_SETTINGS.resultsPanels,...(raw.resultsPanels || {})},
             scout: {
                 ...DEFAULT_SCOUT,
                 ...scout,
@@ -406,11 +442,17 @@
     function resumeScout() { if (scoutRuntime.running) { scoutRuntime.paused = false; setStatus("Scout resumed."); syncScoutButtons(); } }
     function cancelScout() { if (scoutRuntime.running) { scoutRuntime.cancelled = true; scoutRuntime.paused = false; setStatus("Cancelling Scout..."); syncScoutButtons(); } }
 
+    function syncBusyControls() {
+        const busy=forumScanning || scoutRuntime.running;
+        ["ra-full-scan","ra-update-scan","ra-scout-ids","ra-scout-page","ra-scout-selected","ra-scout-all"].forEach(id=>{const el=document.getElementById(id);if(el)el.disabled=busy;});
+    }
+
     function syncScoutButtons() {
         const pause = document.getElementById("ra-pause-scout");
         if (pause) pause.textContent = scoutRuntime.paused ? "Resume" : "Pause";
         const cancel = document.getElementById("ra-cancel-scout");
         if (cancel) cancel.disabled = !scoutRuntime.running;
+        syncBusyControls();
     }
 
     async function runScoutQueue(ids, options = {}) {
@@ -583,6 +625,7 @@
     async function runForumScan(full) {
         if (forumScanning || scoutRuntime.running || mode === "scout") return;
         forumScanning = true;
+        syncBusyControls();
         try {
             await ensureApiKey();
             await validateApiKey();
@@ -625,6 +668,7 @@
             console.error(e);
         } finally {
             forumScanning = false;
+            syncBusyControls();
             setProgress(0, 0, "Idle");
         }
     }
@@ -669,43 +713,30 @@
         return true;
     }
 
-    function sortScoutRows(rows) {
-        const sort = document.getElementById("ra-sort")?.value || settings.resultSort;
-        const fit = x => snapshotFit(x) ?? -1e9;
-        return rows.sort((a,b) => {
-            if (sort === "name") return String(a.profile?.name || "").localeCompare(String(b.profile?.name || ""));
-            if (sort === "trend") return n(b.trend, -1e9) - n(a.trend, -1e9);
-            if (sort === "level") return n(b.profile?.level) - n(a.profile?.level);
-            if (sort === "networth") return n(b.extra?.networth) - n(a.extra?.networth);
-            if (sort === "recent") return n(b.capturedAt) - n(a.capturedAt);
-            return fit(b) - fit(a);
-        });
+    function rowFit(row) { return snapshotFit(row?.scout || row || {}); }
+
+    function normalizeResultRow(row) {
+        if (mode === "scout") return {...row,name:row.profile?.name || `User ${row.userId}`,fit:rowFit(row),preferredCompany:""};
+        return {...row,name:row.name || row.api?.name || `User ${row.userId}`,preferredCompany:row.company || ResultsCore.parsePreferredCompany(row.rawText || ""),fit:rowFit(row)};
+    }
+
+    function currentResultFilters() {
+        const state = getModeResultsSettings();
+        const search = String(document.getElementById("ra-results-search")?.value || state.filters?.search || "").trim();
+        return {...(state.filters || {}), search};
+    }
+
+    function getProcessedResultRows() {
+        return ResultsCore.processRows(resultRows.map(normalizeResultRow), currentResultFilters(), getModeResultsSettings().sort, Date.now());
     }
 
     async function refreshResults() {
         if (!db) return;
-        if (mode === "scout") {
-            const all = (await idb.getAll("scoutLatest")).filter(passesScoutFilters);
-            resultRows = sortScoutRows(all);
-        } else {
-            const users = (await idb.getAll("users")).filter(r => r.sourceMode === mode);
-            const latest = new Map((await idb.getAll("scoutLatest")).map(s => [Number(s.userId), s]));
-            const q = String(document.getElementById("ra-search")?.value || "").toLowerCase().trim();
-            const minMan = n(document.getElementById("ra-min-man")?.value);
-            const minInt = n(document.getElementById("ra-min-int")?.value);
-            const minEnd = n(document.getElementById("ra-min-end")?.value);
-            const minTotal = n(document.getElementById("ra-min-total")?.value);
-            resultRows = users.filter(u => {
-                if (!settings.includeInactive && u.status === "inactive") return false;
-                if (q && !String(u.name).toLowerCase().includes(q) && !String(u.userId).includes(q)) return false;
-                if (minMan && n(u.stats?.man) < minMan) return false;
-                if (minInt && n(u.stats?.int) < minInt) return false;
-                if (minEnd && n(u.stats?.end) < minEnd) return false;
-                if (minTotal && n(u.stats?.total) < minTotal) return false;
-                return true;
-            }).map(u => ({...u, scout: latest.get(Number(u.userId)) || null}));
-            const sort = document.getElementById("ra-sort")?.value || settings.resultSort;
-            resultRows.sort((a,b) => sort === "name" ? String(a.name).localeCompare(String(b.name)) : sort === "fit" ? (snapshotFit(b.scout || {}) ?? -1e9) - (snapshotFit(a.scout || {}) ?? -1e9) : n(b.lastSeenPost)-n(a.lastSeenPost));
+        if (mode === "scout") resultRows = await idb.getAll("scoutLatest");
+        else {
+            const users = (await idb.getAll("users")).filter(r => r.sourceMode === mode && (settings.includeInactive || r.status !== "inactive"));
+            const latest = new Map((await idb.getAll("scoutLatest")).map(x => [Number(x.userId),x]));
+            resultRows = users.map(u => ({...u,scout:latest.get(Number(u.userId)) || null}));
         }
         renderResults();
     }
@@ -723,38 +754,57 @@
         return `${x >= 0 ? "+" : ""}${x.toFixed(1)}%`;
     }
 
+    function lastActiveText(row) {
+        const idle = ResultsCore.idleSeconds(row, Date.now());
+        if (idle === null) return "—";
+        if (/online/i.test(String((row.scout || row).profile?.status || row.api?.status || ""))) return "Online";
+        if (idle < 60) return `${idle}s`; if (idle < 3600) return `${Math.floor(idle/60)}m`; if (idle < 86400) return `${Math.floor(idle/3600)}h`; return `${Math.floor(idle/86400)}d`;
+    }
+
+    function displayColumn(row,key) {
+        const s=row.scout || (row.profile ? row : null), w=s?.w30 || s?.provisionalSource || {};
+        if(key==="player") return `<a href="${profileUrl(row.userId)}" target="_blank">${esc(row.name || s?.profile?.name || row.userId)}</a><small>${row.userId}</small>`;
+        if(key==="man") return fmt(row.stats?.man); if(key==="int") return fmt(row.stats?.int); if(key==="end") return fmt(row.stats?.end); if(key==="total") return fmt(row.stats?.total);
+        if(key==="ee") return row.ee ?? "—"; if(key==="preferredCompany") return esc(ResultsCore.formatCompany(row.preferredCompany || row.company));
+        if(key==="fit") return scoutFitText(s); if(key==="trend") return trendText(s?.trend); if(key==="activity30") return fmt(w.activityHours,1);
+        if(key==="lastActive") return lastActiveText(row); if(key==="scoutStatus") return ResultsCore.classifyScoutStatus(row).toUpperCase();
+        if(key==="level") return fmt(s?.profile?.level || row.api?.level); if(key==="xanax30") return fmt(w.xanax,1); if(key==="refills30") return fmt(w.refills,1);
+        if(key==="attacks30") return fmt(w.attacks,1); if(key==="rwHits30") return fmt(w.rwHits,1); if(key==="networth") return money(s?.extra?.networth);
+        if(key==="activeStreak") return fmt(s?.extra?.activeStreak); if(key==="bestStreak") return fmt(s?.extra?.bestActiveStreak);
+        if(key==="postDate") return row.lastSeenPost ? new Date(row.lastSeenPost).toLocaleDateString() : "—"; if(key==="scoutAge") return s?.capturedAt ? ageText(s.capturedAt) : "—"; return "—";
+    }
+
+    function setResultsSort(key) {
+        const state=getModeResultsSettings(), col=ResultsCore.getColumn(key); if(!col?.sortable)return;
+        const direction=state.sort?.key===key ? (state.sort.direction==="asc"?"desc":"asc") : col.defaultDirection;
+        saveResultsModeState({sort:{key,direction}}).then(renderResults);
+    }
+
+    function renderResultsFilters() {
+        const box=document.getElementById("ra-results-filters"); if(!box)return; const f=getModeResultsSettings().filters || {};
+        const companies=ResultsCore.COMPANY_KEYS.map(k=>`<option value="${k}" ${f.preferredCompany===k?"selected":""}>${esc(ResultsCore.formatCompany(k))}</option>`).join("");
+        box.innerHTML=`<div class="ra-filter-grid">${[["minMan","MAN ≥"],["minInt","INT ≥"],["minEnd","END ≥"],["minTotal","TOTAL ≥"],["minEe","EE ≥"],["minActivity30","Activity 30d ≥"],["maxIdleDays","Last Active ≤ days"],["minFit","Fit ≥"],["minLevel","Level ≥"],["minNetworth","Net Worth ≥"],["minXanax30","Xanax 30d ≥"],["minRefills30","Refills 30d ≥"],["minAttacks30","Attacks 30d ≥"],["minRwHits30","RW Hits 30d ≥"]].map(([k,l])=>`<label>${l}<input class="ra-results-filter" data-filter="${k}" value="${esc(f[k]??"")}" inputmode="decimal"></label>`).join("")}<label>Preferred Company<select class="ra-results-filter" data-filter="preferredCompany"><option value="">Any</option>${companies}</select></label><label>Scout Status<select class="ra-results-filter" data-filter="scoutStatus"><option value="">Any</option>${ResultsCore.SCOUT_STATUS_ORDER.map(x=>`<option value="${x}" ${f.scoutStatus===x?"selected":""}>${x.toUpperCase()}</option>`).join("")}</select></label></div>`;
+        box.querySelectorAll(".ra-results-filter").forEach(el=>el.addEventListener("change",async()=>{const next={...getModeResultsSettings().filters}; const key=el.dataset.filter; if(el.value) next[key]=el.value; else delete next[key]; await saveResultsModeState({filters:next}); renderResults();}));
+    }
+
+    function renderResultsColumns() {
+        const box=document.getElementById("ra-results-columns"); if(!box)return; const state=getModeResultsSettings();
+        box.innerHTML=`<div class="ra-column-grid">${ResultsCore.COLUMNS.map(c=>`<label><input type="checkbox" data-column="${c.key}" ${state.visibleColumns.includes(c.key)?"checked":""} ${c.key==="player"?"disabled":""}> ${esc(c.label)}</label>`).join("")}</div>`;
+        box.querySelectorAll("input[data-column]").forEach(el=>el.onchange=async()=>{let cols=[...getModeResultsSettings().visibleColumns]; if(el.checked) cols=[...new Set([...cols,el.dataset.column])]; else cols=cols.filter(x=>x!==el.dataset.column); if(!cols.includes("player"))cols.unshift("player"); await saveResultsModeState({visibleColumns:cols}); renderResults();});
+    }
+
     function renderResults() {
-        const wrap = document.getElementById("ra-results-body");
-        const meta = document.getElementById("ra-results-meta");
-        if (!wrap) return;
-        if (meta) meta.textContent = `${resultRows.length} result(s) · ${modeLabel(mode)}`;
-        if (!resultRows.length) {
-            wrap.innerHTML = '<div class="ra-empty">No matching results.</div>';
-            return;
-        }
-        const view = settings.view || "table";
-        if (view === "cards") wrap.innerHTML = `<div class="ra-cards">${resultRows.map(row => mode === "scout" ? scoutCard(row) : forumCard(row)).join("")}</div>`;
-        else wrap.innerHTML = mode === "scout" ? scoutTable(resultRows) : forumTable(resultRows);
-        bindResultActions();
-    }
-
-    function scoutCard(s) {
-        const id = s.userId;
-        const w = s.w30 || s.provisionalSource || {};
-        return `<div class="ra-card"><div class="ra-card-head"><label><input type="checkbox" class="ra-select" data-id="${id}" ${selectedIds.has(id)?"checked":""}> <a href="${profileUrl(id)}" target="_blank">${esc(s.profile?.name || `User ${id}`)}</a></label><b class="ra-fit">${scoutFitText(s)}</b></div><div class="ra-kpis"><span>Trend <b>${trendText(s.trend)}</b></span><span>Lvl <b>${fmt(s.profile?.level)}</b></span><span>NW <b>${money(s.extra?.networth)}</b></span><span>Xan30 <b>${fmt(w.xanax,1)}</b></span><span>Hrs30 <b>${fmt(w.activityHours,1)}</b></span><span>Ref30 <b>${fmt(w.refills,1)}</b></span><span>Atk30 <b>${fmt(w.attacks,1)}</b></span><span>RW30 <b>${fmt(w.rwHits,1)}</b></span></div><div class="ra-row-actions"><button data-scout="${id}">Scout</button><button data-history="${id}">History</button><a href="${messageUrl(id)}" target="_blank">Message</a><small>${ageText(s.capturedAt)} old</small></div></div>`;
-    }
-
-    function forumCard(r) {
-        const s = r.scout;
-        return `<div class="ra-card"><div class="ra-card-head"><label><input type="checkbox" class="ra-select" data-id="${r.userId}" ${selectedIds.has(r.userId)?"checked":""}> <a href="${profileUrl(r.userId)}" target="_blank">${esc(r.name)}</a></label><b class="ra-fit">${scoutFitText(s)}</b></div><div class="ra-kpis"><span>MAN <b>${fmt(r.stats?.man)}</b></span><span>INT <b>${fmt(r.stats?.int)}</b></span><span>END <b>${fmt(r.stats?.end)}</b></span><span>TOTAL <b>${fmt(r.stats?.total)}</b></span><span>EE <b>${r.ee ?? "—"}</b></span><span>Trend <b>${trendText(s?.trend)}</b></span></div><div class="ra-row-actions"><button data-scout="${r.userId}">Scout</button>${s?`<button data-history="${r.userId}">History</button>`:""}<a href="${messageUrl(r.userId)}" target="_blank">Message</a></div></div>`;
-    }
-
-    function scoutTable(rows) {
-        return `<table class="ra-table"><thead><tr><th></th><th>Player</th><th>Fit</th><th>Trend</th><th>Lvl</th><th>Age</th><th>Xan30</th><th>Hrs30</th><th>Ref30</th><th>Atk30</th><th>RW30</th><th>Net worth</th><th>Streak</th><th>Data</th><th>Actions</th></tr></thead><tbody>${rows.map(s => { const w=s.w30||s.provisionalSource||{}; return `<tr><td><input type="checkbox" class="ra-select" data-id="${s.userId}" ${selectedIds.has(s.userId)?"checked":""}></td><td><a href="${profileUrl(s.userId)}" target="_blank">${esc(s.profile?.name || s.userId)}</a><small>${s.userId}</small></td><td class="ra-fit">${scoutFitText(s)}</td><td>${trendText(s.trend)}</td><td>${fmt(s.profile?.level)}</td><td>${fmt(s.profile?.age)}d</td><td>${fmt(w.xanax,1)}</td><td>${fmt(w.activityHours,1)}</td><td>${fmt(w.refills,1)}</td><td>${fmt(w.attacks,1)}</td><td>${fmt(w.rwHits,1)}</td><td>${money(s.extra?.networth)}</td><td>${fmt(s.extra?.activeStreak)}/${fmt(s.extra?.bestActiveStreak)}</td><td>${ageText(s.capturedAt)}</td><td><button data-scout="${s.userId}">Scout</button><button data-history="${s.userId}">History</button></td></tr>`; }).join("")}</tbody></table>`;
-    }
-
-    function forumTable(rows) {
-        return `<table class="ra-table"><thead><tr><th></th><th>Player</th><th>MAN</th><th>INT</th><th>END</th><th>TOTAL</th><th>EE</th><th>Company</th><th>Status</th><th>Fit</th><th>Trend</th><th>Scout data</th><th>Actions</th></tr></thead><tbody>${rows.map(r => `<tr><td><input type="checkbox" class="ra-select" data-id="${r.userId}" ${selectedIds.has(r.userId)?"checked":""}></td><td><a href="${profileUrl(r.userId)}" target="_blank">${esc(r.name)}</a><small>${r.userId}</small></td><td>${fmt(r.stats?.man)}</td><td>${fmt(r.stats?.int)}</td><td>${fmt(r.stats?.end)}</td><td>${fmt(r.stats?.total)}</td><td>${r.ee ?? "—"}</td><td>${esc((r.company||"").replaceAll("_"," ") || "—")}</td><td>${esc(r.status)}</td><td class="ra-fit">${scoutFitText(r.scout)}</td><td>${trendText(r.scout?.trend)}</td><td>${r.scout?ageText(r.scout.capturedAt):"—"}</td><td><button data-scout="${r.userId}">Scout</button>${r.scout?`<button data-history="${r.userId}">History</button>`:""}</td></tr>`).join("")}</tbody></table>`;
+        const wrap=document.getElementById("ra-results-body"),meta=document.getElementById("ra-results-meta"); if(!wrap)return;
+        const rows=getProcessedResultRows(),state=getModeResultsSettings(),filterCount=ResultsCore.activeFilterCount(currentResultFilters());
+        const col=ResultsCore.getColumn(state.sort.key); if(meta)meta.textContent=`${rows.length} candidate(s) · ${col?.label||"Fit"} ${state.sort.direction==="asc"?"↑":"↓"}${filterCount?` · ${filterCount} filters`:""}`;
+        const ft=document.getElementById("ra-results-filters-toggle"); if(ft)ft.textContent=filterCount?`Filters · ${filterCount}`:"Filters";
+        const clear=document.getElementById("ra-clear-filters"); if(clear)clear.hidden=!filterCount;
+        renderResultsFilters(); renderResultsColumns();
+        if(!rows.length){wrap.innerHTML='<div class="ra-empty">No matching results.</div>';return;}
+        const cols=state.visibleColumns.filter(k=>ResultsCore.getColumn(k));
+        if(settings.view==="cards") wrap.innerHTML=`<div class="ra-cards">${rows.map(r=>`<div class="ra-card"><div class="ra-card-head"><label><input type="checkbox" class="ra-select" data-id="${r.userId}" ${selectedIds.has(Number(r.userId))?"checked":""}> ${displayColumn(r,"player")}</label><b class="ra-fit">${displayColumn(r,"fit")}</b></div><div class="ra-kpis">${cols.filter(k=>!["player","fit"].includes(k)).map(k=>`<span>${esc(ResultsCore.getColumn(k).label)}<b>${displayColumn(r,k)}</b></span>`).join("")}</div><div class="ra-row-actions"><button data-scout="${r.userId}">Scout</button>${r.scout||r.profile?`<button data-history="${r.userId}">History</button>`:""}<a href="${messageUrl(r.userId)}" target="_blank">Message</a></div></div>`).join("")}</div>`;
+        else wrap.innerHTML=`<table class="ra-table"><thead><tr><th></th>${cols.map(k=>{const c=ResultsCore.getColumn(k),active=state.sort.key===k,aria=active?(state.sort.direction==="asc"?"ascending":"descending"):"none";return `<th aria-sort="${aria}"><button class="ra-sort-head" data-sort-key="${k}">${esc(c.label)}${active?` ${state.sort.direction==="asc"?"↑":"↓"}`:""}</button></th>`;}).join("")}<th>Actions</th></tr></thead><tbody>${rows.map(r=>`<tr><td><input type="checkbox" class="ra-select" data-id="${r.userId}" ${selectedIds.has(Number(r.userId))?"checked":""}></td>${cols.map(k=>`<td>${displayColumn(r,k)}</td>`).join("")}<td><button data-scout="${r.userId}">Scout</button>${r.scout||r.profile?`<button data-history="${r.userId}">History</button>`:""}</td></tr>`).join("")}</tbody></table>`;
+        wrap.querySelectorAll("[data-sort-key]").forEach(b=>b.onclick=()=>setResultsSort(b.dataset.sortKey)); bindResultActions();
     }
 
     function bindResultActions() {
@@ -774,19 +824,11 @@
     }
 
     async function copyCsv() {
-        const lines = [];
-        if (mode === "scout") {
-            lines.push("ID,Name,Fit,FitType,Trend,Level,AgeDays,NetWorth,Xan30,Hrs30,Ref30,Atk30,RW30,DataAge");
-            for (const s of resultRows) {
-                const w=s.w30||s.provisionalSource||{};
-                lines.push([s.userId,`"${String(s.profile?.name||"").replaceAll('"','""')}"`,snapshotFit(s)??"",s.official?"official":"provisional",s.trend??"",s.profile?.level??"",s.profile?.age??"",s.extra?.networth??"",w.xanax??"",w.activityHours??"",w.refills??"",w.attacks??"",w.rwHits??"",ageText(s.capturedAt)].join(","));
-            }
-        } else {
-            lines.push("ID,Name,MAN,INT,END,TOTAL,EE,Company,Status,Fit,Trend");
-            for (const r of resultRows) lines.push([r.userId,`"${String(r.name||"").replaceAll('"','""')}"`,r.stats?.man||0,r.stats?.int||0,r.stats?.end||0,r.stats?.total||0,r.ee??"",r.company||"",r.status||"",snapshotFit(r.scout||{})??"",r.scout?.trend??""].join(","));
-        }
-        await navigator.clipboard.writeText(lines.join("\n"));
-        setStatus(`Copied ${resultRows.length} row(s) as CSV.`);
+        const rows=getProcessedResultRows(),cols=getModeResultsSettings().visibleColumns.filter(k=>ResultsCore.getColumn(k));
+        const quote=v=>`"${String(v??"").replaceAll('"','""').replace(/<[^>]+>/g,"")}"`;
+        const lines=[cols.map(k=>quote(ResultsCore.getColumn(k).label)).join(",")];
+        for(const row of rows) lines.push(cols.map(k=>quote(String(displayColumn(row,k)).replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim())).join(","));
+        await navigator.clipboard.writeText(lines.join("\n")); setStatus(`Copied ${rows.length} row(s) as CSV.`);
     }
 
     function applyTheme() {
@@ -865,7 +907,7 @@
 #ra-panel{position:fixed;left:calc(100vw - 590px);top:70px;width:560px;height:620px;z-index:2147483401;border-radius:12px;display:none;overflow:auto;resize:both;min-width:360px;min-height:300px;max-width:calc(100vw - 8px);max-height:calc(100vh - 8px)}
 #ra-results-panel{position:fixed;left:5vw;top:8vh;width:90vw;height:78vh;z-index:2147483402;border-radius:12px;display:none;overflow:hidden;flex-direction:column;resize:both;min-width:520px;min-height:320px;max-width:calc(100vw - 8px);max-height:calc(100vh - 8px)}
 #ra-history{position:fixed;left:18vw;top:14vh;width:760px;height:500px;z-index:2147483403;border-radius:12px;display:none;overflow:hidden;flex-direction:column;resize:both;min-width:420px;min-height:260px;max-width:calc(100vw - 8px);max-height:calc(100vh - 8px)}
-.ra-head{padding:10px 12px;background:var(--ra-bg2);border-bottom:1px solid var(--ra-line);display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:move;position:sticky;top:0;z-index:4}.ra-head b{font-size:14px}.ra-head-actions{display:flex;gap:5px;align-items:center}.ra-head button,.ra-btn,.ra-row-actions button,.ra-row-actions a,.ra-table button{border:1px solid var(--ra-line);border-radius:7px;padding:6px 8px;background:var(--ra-bg2);color:var(--ra-text);cursor:pointer;text-decoration:none;font-weight:700}.ra-btn-primary{border-color:var(--ra-accent)!important}.ra-btn-danger{border-color:var(--ra-danger)!important}.ra-inner{padding:var(--ra-pad)}#ra-status{font-weight:700;margin:0 0 9px;color:var(--ra-accent)}#ra-status.ra-bad{color:var(--ra-danger)}.ra-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.ra-grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.ra-field label{display:block;color:var(--ra-muted);font-size:10px;font-weight:900;text-transform:uppercase;margin-bottom:3px}.ra-field input,.ra-field select,.ra-field textarea{width:100%;box-sizing:border-box;padding:7px;border-radius:7px;border:1px solid var(--ra-line);background:var(--ra-bg2);color:var(--ra-text)}.ra-actions{display:flex;gap:6px;flex-wrap:wrap;margin:9px 0}.ra-actions .ra-btn{flex:1}.ra-section{border-top:1px solid var(--ra-line);padding-top:10px;margin-top:10px}.ra-section summary{cursor:pointer;font-weight:900}.ra-mode-only{display:none}.ra-progress{height:7px;background:var(--ra-line);border-radius:9px;overflow:hidden}.ra-progress>div{height:100%;width:0;background:var(--ra-accent)}#ra-progress-text{color:var(--ra-muted);font-size:10px;text-align:center}.ra-results-tools{padding:8px;border-bottom:1px solid var(--ra-line);display:flex;gap:7px;align-items:center;flex-wrap:wrap;background:var(--ra-bg2)}#ra-results-body,.ra-history-body{overflow:auto;flex:1}.ra-table{border-collapse:collapse;width:100%;min-width:900px;color:var(--ra-text)}.ra-table th,.ra-table td{padding:6px;border-bottom:1px solid var(--ra-line);white-space:nowrap;text-align:left}.ra-table th{position:sticky;top:0;background:var(--ra-bg2);z-index:2}.ra-table td small{display:block;color:var(--ra-muted)}.ra-table a,.ra-card a{color:var(--ra-text)}.ra-fit{color:#fbbf24}.ra-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:8px;padding:8px}.ra-card{border:1px solid var(--ra-line);border-radius:10px;padding:10px;background:var(--ra-bg2)}.ra-card-head{display:flex;justify-content:space-between;gap:8px}.ra-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin:8px 0}.ra-kpis span{background:color-mix(in srgb,var(--ra-bg) 80%,transparent);padding:5px;border-radius:5px;color:var(--ra-muted)}.ra-kpis b{display:block;color:var(--ra-text)}.ra-row-actions{display:flex;align-items:center;gap:5px;flex-wrap:wrap}.ra-row-actions small{margin-left:auto;color:var(--ra-muted)}.ra-empty{padding:18px;color:var(--ra-muted)}.ra-score-row{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:6px;align-items:end;margin:5px 0}.ra-score-row span{font-weight:900}.ra-note{color:var(--ra-muted);font-size:10px}.ra-complexity-toggle{display:flex;gap:3px}.ra-complexity-toggle button{padding:4px 7px;font-size:10px}.ra-active-toggle{outline:1px solid var(--ra-accent);box-shadow:0 0 8px color-mix(in srgb,var(--ra-accent) 55%,transparent)}.ra-advanced-only[hidden]{display:none!important}
+.ra-head{padding:10px 12px;background:var(--ra-bg2);border-bottom:1px solid var(--ra-line);display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:move;position:sticky;top:0;z-index:4}.ra-head b{font-size:14px}.ra-head-actions{display:flex;gap:5px;align-items:center}.ra-head button,.ra-btn,.ra-row-actions button,.ra-row-actions a,.ra-table button{border:1px solid var(--ra-line);border-radius:7px;padding:6px 8px;background:var(--ra-bg2);color:var(--ra-text);cursor:pointer;text-decoration:none;font-weight:700}.ra-btn-primary{border-color:var(--ra-accent)!important}.ra-btn-danger{border-color:var(--ra-danger)!important}.ra-inner{padding:var(--ra-pad)}#ra-status{font-weight:700;margin:0 0 9px;color:var(--ra-accent)}#ra-status.ra-bad{color:var(--ra-danger)}.ra-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.ra-grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.ra-field label{display:block;color:var(--ra-muted);font-size:10px;font-weight:900;text-transform:uppercase;margin-bottom:3px}.ra-field input,.ra-field select,.ra-field textarea{width:100%;box-sizing:border-box;padding:7px;border-radius:7px;border:1px solid var(--ra-line);background:var(--ra-bg2);color:var(--ra-text)}.ra-actions{display:flex;gap:6px;flex-wrap:wrap;margin:9px 0}.ra-actions .ra-btn{flex:1}.ra-section{border-top:1px solid var(--ra-line);padding-top:10px;margin-top:10px}.ra-section summary{cursor:pointer;font-weight:900}.ra-mode-only{display:none}.ra-progress{height:7px;background:var(--ra-line);border-radius:9px;overflow:hidden}.ra-progress>div{height:100%;width:0;background:var(--ra-accent)}#ra-progress-text{color:var(--ra-muted);font-size:10px;text-align:center}.ra-results-tools{padding:8px;border-bottom:1px solid var(--ra-line);display:flex;gap:7px;align-items:center;flex-wrap:wrap;background:var(--ra-bg2)}#ra-results-search{min-width:180px;padding:6px;border:1px solid var(--ra-line);background:var(--ra-bg);border-radius:7px}.ra-results-drawer{padding:9px;border-bottom:1px solid var(--ra-line);background:var(--ra-bg2)}.ra-filter-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:7px}.ra-filter-grid label{font-size:10px;font-weight:700}.ra-filter-grid input,.ra-filter-grid select{width:100%;box-sizing:border-box;margin-top:3px;padding:6px;background:var(--ra-bg);border:1px solid var(--ra-line);border-radius:6px}.ra-column-grid{display:flex;gap:8px;flex-wrap:wrap}.ra-sort-head{width:100%;border:0!important;background:transparent!important;text-align:left;padding:4px!important;touch-action:manipulation}.ra-invalid{border-color:var(--ra-danger)!important}#ra-results-body,.ra-history-body{overflow:auto;flex:1}.ra-table{border-collapse:collapse;width:100%;min-width:900px;color:var(--ra-text)}.ra-table th,.ra-table td{padding:6px;border-bottom:1px solid var(--ra-line);white-space:nowrap;text-align:left}.ra-table th{position:sticky;top:0;background:var(--ra-bg2);z-index:2}.ra-table td small{display:block;color:var(--ra-muted)}.ra-table a,.ra-card a{color:var(--ra-text)}.ra-fit{color:#fbbf24}.ra-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:8px;padding:8px}.ra-card{border:1px solid var(--ra-line);border-radius:10px;padding:10px;background:var(--ra-bg2)}.ra-card-head{display:flex;justify-content:space-between;gap:8px}.ra-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin:8px 0}.ra-kpis span{background:color-mix(in srgb,var(--ra-bg) 80%,transparent);padding:5px;border-radius:5px;color:var(--ra-muted)}.ra-kpis b{display:block;color:var(--ra-text)}.ra-row-actions{display:flex;align-items:center;gap:5px;flex-wrap:wrap}.ra-row-actions small{margin-left:auto;color:var(--ra-muted)}.ra-empty{padding:18px;color:var(--ra-muted)}.ra-score-row{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:6px;align-items:end;margin:5px 0}.ra-score-row span{font-weight:900}.ra-note{color:var(--ra-muted);font-size:10px}.ra-complexity-toggle{display:flex;gap:3px}.ra-complexity-toggle button{padding:4px 7px;font-size:10px}.ra-active-toggle{outline:1px solid var(--ra-accent);box-shadow:0 0 8px color-mix(in srgb,var(--ra-accent) 55%,transparent)}.ra-advanced-only[hidden]{display:none!important}
 #ra-sidebar-launcher{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;margin:0 2px;cursor:pointer;border-radius:5px;color:#39ff14}.ra-sidebar-launcher-svg{width:18px;height:18px;display:block}.ra-sidebar-launcher-svg path,.ra-sidebar-launcher-svg circle{stroke:currentColor}
 @media(max-width:700px){#ra-panel{left:6px;top:45px;width:calc(100vw - 12px);height:70vh}.ra-grid,.ra-grid3{grid-template-columns:1fr}.ra-kpis{grid-template-columns:repeat(2,1fr)}#ra-results-panel{left:2vw;top:5vh;width:96vw;height:85vh}#ra-history{left:4vw;top:10vh;width:92vw;height:70vh}}
 `;
@@ -955,6 +997,14 @@
         managedWindows.get(id).resizeObserver = ro;
     }
 
+    async function resetWindowLayout() {
+        const meta=await getMeta(); meta.ui=meta.ui||{}; meta.ui.windowGeometry=meta.ui.windowGeometry||{};
+        for(const id of ["main","results","history"]) delete meta.ui.windowGeometry[id];
+        await idb.put("meta",meta);
+        for(const [id,item] of managedWindows){const g=clampGeometry(item.defaults,item.defaults);Object.assign(item.element.style,{left:`${g.x}px`,top:`${g.y}px`,width:`${g.width}px`,height:`${g.height}px`});await persistWindowGeometry(id,item.element);}
+        setStatus("Window layout reset.");
+    }
+
     function recoverManagedWindows() {
         for (const [id, item] of managedWindows) {
             const r = item.element.getBoundingClientRect();
@@ -993,18 +1043,18 @@
 
         const panel=document.createElement("div");
         panel.id="ra-panel";
-        panel.innerHTML=`<div class="ra-head" id="ra-drag"><b>Recruitment Agency <span class="ra-note">v${SCRIPT_VERSION}</span></b><div class="ra-head-actions"><div class="ra-complexity-toggle"><button id="ra-complexity-simple">Simple</button><button id="ra-complexity-advanced">Advanced</button></div><button id="ra-open-results">Results</button><button id="ra-close">×</button></div></div><div class="ra-inner"><div id="ra-status">Ready.</div><div class="ra-grid"><div class="ra-field"><label>Mode</label><select id="ra-mode"><option value="company">Company</option><option value="faction">Faction</option><option value="scout">Scout</option></select></div><div class="ra-field"><label>Sort</label><select id="ra-sort"><option value="fit">Fit</option><option value="recent">Newest / recent</option><option value="trend">Trend</option><option value="name">Name</option><option value="level">Level</option><option value="networth">Net worth</option></select></div></div>
+        panel.innerHTML=`<div class="ra-head" id="ra-drag"><b>Recruitment Agency <span class="ra-note">v${SCRIPT_VERSION}</span></b><div class="ra-head-actions"><div class="ra-complexity-toggle"><button id="ra-complexity-simple">Simple</button><button id="ra-complexity-advanced">Advanced</button></div><button id="ra-open-results">Results</button><button id="ra-close">×</button></div></div><div class="ra-inner"><div id="ra-status">Ready.</div><div class="ra-grid"><div class="ra-field"><label>Mode</label><select id="ra-mode"><option value="company">Company</option><option value="faction">Faction</option><option value="scout">Scout</option></select></div></div>
 <div id="ra-forum-controls" class="ra-mode-only"><div class="ra-grid"><div class="ra-field"><label>Target thread ID / URL</label><input id="ra-target-thread" placeholder="Thread ID or URL"></div><div class="ra-field ra-advanced-only"><label>Scope</label><select id="ra-forum-scope"><option value="thread">Single thread</option><option value="category">Whole category</option></select></div><div class="ra-field ra-advanced-only"><label>Days back (0 = all)</label><input id="ra-forum-days" type="number" min="0"></div><div class="ra-field"><label>Name / ID filter</label><input id="ra-search"></div></div><div class="ra-grid3"><div class="ra-field"><label>MAN ≥</label><input id="ra-min-man" type="number"></div><div class="ra-field"><label>INT ≥</label><input id="ra-min-int" type="number"></div><div class="ra-field"><label>END ≥</label><input id="ra-min-end" type="number"></div></div><div class="ra-field"><label>TOTAL ≥</label><input id="ra-min-total" type="number"></div><div class="ra-actions"><button class="ra-btn ra-btn-primary" id="ra-full-scan">Full Scan</button><button class="ra-btn ra-btn-primary" id="ra-update-scan">Update Scan</button><button class="ra-btn" id="ra-open-thread">Open Thread</button></div></div>
 <div id="ra-scout-controls" class="ra-mode-only"><div class="ra-field"><label>Player IDs / profile URLs</label><textarea id="ra-direct-ids" placeholder="3877028, profile URLs, etc."></textarea></div><div class="ra-actions"><button class="ra-btn ra-btn-primary" id="ra-scout-ids">Scout IDs</button><button class="ra-btn ra-btn-primary" id="ra-scout-page">Scout Search Users Page</button><button class="ra-btn ra-advanced-only" id="ra-reread-page">Read Page</button></div><div id="ra-page-count" class="ra-note"></div></div>
 <div class="ra-progress"><div id="ra-progress-fill"></div></div><div id="ra-progress-text">Idle</div><div class="ra-actions"><button class="ra-btn ra-advanced-only" id="ra-pause-scout">Pause</button><button class="ra-btn ra-btn-danger ra-advanced-only" id="ra-cancel-scout" disabled>Cancel</button><button class="ra-btn" id="ra-scout-selected">Scout Selected</button><button class="ra-btn" id="ra-scout-all">Scout All</button></div>
 <details class="ra-section"><summary>Scout filters</summary>${simpleScoutFiltersHtml()}${advancedScoutFiltersHtml()}<button class="ra-btn" id="ra-apply-filters">Apply filters</button></details>
 <details class="ra-section"><summary>Fit Settings</summary>${scoreRowsHtml()}<div class="ra-actions"><button class="ra-btn ra-btn-primary" id="ra-save-scout-settings">Save Fit / Scout Settings</button></div></details>
-<details class="ra-section ra-advanced-only"><summary>Advanced Settings</summary><div class="ra-grid3"><div class="ra-field"><label>API calls/min</label><input id="ra-rate" type="number" min="10" max="75" step="1"></div><div class="ra-field"><label>Workers</label><input id="ra-workers" type="number" min="1" max="8"></div><div class="ra-field"><label>Call budget</label><input id="ra-budget" type="number" min="1"></div><div class="ra-field"><label>History gap ms</label><input id="ra-history-gap" type="number" min="0"></div><div class="ra-field"><label>Max candidates</label><input id="ra-max-candidates" type="number" min="1"></div><div class="ra-field"><label>Auto Scout new</label><input id="ra-auto-scout" type="checkbox" style="width:auto"></div></div><div class="ra-actions"><button class="ra-btn" id="ra-cache-test">Run cache test</button><span id="ra-cache-verdict" class="ra-note"></span></div><div class="ra-actions"><button class="ra-btn" id="ra-change-key">Set / Change API Key</button><button class="ra-btn" id="ra-density">Density</button><button class="ra-btn" id="ra-view">Table / Cards</button><label><input id="ra-include-inactive" type="checkbox"> Include inactive forum posts</label></div></details><div class="ra-actions"><button class="ra-btn" id="ra-theme">Theme</button></div></div>`;
+<details class="ra-section ra-advanced-only"><summary>Advanced Settings</summary><div class="ra-grid3"><div class="ra-field"><label>API calls/min</label><input id="ra-rate" type="number" min="10" max="75" step="1"></div><div class="ra-field"><label>Workers</label><input id="ra-workers" type="number" min="1" max="8"></div><div class="ra-field"><label>Call budget</label><input id="ra-budget" type="number" min="1"></div><div class="ra-field"><label>History gap ms</label><input id="ra-history-gap" type="number" min="0"></div><div class="ra-field"><label>Max candidates</label><input id="ra-max-candidates" type="number" min="1"></div><div class="ra-field"><label>Auto Scout new</label><input id="ra-auto-scout" type="checkbox" style="width:auto"></div></div><div class="ra-actions"><button class="ra-btn" id="ra-cache-test">Run cache test</button><span id="ra-cache-verdict" class="ra-note"></span></div><div class="ra-actions"><button class="ra-btn" id="ra-change-key">Set / Change API Key</button><button class="ra-btn" id="ra-density">Density</button><button class="ra-btn" id="ra-view">Table / Cards</button><button class="ra-btn" id="ra-reset-window-layout">Reset Window Layout</button><label><input id="ra-include-inactive" type="checkbox"> Include inactive forum posts</label></div></details><div class="ra-actions"><button class="ra-btn" id="ra-theme">Theme</button></div></div>`;
         document.body.appendChild(panel);
 
         const results=document.createElement("div");
         results.id="ra-results-panel";
-        results.innerHTML=`<div class="ra-head" id="ra-results-drag"><b>Recruitment Results</b><div class="ra-head-actions"><button id="ra-copy">Copy CSV</button><button id="ra-results-close">×</button></div></div><div class="ra-results-tools"><span id="ra-results-meta"></span><button class="ra-btn" id="ra-results-refresh">Refresh</button><button class="ra-btn" id="ra-select-all">Select all</button><button class="ra-btn" id="ra-clear-select">Clear selection</button></div><div id="ra-results-body"></div>`;
+        results.innerHTML=`<div class="ra-head" id="ra-results-drag"><b>Recruitment Results</b><div class="ra-head-actions"><button id="ra-copy">Copy CSV</button><button id="ra-results-close">×</button></div></div><div class="ra-results-tools"><input id="ra-results-search" placeholder="Name / ID"><button class="ra-btn" id="ra-results-filters-toggle">Filters</button><button class="ra-btn" id="ra-results-columns-toggle">Columns</button><button class="ra-btn" id="ra-clear-filters" hidden>Clear Filters</button><span id="ra-results-meta"></span><button class="ra-btn" id="ra-results-refresh">Refresh</button><button class="ra-btn" id="ra-select-all">Select all</button><button class="ra-btn" id="ra-clear-select">Clear selection</button></div><div id="ra-results-filters" class="ra-results-drawer" hidden></div><div id="ra-results-columns" class="ra-results-drawer" hidden></div><div id="ra-results-body"></div>`;
         document.body.appendChild(results);
 
         const history=document.createElement("div");
@@ -1026,9 +1076,7 @@
 
     function syncModeUI() {
         const modeEl = document.getElementById("ra-mode");
-        const sortEl = document.getElementById("ra-sort");
         if (modeEl) modeEl.value=mode;
-        if (sortEl) sortEl.value=settings.resultSort || "fit";
         const forum=document.getElementById("ra-forum-controls");
         const scout=document.getElementById("ra-scout-controls");
         if(forum)forum.style.display=mode==="scout"?"none":"block";
@@ -1099,6 +1147,16 @@
         return true;
     }
 
+    const SIDEBAR_RETRY = {attempts:12,delayMs:250,debounceMs:600};
+    let sidebarRecoveryTimer=null;
+    function scheduleSidebarRecovery(reason="mutation") {
+        clearTimeout(sidebarRecoveryTimer);
+        sidebarRecoveryTimer=setTimeout(()=>{ensureSidebarLauncher();syncFallbackLauncher();},SIDEBAR_RETRY.debounceMs);
+    }
+    function startSidebarRetryBurst() {
+        let left=SIDEBAR_RETRY.attempts; const tick=()=>{if(ensureSidebarLauncher()||--left<=0){syncFallbackLauncher();return;}setTimeout(tick,SIDEBAR_RETRY.delayMs);};tick();
+    }
+
     function syncFallbackLauncher() {
         const fallback = document.getElementById("ra-launch");
         if (!fallback) return;
@@ -1114,7 +1172,6 @@
         document.getElementById("ra-complexity-simple").onclick=async()=>{await saveMetaSettings({complexity:"simple"});applyComplexityMode();};
         document.getElementById("ra-complexity-advanced").onclick=async()=>{await saveMetaSettings({complexity:"advanced"});applyComplexityMode();};
         document.getElementById("ra-mode").onchange=e=>switchMode(e.target.value);
-        document.getElementById("ra-sort").onchange=async e=>{await saveMetaSettings({resultSort:e.target.value});await refreshResults();};
         document.getElementById("ra-full-scan").onclick=()=>runForumScan(true);
         document.getElementById("ra-update-scan").onclick=()=>runForumScan(false);
         document.getElementById("ra-open-thread").onclick=()=>{const id=parseThreadId(document.getElementById("ra-target-thread").value);if(id)window.open(forumUrl(id),"_blank");};
@@ -1133,7 +1190,12 @@
         document.getElementById("ra-density").onclick=async()=>{await saveMetaSettings({density:settings.density==="compact"?"comfortable":"compact"});applyTheme();};
         document.getElementById("ra-view").onclick=async()=>{await saveMetaSettings({view:settings.view==="table"?"cards":"table"});renderResults();};
         document.getElementById("ra-include-inactive").onchange=async e=>{await saveMetaSettings({includeInactive:e.target.checked});await refreshResults();};
+        document.getElementById("ra-reset-window-layout")?.addEventListener("click",()=>resetWindowLayout().catch(e=>setStatus(e.message,true)));
         document.getElementById("ra-results-refresh").onclick=refreshResults;
+        document.getElementById("ra-results-search").oninput=()=>renderResults();
+        document.getElementById("ra-results-filters-toggle").onclick=()=>{const box=document.getElementById("ra-results-filters");box.hidden=!box.hidden;};
+        document.getElementById("ra-results-columns-toggle").onclick=()=>{const box=document.getElementById("ra-results-columns");box.hidden=!box.hidden;};
+        document.getElementById("ra-clear-filters").onclick=async()=>{await saveResultsModeState({filters:{}});document.getElementById("ra-results-search").value="";renderResults();};
         document.getElementById("ra-copy").onclick=()=>copyCsv().catch(e=>setStatus(e.message,true));
         document.getElementById("ra-select-all").onclick=()=>{resultRows.forEach(r=>selectedIds.add(Number(r.userId)));renderResults();};
         document.getElementById("ra-clear-select").onclick=()=>{selectedIds.clear();renderResults();};
@@ -1160,19 +1222,15 @@
             await refreshResults();
             setStatus("Ready.");
             const observer=new MutationObserver(()=>{
-                clearTimeout(observerTimer);
-                observerTimer=setTimeout(()=>{
-                    if(!document.getElementById("ra-panel")){
-                        uiMounted=false;
-                        mountUI();
-                        refreshResults();
-                    }
-                    ensureSidebarLauncher();
-                    syncFallbackLauncher();
+                clearTimeout(observerTimer); observerTimer=setTimeout(()=>{
+                    if(!document.getElementById("ra-panel")){uiMounted=false;mountUI();refreshResults();}
+                    scheduleSidebarRecovery("mutation");
                 },120);
             });
             observer.observe(document.documentElement,{childList:true,subtree:true});
-            setTimeout(()=>{ensureSidebarLauncher();syncFallbackLauncher();},800);
+            window.addEventListener("hashchange",()=>scheduleSidebarRecovery("hash"),{passive:true});
+            window.addEventListener("popstate",()=>scheduleSidebarRecovery("popstate"),{passive:true});
+            startSidebarRetryBurst();
         } catch(e){
             console.error("[RA] init failed",e);
             alert(`Recruitment Agency could not start: ${e.message}`);

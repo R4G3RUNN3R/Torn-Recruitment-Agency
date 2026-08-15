@@ -76,7 +76,7 @@ test('filter combinations work across forum and scout fields', () => {
   };
   const filters = {search:'ali',minMan:'50k',minEe:'8',preferredCompany:'AN',minActivity30:'100',maxIdleDays:'1',minFit:'70',minNetworth:'1b',minXanax30:'60',minRefills30:'20',minAttacks30:'200',minRwHits30:'40'};
   assert.deepEqual(ids(R.applyFilters([bad,good],filters,NOW)), [1]);
-  assert.equal(R.activeFilterCount(filters), 11);
+  assert.equal(R.activeFilterCount(filters), 12);
 });
 
 test('processRows filters before sorting and does not mutate input', () => {

@@ -9,11 +9,13 @@ function source() {
   return fs.readFileSync(file, 'utf8');
 }
 
-test('userscript is version 4.1.0 and loads the tested Scout core', () => {
+test('userscript is version 4.2.0 and loads the tested Scout and Results cores', () => {
   const s = source();
-  assert.match(s, /@version\s+4\.1\.0/);
-  assert.match(s, /SCRIPT_VERSION\s*=\s*["']4\.1\.0["']/);
+  assert.match(s, /@version\s+4\.2\.0/);
+  assert.match(s, /SCRIPT_VERSION\s*=\s*["']4\.2\.0["']/);
   assert.match(s, /@require\s+https:\/\/raw\.githubusercontent\.com\/R4G3RUNN3R\/Torn-Recruitment-Agency\/main\/src\/scout-core\.js/);
+  assert.match(s, /@require\s+https:\/\/raw\.githubusercontent\.com\/R4G3RUNN3R\/Torn-Recruitment-Agency\/main\/src\/results-core\.js/);
+  assert.match(s, /RA_ResultsCore/);
 });
 
 test('userscript never depends on the Recruit Scout paid backend', () => {
@@ -111,4 +113,28 @@ test('userscript retains forum recruitment scanning and work-stat parsing', () =
   assert.match(s, /manual\s*\\s\+labou/i);
   assert.match(s, /fetchForumThreads/);
   assert.match(s, /fetchForumPosts/);
+});
+
+
+test('v4.2 Results workspace is simple by default and expandable', () => {
+  const s = source();
+  assert.match(s, /ra-results-search/);
+  assert.match(s, /ra-results-filters-toggle/);
+  assert.match(s, /ra-results-columns-toggle/);
+  assert.match(s, /ra-results-filters/);
+  assert.match(s, /ra-results-columns/);
+  assert.match(s, /ra-clear-filters/);
+  assert.match(s, /aria-sort/);
+  assert.match(s, /data-sort-key/);
+  assert.match(s, /DEFAULT_VISIBLE_COLUMNS/);
+});
+
+test('v4.2 Results state is per mode and includes UX hardening', () => {
+  const s = source();
+  assert.match(s, /resultsByMode/);
+  assert.match(s, /normalizeResultsSettings/);
+  assert.match(s, /resetWindowLayout/);
+  assert.match(s, /syncBusyControls/);
+  assert.match(s, /scheduleSidebarRecovery/);
+  assert.match(s, /SIDEBAR_RETRY/);
 });
