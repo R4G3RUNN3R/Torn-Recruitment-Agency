@@ -75,7 +75,7 @@
   function normalizeAvailability(value) {
     const raw = String(value || '').trim().toLowerCase();
     if (!raw) return 'Unknown';
-    if (/^(available|immediate|immediately|yes)$/.test(raw)) return 'Available';
+    if (/^(available(?:\s+now)?|immediate|immediately|yes)$/.test(raw)) return 'Available';
     if (/^(unavailable|not available|no)$/.test(raw)) return 'Unavailable';
     return AVAILABILITY_VALUES.find(item => item.toLowerCase() === raw) || 'Unknown';
   }
