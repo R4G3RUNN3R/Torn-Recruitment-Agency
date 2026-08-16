@@ -1,0 +1,13 @@
+'use strict';
+const fs=require('node:fs');
+const path=require('node:path');
+const file=path.resolve(__dirname,'..','src','v45-app.js');
+let source=fs.readFileSync(file,'utf8');
+const broken='  async function migrateLegacyUsers\n\n  async function migrateLegacyUsers(){';
+const fixed='  async function migrateLegacyUsers(){';
+const at=source.indexOf(broken);
+if(at<0)throw new Error('Expected generated duplicate migrateLegacyUsers header was not found.');
+if(source.indexOf(broken,at+1)>=0)throw new Error('Unexpected multiple duplicate migrateLegacyUsers headers.');
+source=source.slice(0,at)+fixed+source.slice(at+broken.length);
+fs.writeFileSync(file,source);
+console.log('v4.5 generated function boundary corrected');
