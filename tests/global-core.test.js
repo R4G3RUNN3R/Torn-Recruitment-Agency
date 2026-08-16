@@ -2,6 +2,13 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const GlobalCore = require('../src/global-core');
 
+test('GLOBAL_FIELDS remains the exact approved v4.3 privacy whitelist', () => {
+  assert.deepEqual(GlobalCore.GLOBAL_FIELDS, [
+    'playerId','name','observedAt','level','ee','activity30','xanax30','refills30',
+    'attacks30','rwHits30','networth','fit','fitType','lastActive','scoutStatus','sourceVersion'
+  ]);
+});
+
 test('sanitizeObservation emits only the approved global whitelist', () => {
   const out = GlobalCore.sanitizeObservation({
     playerId: 3877028,
