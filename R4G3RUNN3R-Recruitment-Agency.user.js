@@ -1140,7 +1140,7 @@
         const col=ResultsCore.getColumn(state.sort.key); if(meta)meta.textContent=`${rows.length} candidate(s) · ${col?.label||"Fit"} ${state.sort.direction==="asc"?"↑":"↓"}${filterCount?` · ${filterCount} filters`:""}`;
         const ft=document.getElementById("ra-results-filters-toggle"); if(ft)ft.textContent=filterCount?`Filters · ${filterCount}`:"Filters";
         const clear=document.getElementById("ra-clear-filters"); if(clear)clear.hidden=!filterCount;
-        renderResultsFilters(); renderResultsColumns();
+        renderResultsFilters(); renderResultsColumns(); decorateContextHelp();
         if(!rows.length){wrap.innerHTML='<div class="ra-empty">No matching results.</div>';return;}
         const cols=state.visibleColumns.filter(k=>ResultsCore.getColumn(k));
         if(settings.view==="cards") wrap.innerHTML=`<div class="ra-cards">${rows.map(r=>`<div class="ra-card"><div class="ra-card-head"><label><input type="checkbox" class="ra-select" data-id="${r.userId}" ${selectedIds.has(Number(r.userId))?"checked":""}> ${displayColumn(r,"player")}</label><b class="ra-fit">${displayColumn(r,"fit")}</b></div><div class="ra-kpis">${cols.filter(k=>!["player","fit"].includes(k)).map(k=>`<span>${esc(ResultsCore.getColumn(k).label)}<b>${displayColumn(r,k)}</b></span>`).join("")}</div><div class="ra-row-actions"><button data-scout="${r.userId}">Scout</button>${r.scout||r.profile?`<button data-history="${r.userId}">History</button>`:""}<a href="${messageUrl(r.userId)}" target="_blank">Message</a></div></div>`).join("")}</div>`;
@@ -1405,10 +1405,10 @@
         panel.id="ra-panel";
         panel.innerHTML=`<div class="ra-head" id="ra-drag"><b>Recruitment Agency <span class="ra-note">v${SCRIPT_VERSION}</span></b><div class="ra-head-actions"><button id="ra-settings-toggle">Settings</button><button id="ra-open-results">Results</button><button id="ra-close">×</button></div></div><div class="ra-inner"><div id="ra-status">Ready.</div><div class="ra-grid"><div class="ra-field"><label>Mode</label><select id="ra-mode"><option value="company">Company</option><option value="faction">Faction</option><option value="scout">Scout</option></select></div></div>
 <div id="ra-forum-controls" class="ra-mode-only"><div class="ra-grid"><div class="ra-field"><label>Target thread ID / URL</label><input id="ra-target-thread" placeholder="Thread ID or URL"></div><div class="ra-field ra-advanced-only"><label>Scope</label><select id="ra-forum-scope"><option value="thread">Single thread</option><option value="category">Whole category</option></select></div><div class="ra-field ra-advanced-only"><label>Days back (0 = all)</label><input id="ra-forum-days" type="number" min="0"></div><div class="ra-field"><label>Name / ID filter</label><input id="ra-search"></div></div><div class="ra-grid3"><div class="ra-field"><label>MAN ≥</label><input id="ra-min-man" type="number"></div><div class="ra-field"><label>INT ≥</label><input id="ra-min-int" type="number"></div><div class="ra-field"><label>END ≥</label><input id="ra-min-end" type="number"></div></div><div class="ra-field"><label>TOTAL ≥</label><input id="ra-min-total" type="number"></div><div class="ra-actions"><button class="ra-btn ra-btn-primary" id="ra-full-scan">Full Scan</button><button class="ra-btn ra-btn-primary" id="ra-update-scan">Update Scan</button><button class="ra-btn" id="ra-open-thread">Open Thread</button></div></div>
-<div id="ra-scout-controls" class="ra-mode-only"><div class="ra-field"><label>Player IDs / profile URLs</label><textarea id="ra-direct-ids" placeholder="3877028, profile URLs, etc."></textarea></div><div class="ra-actions"><button class="ra-btn ra-btn-primary" id="ra-scout-ids">Scout IDs</button><button class="ra-btn ra-btn-primary" id="ra-scout-page">Scout Search Users Page</button><button class="ra-btn ra-advanced-only" id="ra-reread-page">Read Page</button></div><div id="ra-page-count" class="ra-note"></div></div>
+<div id="ra-scout-controls" class="ra-mode-only" data-help-key="scout"><div class="ra-field"><label>Player IDs / profile URLs</label><textarea id="ra-direct-ids" placeholder="3877028, profile URLs, etc."></textarea></div><div class="ra-actions"><button class="ra-btn ra-btn-primary" id="ra-scout-ids">Scout IDs</button><button class="ra-btn ra-btn-primary" id="ra-scout-page">Scout Search Users Page</button><button class="ra-btn ra-advanced-only" id="ra-reread-page">Read Page</button></div><div id="ra-page-count" class="ra-note"></div></div>
 <div class="ra-progress"><div id="ra-progress-fill"></div></div><div id="ra-progress-text">Idle</div><div class="ra-actions"><button class="ra-btn ra-advanced-only" id="ra-pause-scout">Pause</button><button class="ra-btn ra-btn-danger ra-advanced-only" id="ra-cancel-scout" disabled>Cancel</button><button class="ra-btn" id="ra-scout-selected">Scout Selected</button><button class="ra-btn" id="ra-scout-all">Scout All</button></div>
 <details class="ra-section"><summary>Scout filters</summary>${simpleScoutFiltersHtml()}${advancedScoutFiltersHtml()}<button class="ra-btn" id="ra-apply-filters">Apply filters</button></details>
-<details class="ra-section"><summary>Fit Settings</summary>${scoreRowsHtml()}<div class="ra-actions"><button class="ra-btn ra-btn-primary" id="ra-save-scout-settings">Save Fit / Scout Settings</button></div></details>
+<details class="ra-section" data-help-key="fit"><summary>Fit Settings</summary>${scoreRowsHtml()}<div class="ra-actions"><button class="ra-btn ra-btn-primary" id="ra-save-scout-settings">Save Fit / Scout Settings</button></div></details>
 <section id="ra-settings-panel" class="ra-settings-panel" hidden data-help-key="settings">
 <details class="ra-settings-section" data-settings-section="general" data-help-key="settings-general"><summary>General</summary><div class="ra-settings-copy">Interface, display and local launcher preferences.</div><div class="ra-actions"><div class="ra-complexity-toggle"><button id="ra-complexity-simple">Simple</button><button id="ra-complexity-advanced">Advanced</button></div><button class="ra-btn" id="ra-theme">Theme</button><button class="ra-btn" id="ra-density">Density</button><label><input id="ra-include-inactive" type="checkbox"> Include inactive forum posts</label></div></details>
 <details class="ra-settings-section" data-settings-section="recruitment" data-help-key="settings-recruitment"><summary>Recruitment</summary><div class="ra-settings-copy">Company and faction source defaults. Current thread IDs remain in their normal recruitment controls so they are visible while scanning.</div><div class="ra-note">Company thread: 15907925 · Faction thread: 15909136</div></details>
@@ -1430,7 +1430,7 @@
 
         const results=document.createElement("div");
         results.id="ra-results-panel";
-        results.innerHTML=`<div class="ra-head" id="ra-results-drag"><b>Recruitment Results</b><div class="ra-head-actions"><button id="ra-copy">Copy CSV</button><button id="ra-results-close">×</button></div></div><div class="ra-results-tools"><input id="ra-results-search" placeholder="Name / ID"><button class="ra-btn" id="ra-results-filters-toggle">Filters</button><button class="ra-btn" id="ra-results-columns-toggle">Columns</button><button class="ra-btn" id="ra-clear-filters" hidden>Clear Filters</button><span id="ra-results-meta"></span><button class="ra-btn" id="ra-results-refresh">Refresh</button><button class="ra-btn" id="ra-select-all">Select all</button><button class="ra-btn" id="ra-clear-select">Clear selection</button></div><div id="ra-results-filters" class="ra-results-drawer" hidden></div><div id="ra-results-columns" class="ra-results-drawer" hidden></div><div id="ra-results-body"></div>`;
+        results.innerHTML=`<div class="ra-head" id="ra-results-drag"><b>Recruitment Results</b><div class="ra-head-actions"><button id="ra-copy">Copy CSV</button><button id="ra-results-close">×</button></div></div><div class="ra-results-tools"><input id="ra-results-search" placeholder="Name / ID"><button class="ra-btn" id="ra-results-filters-toggle">Filters</button><button class="ra-btn" id="ra-results-columns-toggle">Columns</button><button class="ra-btn" id="ra-clear-filters" hidden>Clear Filters</button><span id="ra-results-meta"></span><button class="ra-btn" id="ra-results-refresh">Refresh</button><button class="ra-btn" id="ra-select-all">Select all</button><button class="ra-btn" id="ra-clear-select">Clear selection</button></div><div id="ra-results-filters" class="ra-results-drawer" hidden data-help-key="filters"></div><div id="ra-results-columns" class="ra-results-drawer" hidden data-help-key="columns"></div><div id="ra-results-body"></div>`;
         document.body.appendChild(results);
 
         const history=document.createElement("div");
@@ -1457,6 +1457,7 @@
         if (modeEl) modeEl.value=mode;
         const forum=document.getElementById("ra-forum-controls");
         const scout=document.getElementById("ra-scout-controls");
+        if(forum)setContextHelpKey(forum, mode==="faction"?"faction":"company");
         if(forum)forum.style.display=mode==="scout"?"none":"block";
         if(scout)scout.style.display=mode==="scout"?"block":"none";
         const resultSearch=document.getElementById("ra-results-search"); if(resultSearch)resultSearch.value=getModeResultsSettings().filters?.search || "";
@@ -1613,6 +1614,17 @@
             button.textContent = "i";
             target.appendChild(button);
         });
+    }
+
+    function setContextHelpKey(element, key) {
+        if (!element || !HELP_REGISTRY[key]) return;
+        element.dataset.helpKey = key;
+        const button = element.querySelector(":scope > .ra-help-button, :scope > summary > .ra-help-button");
+        if (button) {
+            button.dataset.helpKey = key;
+            button.setAttribute("aria-label", `About ${HELP_REGISTRY[key].title}`);
+        }
+        decorateContextHelp();
     }
 
     function criterionEditorHtml(key, label, criterion) {
