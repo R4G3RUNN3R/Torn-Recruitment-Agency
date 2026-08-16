@@ -1,1 +1,1 @@
-verify-task-4
+verify-task-4-settings-test-fix
