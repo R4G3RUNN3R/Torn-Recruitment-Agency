@@ -40,6 +40,23 @@ test('manual candidate fields win over parser-derived values', () => {
   assert.equal(merged.availability, 'immediate');
 });
 
+test('normalizeCandidate preserves actual manual field values for future precedence', () => {
+  const candidate = MatchCore.normalizeCandidate({
+    userId:'123',
+    manualFields:{desiredRole:'Sales Assistant',expectedSalary:2_000_000},
+    parsed:{desiredRole:'Manager',expectedSalary:1_000_000,availability:'Immediate'}
+  });
+  assert.deepEqual(candidate.manualFields, {
+    desiredCompany:'',
+    desiredRole:'Sales Assistant',
+    expectedSalary:2_000_000,
+    availability:''
+  });
+  assert.equal(candidate.desiredRole, 'Sales Assistant');
+  assert.equal(candidate.expectedSalary, 2_000_000);
+  assert.equal(candidate.availability, 'immediate');
+});
+
 test('default profile is safe and normalized', () => {
   const profile = MatchCore.createDefaultProfile('Bad Decisions - Sales');
   assert.equal(profile.name, 'Bad Decisions - Sales');
