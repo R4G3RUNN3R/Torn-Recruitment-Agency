@@ -127,6 +127,17 @@ test('v4.4 exposes Smart Match profile management controls and functions', () =>
   assert.match(s, /Default Recruit/);
 });
 
+test('v4.4 decorates major non-Settings surfaces with contextual help', () => {
+  const s = source();
+  assert.match(s, /function\s+setContextHelpKey\s*\(/);
+  assert.match(s, /id="ra-scout-controls"[^>]*data-help-key="scout"/);
+  assert.match(s, /<details class="ra-section"[^>]*data-help-key="fit"><summary>Fit Settings<\/summary>/);
+  assert.match(s, /id="ra-results-filters"[^>]*data-help-key="filters"/);
+  assert.match(s, /id="ra-results-columns"[^>]*data-help-key="columns"/);
+  assert.match(s, /setContextHelpKey\(forum,\s*mode==="faction"\?"faction":"company"\)/);
+  assert.match(s, /renderResultsFilters\(\);\s*renderResultsColumns\(\);\s*decorateContextHelp\(\)/);
+});
+
 test('v4.4 contextual help is centralized, accessible and performs no network work', () => {
   const s = source();
   assert.match(s, /HELP_REGISTRY/);
