@@ -2,9 +2,9 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const ResultsCore = require('../src/results-core');
 
 const userscript = fs.readFileSync(path.join(__dirname, '..', 'R4G3RUNN3R-Recruitment-Agency.user.js'), 'utf8');
-const resultsCore = fs.readFileSync(path.join(__dirname, '..', 'src', 'results-core.js'), 'utf8');
 
 test('v4.4 keeps the Torn API hard limit and minimum scheduler gap', () => {
   assert.match(userscript, /MIN_API_GAP_MS\s*=\s*800/);
@@ -20,12 +20,8 @@ test('v4.4 contains no protected Recruit Scout backend or destructive DB upgrade
 });
 
 test('v4.4 keeps Match optional in default Results columns', () => {
-  const start = resultsCore.indexOf('const DEFAULT_VISIBLE_COLUMNS');
-  assert.notEqual(start, -1);
-  const end = resultsCore.indexOf('];', start);
-  const block = resultsCore.slice(start, end + 2);
-  assert.equal(block.includes("'match'"), false);
-  assert.equal(block.includes('"match"'), false);
+  assert.ok(ResultsCore.COLUMN_DEFS.some(column => column.key === 'match'));
+  assert.equal(ResultsCore.DEFAULT_VISIBLE_COLUMNS.includes('match'), false);
 });
 
 test('Smart Match recalculation paths do not call Torn API helpers', () => {
