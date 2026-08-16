@@ -95,16 +95,18 @@ test('Simple UI is default and Advanced controls are marked', () => {
 
 test('v4.4 has an inline Settings hub and moves complexity controls into General settings', () => {
   const s = source();
-  assert.match(s, /id=\\?["']ra-settings-toggle["']/);
-  assert.match(s, /id=\\?["']ra-settings-panel["']/);
+  assert.equal(s.includes('id=\\"ra-settings-toggle\\"'), true);
+  assert.equal(s.includes('id=\\"ra-settings-panel\\"'), true);
   for (const section of ['General','Recruitment','Scout','Results','Smart Match','Global Intelligence','Data & Reset','Danger Zone']) {
-    assert.match(s, new RegExp(`>${section}<|>${section}\\s*<`));
+    assert.ok(s.includes(`<summary>${section}</summary>`), `missing Settings subsection: ${section}`);
   }
-  const headStart = s.indexOf('class=\\"ra-head-actions\\"');
-  const headEnd = s.indexOf('</div></div><div class=\\"ra-inner\\">', headStart);
-  const headBlock = headStart >= 0 && headEnd > headStart ? s.slice(headStart, headEnd) : '';
+  const headStart = s.indexOf('<div class=\\"ra-head\\" id=\\"ra-drag\\">');
+  const headEnd = s.indexOf('<div class=\\"ra-inner\\">', headStart);
+  assert.notEqual(headStart, -1);
+  assert.notEqual(headEnd, -1);
+  const headBlock = s.slice(headStart, headEnd);
   assert.equal(headBlock.includes('ra-complexity-simple'), false);
-  assert.match(s, /data-settings-section=\\?["']general["']/i);
+  assert.equal(s.includes('data-settings-section=\\"general\\"'), true);
 });
 
 test('v4.4 exposes Smart Match profile management controls and functions', () => {
