@@ -55,4 +55,48 @@ replaceOnce(
   '        renderResultsFilters(); renderResultsColumns(); decorateContextHelp();',
   'Results drawer help decoration'
 );
+
+if (!u.includes('const candidateHoverRuntime = {')) {
+  const marker = '    function bindUI() {';
+  if (!u.includes(marker)) throw new Error('Could not locate bindUI for candidate hover insertion');
+  const hoverSnippet = fs.readFileSync('tools/task5-hover.jsfrag', 'utf8').trimEnd();
+  u = u.replace(marker, hoverSnippet + '\n\n' + marker);
+}
+
+replaceOnce(
+  'if(key==="player") return `<a href="${profileUrl(row.userId)}" target="_blank">${esc(row.name || s?.profile?.name || row.userId)}</a><small>${row.userId}</small>`;',
+  'if(key==="player") return `<a class="ra-candidate-hover-target" data-candidate-id="${row.userId}" href="${profileUrl(row.userId)}" target="_blank">${esc(row.name || s?.profile?.name || row.userId)}</a><small>${row.userId}</small>`;',
+  'candidate hover player target'
+);
+replaceOnce(
+  '        if(key==="man") return fmt(row.stats?.man);',
+  '        if(key==="match") return row.matchScore == null ? "—" : Number(row.matchScore).toFixed(1);\n        if(key==="man") return fmt(row.stats?.man);',
+  'Match display column'
+);
+replaceOnce(
+  '[["minMan","MAN ≥"],["minInt","INT ≥"]',
+  '[["minMatch","Match ≥"],["minMan","MAN ≥"],["minInt","INT ≥"]',
+  'Match results filter control'
+);
+replaceOnce(
+  'new Set(["minMan","minInt","minEnd","minTotal"',
+  'new Set(["minMatch","minMan","minInt","minEnd","minTotal"',
+  'Match numeric filter parsing'
+);
+replaceOnce(
+  '        document.body.appendChild(helpPopover);\n\n        const results=document.createElement("div");',
+  '        document.body.appendChild(helpPopover);\n        const candidateHover=document.createElement("div");\n        candidateHover.id="ra-candidate-hover";\n        candidateHover.className="ra-candidate-hover";\n        candidateHover.hidden=true;\n        candidateHover.setAttribute("role","dialog");\n        candidateHover.setAttribute("aria-label","Candidate intelligence");\n        candidateHover.style.cssText="position:fixed;z-index:2147483646;max-width:min(420px,calc(100vw - 12px));max-height:calc(100vh - 12px);overflow:auto;background:var(--ra-bg);color:var(--ra-text);border:1px solid var(--ra-line);border-radius:8px;padding:12px;box-shadow:0 8px 28px rgba(0,0,0,.45);";\n        document.body.appendChild(candidateHover);\n\n        const results=document.createElement("div");',
+  'candidate hover DOM node'
+);
+replaceOnce(
+  '    function bindUI() {\n        document.getElementById("ra-launch").onclick=openMainWindow;',
+  '    function bindUI() {\n        bindCandidateHoverDelegation();\n        document.getElementById("ra-launch").onclick=openMainWindow;',
+  'candidate hover event delegation'
+);
+replaceOnce(
+  '            window.__raResizeTimer = setTimeout(recoverManagedWindows, 150);',
+  '            window.__raResizeTimer = setTimeout(()=>{recoverManagedWindows();if(candidateHoverRuntime.anchor)positionCandidateHover(candidateHoverRuntime.anchor);},150);',
+  'candidate hover resize positioning'
+);
+
 fs.writeFileSync(scriptPath, u);
