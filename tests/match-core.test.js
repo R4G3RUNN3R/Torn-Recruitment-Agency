@@ -29,3 +29,20 @@ test('categorical matching normalizes role/company/availability and excludes unk
     {known:false, earned:0, available:0, ratio:null}
   );
 });
+
+test('manual candidate fields win over parser-derived values', () => {
+  const merged = MatchCore.mergeCandidateValues({
+    manual: {desiredRole:'Sales Assistant', expectedSalary:2_000_000},
+    parsed: {desiredRole:'Manager', expectedSalary:1_000_000, availability:'Immediate'}
+  });
+  assert.equal(merged.desiredRole, 'Sales Assistant');
+  assert.equal(merged.expectedSalary, 2_000_000);
+  assert.equal(merged.availability, 'immediate');
+});
+
+test('default profile is safe and normalized', () => {
+  const profile = MatchCore.createDefaultProfile('Bad Decisions - Sales');
+  assert.equal(profile.name, 'Bad Decisions - Sales');
+  assert.ok(profile.profileId);
+  assert.deepEqual(Object.keys(profile.criteria), MatchCore.CRITERIA_KEYS);
+});
