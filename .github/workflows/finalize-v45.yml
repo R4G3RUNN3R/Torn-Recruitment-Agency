@@ -6,6 +6,7 @@ on:
     paths:
       - scripts/finalize-v45.js
       - scripts/finalize-v45-tests.js
+      - scripts/finalize-v45-syntax.js
       - .github/workflows/finalize-v45.yml
 
 permissions:
@@ -27,10 +28,11 @@ jobs:
         run: |
           node scripts/finalize-v45.js
           node scripts/finalize-v45-tests.js
+          node scripts/finalize-v45-syntax.js
       - name: Verify finalized source
         run: |
-          npm test
           npm run syntax
+          npm test
       - name: Commit finalized v4.5
         run: |
           git config user.name "github-actions[bot]"
