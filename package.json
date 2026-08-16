@@ -9,7 +9,7 @@
   },
   "devDependencies": {
     "fake-indexeddb": "6.2.5",
-    "jsdom": "30.0.1"
+    "jsdom": "26.1.0"
   },
   "engines": {
     "node": ">=20"
