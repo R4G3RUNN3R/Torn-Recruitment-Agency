@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         R4G3RUNN3R's Recruitment Agency
 // @namespace    r4g3runn3r.recruitment.agency
-// @version      4.5.1
+// @version      4.5.2
 // @description  Recruitment discovery, candidate pipeline, Scout intelligence and local recruitment workflow for Torn.
 // @author       R4G3RUNN3R[3877028]
 // @license      MIT
@@ -25,11 +25,41 @@
 
 (() => {
   'use strict';
-  const INSTALLER_VERSION = '4.5.1';
+  const INSTALLER_VERSION = '4.5.2';
   const EXPECTED_APP_VERSION = '4.5.0';
 
   if (window.__R4G3_RECRUITMENT_AGENCY_V45__) return;
   window.__R4G3_RECRUITMENT_AGENCY_V45__ = true;
+
+  function installPrimaryInputShield() {
+    if (window.__R4G3_RA_INPUT_SHIELD__) return;
+    window.__R4G3_RA_INPUT_SHIELD__ = true;
+
+    window.addEventListener('click', event => {
+      try {
+        if (event.defaultPrevented || event.button > 0) return;
+        const target = event.target;
+        if (!(target instanceof Element)) return;
+
+        const appRoot = target.closest('#ra-app');
+        if (!appRoot) return;
+
+        const action = target.closest('button,a,[role="button"]');
+        if (!action || !appRoot.contains(action) || typeof action.onclick !== 'function') return;
+
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        action.onclick.call(action, event);
+      } catch (error) {
+        console.error(`[RA] ${INSTALLER_VERSION} primary click handler failed.`, error);
+        try {
+          alert(`Recruitment Agency click failed: ${error?.message || error}`);
+        } catch {}
+      }
+    }, true);
+  }
+
+  installPrimaryInputShield();
 
   const app = window.RA_V45App;
   if (!app || typeof app.start !== 'function') {
