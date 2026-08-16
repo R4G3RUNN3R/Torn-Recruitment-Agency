@@ -36,9 +36,6 @@
   if (root.hasAttribute(DOM_GUARD)) return;
   root.setAttribute(DOM_GUARD, INSTALLER_VERSION);
 
-  if (window.__R4G3_RECRUITMENT_AGENCY_V45__) return;
-  window.__R4G3_RECRUITMENT_AGENCY_V45__ = true;
-
   function clearDomGuard() {
     if (root.getAttribute(DOM_GUARD) === INSTALLER_VERSION) root.removeAttribute(DOM_GUARD);
   }
