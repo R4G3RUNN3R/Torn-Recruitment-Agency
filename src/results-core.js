@@ -141,6 +141,7 @@
     { key:'ee', label:'EE', type:'number', sortable:true, defaultDirection:'desc', getValue:r => finite(r?.ee) },
     { key:'preferredCompany', label:'Preferred Company', type:'text', sortable:true, defaultDirection:'asc', getValue:r => normalizeCompany(r?.preferredCompany || r?.company) || null },
     { key:'fit', label:'Fit', type:'number', sortable:true, defaultDirection:'desc', getValue:r => fitOf(r) },
+    { key:'match', label:'Match', type:'number', sortable:true, defaultDirection:'desc', getValue:r => finite(r?.matchScore) },
     { key:'trend', label:'Trend', type:'number', sortable:true, defaultDirection:'desc', getValue:r => finite(scoutOf(r)?.trend ?? r?.trend) },
     { key:'activity30', label:'Activity', type:'number', sortable:true, defaultDirection:'desc', getValue:r => finite(window30(r)?.activityHours) },
     { key:'lastActive', label:'Last Active', type:'number', sortable:true, defaultDirection:'asc', getValue:(r,now) => idleSeconds(r, now) },
@@ -211,6 +212,7 @@
     const minActivity30 = numFilter(filters,'minActivity30');
     const maxIdleDays = numFilter(filters,'maxIdleDays');
     const minFit = numFilter(filters,'minFit');
+    const minMatch = numFilter(filters,'minMatch');
     const minLevel = numFilter(filters,'minLevel');
     const maxLevel = numFilter(filters,'maxLevel');
     const minNetworth = numFilter(filters,'minNetworth');
@@ -247,6 +249,8 @@
       if (maxIdleDays !== null && (idle === null || idle > maxIdleDays * 86400)) return false;
       const fit = fitOf(row);
       if (minFit !== null && (fit === null || fit < minFit)) return false;
+      const matchScore = finite(row?.matchScore);
+      if (minMatch !== null && (matchScore === null || matchScore < minMatch)) return false;
       const level = finite(p?.level);
       if (minLevel !== null && (level === null || level < minLevel)) return false;
       if (maxLevel !== null && (level === null || level > maxLevel)) return false;
