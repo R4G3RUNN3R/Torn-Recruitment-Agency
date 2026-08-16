@@ -95,8 +95,8 @@ test('Simple UI is default and Advanced controls are marked', () => {
 
 test('v4.4 has an inline Settings hub and moves complexity controls into General settings', () => {
   const s = source();
-  assert.match(s, /id=["']ra-settings-toggle["']/);
-  assert.match(s, /id=["']ra-settings-panel["']/);
+  assert.match(s, /id=\\?["']ra-settings-toggle["']/);
+  assert.match(s, /id=\\?["']ra-settings-panel["']/);
   for (const section of ['General','Recruitment','Scout','Results','Smart Match','Global Intelligence','Data & Reset','Danger Zone']) {
     assert.match(s, new RegExp(`>${section}<|>${section}\\s*<`));
   }
@@ -104,7 +104,7 @@ test('v4.4 has an inline Settings hub and moves complexity controls into General
   const headEnd = s.indexOf('</div></div><div class=\\"ra-inner\\">', headStart);
   const headBlock = headStart >= 0 && headEnd > headStart ? s.slice(headStart, headEnd) : '';
   assert.equal(headBlock.includes('ra-complexity-simple'), false);
-  assert.match(s, /ra-settings-section[^\n]*General|data-settings-section=["']general["']/i);
+  assert.match(s, /data-settings-section=\\?["']general["']/i);
 });
 
 test('v4.4 exposes Smart Match profile management controls and functions', () => {
@@ -126,7 +126,7 @@ test('v4.4 contextual help is centralized, accessible and performs no network wo
   assert.match(s, /function\s+decorateContextHelp\s*\(/);
   assert.match(s, /function\s+openContextHelp\s*\(/);
   assert.match(s, /function\s+closeContextHelp\s*\(/);
-  assert.match(s, /id=["']ra-help-popover["']/);
+  assert.match(s, /(?:id=\\?["']ra-help-popover["']|\.id\s*=\s*["']ra-help-popover["'])/);
   assert.match(s, /data-help-key/);
   assert.match(s, /pointerover/);
   assert.match(s, /focusin/);
@@ -135,8 +135,10 @@ test('v4.4 contextual help is centralized, accessible and performs no network wo
   assert.match(s, /Torn API:/);
   assert.match(s, /local-only|remain local|stored locally/i);
   const helpStart = s.indexOf('const HELP_REGISTRY');
-  const helpEnd = s.indexOf('\n    };', helpStart);
-  const helpBlock = helpStart >= 0 && helpEnd > helpStart ? s.slice(helpStart, helpEnd + 7) : '';
+  const helpEnd = s.indexOf('\n    });', helpStart);
+  assert.notEqual(helpStart, -1);
+  assert.notEqual(helpEnd, -1);
+  const helpBlock = s.slice(helpStart, helpEnd + 8);
   assert.doesNotMatch(helpBlock, /fetch\s*\(|apiRequest\s*\(|gmRequest\s*\(/);
 });
 
