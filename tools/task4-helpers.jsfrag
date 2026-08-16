@@ -1,0 +1,151 @@
+    const HELP_REGISTRY = Object.freeze({
+        company:{title:"Company recruitment",body:"Scans the configured company recruitment source for candidates. Torn API: forum requests are consumed only when you start a scan. Storage: candidate scan results are stored locally."},
+        faction:{title:"Faction recruitment",body:"Scans faction recruitment sources using the current forum controls. Torn API: forum requests are consumed only when scanning. Storage: results remain local."},
+        scout:{title:"Scout",body:"Collects current player intelligence through the official Torn API. Torn API: yes, through the shared scheduler capped at 75 calls/minute with at least 800 ms between calls."},
+        fit:{title:"Fit Settings",body:"Controls the general Fit calculation. Torn API: none when editing or recalculating. Storage: settings are stored locally."},
+        filters:{title:"Results filters",body:"Filters already-loaded candidate rows. Torn API: none. Storage: filter preferences are stored locally."},
+        columns:{title:"Results columns",body:"Chooses which result columns are visible. Torn API: none. Storage: display preferences are stored locally."},
+        settings:{title:"Settings",body:"Groups Recruitment Agency configuration without opening another managed window. Torn API: none merely by opening Settings."},
+        "settings-general":{title:"General",body:"Controls theme, density, Simple/Advanced mode and local display behavior. Torn API: none. Storage: stored locally."},
+        "settings-recruitment":{title:"Recruitment",body:"Explains recruitment source defaults and scan behavior. Torn API: none until a scan is explicitly started. Storage: recruitment preferences are stored locally."},
+        "settings-scout":{title:"Scout",body:"Controls scheduler rate, workers, budget, cache and API-key actions. Torn API: changing settings consumes none; Scout actions do."},
+        "settings-results":{title:"Results",body:"Controls result view and layout. Torn API: none. Storage: stored locally."},
+        "match-profiles":{title:"Smart Match",body:"Scores candidate suitability against a local vacancy profile. Torn API: none. Storage: Match Profiles and recruiter candidate fields are local-only and never enter Global Intelligence."},
+        "settings-global":{title:"Global Intelligence",body:"Shares only the approved sanitized public-player observation fields with the configured Apps Script endpoint. Torn API: none for local UI changes. Privacy: recruiter notes, Match data and CRM fields remain local."},
+        "settings-data":{title:"Data & Reset",body:"Clears selected local caches or candidate CRM records after confirmation. Torn API: none. Storage: browser-local IndexedDB."},
+        "settings-danger":{title:"Danger Zone",body:"Reserved for destructive local reset operations. Torn API: none. Nothing is deleted without explicit confirmation."}
+    });
+
+    let helpPinned = false;
+    let helpAnchor = null;
+    let helpCloseTimer = null;
+
+    function closeContextHelp(force = false) {
+        if (helpPinned && !force) return;
+        const pop = document.getElementById("ra-help-popover");
+        if (pop) pop.hidden = true;
+        helpPinned = false;
+        helpAnchor = null;
+        if (helpCloseTimer) clearTimeout(helpCloseTimer);
+        helpCloseTimer = null;
+    }
+
+    function positionContextHelp(anchor) {
+        const pop = document.getElementById("ra-help-popover");
+        if (!pop || !anchor || pop.hidden) return;
+        const rect = anchor.getBoundingClientRect();
+        const margin = 8;
+        const width = Math.min(340, Math.max(220, pop.offsetWidth || 280));
+        const height = Math.max(80, pop.offsetHeight || 120);
+        let left = rect.left;
+        let top = rect.bottom + 6;
+        if (left + width > innerWidth - margin) left = innerWidth - width - margin;
+        if (top + height > innerHeight - margin) top = Math.max(margin, rect.top - height - 6);
+        pop.style.left = Math.max(margin, left) + "px";
+        pop.style.top = Math.max(margin, top) + "px";
+    }
+
+    function openContextHelp(key, anchor, pinned = false) {
+        const entry = HELP_REGISTRY[key];
+        const pop = document.getElementById("ra-help-popover");
+        if (!entry || !pop || !anchor) return;
+        helpPinned = !!pinned;
+        helpAnchor = anchor;
+        pop.innerHTML = `<b>${esc(entry.title)}</b><p>${esc(entry.body)}</p>`;
+        pop.hidden = false;
+        positionContextHelp(anchor);
+    }
+
+    function decorateContextHelp() {
+        document.querySelectorAll("[data-help-key]").forEach(section => {
+            const key = section.dataset.helpKey;
+            if (!HELP_REGISTRY[key] || section.querySelector(":scope > .ra-help-button, :scope > summary > .ra-help-button")) return;
+            const target = section.matches("details") ? section.querySelector(":scope > summary") : section.querySelector(":scope > summary, :scope > b, :scope > label") || section;
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "ra-help-button";
+            button.dataset.helpKey = key;
+            button.setAttribute("aria-label", `About ${HELP_REGISTRY[key].title}`);
+            button.textContent = "i";
+            target.appendChild(button);
+        });
+    }
+
+    function criterionEditorHtml(key, label, criterion) {
+        const numeric = !["company","role","salary","availability"].includes(key);
+        let valueControl = "";
+        if (numeric) valueControl = `<input id="ra-match-${key}-target" type="number" min="0" step="any" value="${esc(criterion.target ?? 0)}">`;
+        else if (key === "salary") valueControl = `<input id="ra-match-salary-max" type="number" min="0" step="1" value="${esc(criterion.max ?? 0)}">`;
+        else if (key === "availability") valueControl = `<select id="ra-match-availability-value"><option value="">Any</option>${MatchCore.AVAILABILITY_VALUES.map(v=>`<option value="${esc(v)}" ${criterion.value===v?"selected":""}>${esc(v)}</option>`).join("")}</select>`;
+        else valueControl = `<input id="ra-match-${key}-value" value="${esc(criterion.value || "")}">`;
+        return `<div class="ra-match-criterion"><label><input class="ra-match-enable" id="ra-match-criterion-${key}" type="checkbox" ${criterion.enabled?"checked":""}> ${esc(label)}</label><span>${numeric?"Target":key==="salary"?"Max":"Value"}</span>${valueControl}<input id="ra-match-${key}-weight" type="number" min="0" step="any" value="${esc(criterion.weight ?? 0)}" title="Weight"></div>`;
+    }
+
+    function populateMatchProfileEditor(profile) {
+        const editor = document.getElementById("ra-match-profile-editor");
+        if (!editor || !profile) return;
+        const labels = {man:"MAN",int:"INT",end:"END",ee:"EE",fit:"Fit",activity30:"Activity 30d",xanax30:"Xanax 30d",refills30:"Refills 30d",attacks30:"Attacks 30d",rwHits30:"RW Hits 30d",company:"Company",role:"Role",salary:"Salary",availability:"Availability"};
+        editor.innerHTML = `<div class="ra-field"><label>Profile name</label><input id="ra-match-profile-name" value="${esc(profile.name)}"></div><div class="ra-match-criteria"><div class="ra-match-criterion ra-match-criterion-head"><span>Criterion</span><span>Rule</span><span>Target / Value</span><span>Weight</span></div>${MatchCore.CRITERIA_KEYS.map(key=>criterionEditorHtml(key,labels[key]||key,profile.criteria[key])).join("")}</div>`;
+        editor.dataset.profileId = profile.profileId;
+        editor.dataset.createdAt = profile.createdAt || "";
+    }
+
+    async function renderMatchProfileManager() {
+        const select = document.getElementById("ra-match-profile-select");
+        if (!select) return;
+        let profiles = await idb.getAll("matchProfiles");
+        if (!profiles.length) {
+            await ensureDefaultMatchProfile();
+            profiles = await idb.getAll("matchProfiles");
+        }
+        profiles = profiles.map(MatchCore.normalizeProfile).sort((a,b)=>a.name.localeCompare(b.name));
+        const active = profiles.find(p=>p.profileId === settings.match.activeProfileId) || profiles[0];
+        if (active && active.profileId !== settings.match.activeProfileId) await saveMetaSettings({match:{...settings.match,activeProfileId:active.profileId}});
+        select.innerHTML = profiles.map(p=>`<option value="${esc(p.profileId)}" ${p.profileId===active?.profileId?"selected":""}>${esc(p.name)}</option>`).join("");
+        if (active) populateMatchProfileEditor(active);
+    }
+
+    async function saveMatchProfileFromUI() {
+        const editor = document.getElementById("ra-match-profile-editor");
+        if (!editor) return;
+        const active = await getActiveMatchProfile();
+        const criteria = {};
+        for (const key of MatchCore.CRITERIA_KEYS) {
+            const enabled = !!document.getElementById(`ra-match-criterion-${key}`)?.checked;
+            const weight = n(document.getElementById(`ra-match-${key}-weight`)?.value, 0);
+            if (["company","role"].includes(key)) criteria[key] = {enabled,weight,value:document.getElementById(`ra-match-${key}-value`)?.value || ""};
+            else if (key === "availability") criteria[key] = {enabled,weight,value:document.getElementById("ra-match-availability-value")?.value || ""};
+            else if (key === "salary") criteria[key] = {enabled,weight,max:n(document.getElementById("ra-match-salary-max")?.value,0)};
+            else criteria[key] = {enabled,weight,target:n(document.getElementById(`ra-match-${key}-target`)?.value,0)};
+        }
+        const saved = await saveMatchProfile({profileId:active.profileId,name:document.getElementById("ra-match-profile-name")?.value || active.name,criteria,createdAt:active.createdAt});
+        await saveMetaSettings({match:{...settings.match,activeProfileId:saved.profileId}});
+        await refreshMatchScores();
+        renderResults();
+        await renderMatchProfileManager();
+        setStatus("Match Profile saved.");
+    }
+
+    async function duplicateActiveMatchProfile() {
+        const active = await getActiveMatchProfile();
+        const duplicate = MatchCore.normalizeProfile({...active,profileId:"",name:`${active.name} Copy`,createdAt:"",updatedAt:""});
+        const saved = await saveMatchProfile(duplicate);
+        await saveMetaSettings({match:{...settings.match,activeProfileId:saved.profileId}});
+        await renderMatchProfileManager();
+        await refreshMatchScores();
+        renderResults();
+    }
+
+    async function deleteActiveMatchProfile() {
+        const active = await getActiveMatchProfile();
+        if (!active || !confirm(`Delete Match Profile "${active.name}"?`)) return;
+        await deleteMatchProfile(active.profileId);
+        const remaining = await idb.getAll("matchProfiles");
+        let next = remaining[0] || null;
+        if (!next) next = await saveMatchProfile(MatchCore.createDefaultProfile("Default Recruit"));
+        await saveMetaSettings({match:{...settings.match,activeProfileId:next.profileId}});
+        await renderMatchProfileManager();
+        await refreshMatchScores();
+        renderResults();
+    }
+
