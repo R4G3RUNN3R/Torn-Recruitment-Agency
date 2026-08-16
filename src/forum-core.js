@@ -77,8 +77,9 @@
       threadId,
       postId,
       postedAt: postedAt == null ? null : postedAt,
-      postUrl: text(source.postUrl),
-      text: String(source.text == null ? '' : source.text),
+      postUrl: text(source.postUrl || source.url || source.forumUrl),
+      authorName: text(source.authorName || source.name),
+      text: String(source.text ?? source.body ?? ''),
       parsed: {
         desiredCompany: text(parsed.desiredCompany),
         desiredCompanyStars: finite(parsed.desiredCompanyStars),

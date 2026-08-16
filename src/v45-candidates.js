@@ -60,7 +60,7 @@
       lookingFor:lookingForParts.join(' · ') || 'Unknown',
       latestForumSourceId:text(candidate.latestForumSourceId || source.sourceId),
       sourceType:text(source.sourceType || result.sourceType || candidate.discoverySources?.[0]),
-      forumUrl:text(source.url || source.forumUrl),
+      forumUrl:text(source.postUrl || source.url || source.forumUrl),
       currentCompany:text(result.currentCompany || profile.company?.name || profile.company_name),
       matchScore:finite(match.score ?? result.matchScore),
       fitScore:finite(result.fit ?? scout.currentFit ?? scout.fit ?? scout.originalFit),
