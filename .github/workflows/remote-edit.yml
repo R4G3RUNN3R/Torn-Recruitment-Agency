@@ -27,6 +27,7 @@ jobs:
           git diff --check
           node --check src/match-core.js
           node --check R4G3RUNN3R-Recruitment-Agency.user.js
+          node --check tests/userscript-static.test.js
       - name: Commit patched files
         run: |
           if git diff --quiet; then
@@ -35,6 +36,6 @@ jobs:
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/match-core.js R4G3RUNN3R-Recruitment-Agency.user.js
-          git commit -m "feat: add local Smart Match persistence"
+          git add src/match-core.js R4G3RUNN3R-Recruitment-Agency.user.js tests/userscript-static.test.js
+          git commit -m "test: harden Settings and help static checks"
           git push origin HEAD:${{ github.ref_name }}
