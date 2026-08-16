@@ -5,9 +5,10 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
 
-  const DEFAULT_VISIBLE_COLUMNS = Object.freeze(['player', 'ee', 'preferredCompany', 'activity30', 'lastActive', 'fit']);
-  const DEFAULT_SORT = Object.freeze({ key: 'fit', direction: 'desc' });
-  const SCOUT_STATUS_ORDER = Object.freeze(['live', 'fresh', 'cached', 'provisional', 'stale', 'failed', 'unscouted']);
+  const PIPELINE_STAGES = Object.freeze(['Not Contacted','Shortlisted','Contacted','Replied','Hired','Rejected']);
+  const DEFAULT_VISIBLE_COLUMNS = Object.freeze(['player','pipelineStage','match','fit','lookingFor','sourceType','lastActive']);
+  const DEFAULT_SORT = Object.freeze({ key: 'match', direction: 'desc' });
+  const SCOUT_STATUS_ORDER = Object.freeze(['live','fresh','cached','provisional','stale','failed','unscouted']);
   const SCOUT_STATUS_RANK = Object.freeze(Object.fromEntries(SCOUT_STATUS_ORDER.map((key, index) => [key, index])));
 
   const COMPANY_KEYS = Object.freeze([
@@ -36,7 +37,7 @@
     'oil rig': 'oil_rig',
     gents: 'gents_strip_club',
     'gentlemans club': 'gents_strip_club',
-    'gentleman\'s club': 'gents_strip_club'
+    "gentleman's club": 'gents_strip_club'
   }).forEach(([alias, key]) => COMPANY_ALIASES.set(alias, key));
 
   function finite(value) {
@@ -44,6 +45,9 @@
     const x = Number(value);
     return Number.isFinite(x) ? x : null;
   }
+
+  function text(value) { return String(value == null ? '' : value).replace(/\s+/g, ' ').trim(); }
+  function lower(value) { return text(value).toLowerCase(); }
 
   function parseCompactNumber(value) {
     const raw = String(value ?? '').trim().replace(/,/g, '');
@@ -62,8 +66,8 @@
     return COMPANY_ALIASES.get(raw) || '';
   }
 
-  function parsePreferredCompany(text) {
-    const raw = String(text || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  function parsePreferredCompany(value) {
+    const raw = String(value || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
     if (!raw) return '';
     const intent = /(?:\blooking\s+for\b|\bseeking\b|\bprefer(?:ably|red|ring)?\b|\bwant(?:ing)?\b|\bafter\b)\s+(?:a\s+|an\s+|any\s+|\d+\s*\*?\s*)?([^,.;|]{1,80})/ig;
     let match;
@@ -81,29 +85,20 @@
   function formatCompany(key) {
     const normalized = normalizeCompany(key) || String(key || '').toLowerCase();
     if (!normalized) return '—';
-    return normalized.split('_').map(x => x ? x[0].toUpperCase() + x.slice(1) : '').join(' ')
-      .replace(/^Gents Strip Club$/, "Gents Strip Club");
+    return normalized.split('_').map(x => x ? x[0].toUpperCase() + x.slice(1) : '').join(' ');
   }
 
-  function scoutOf(row) {
-    return row?.scout || (row?.w30 || row?.profile ? row : null);
-  }
-
-  function profileOf(row) {
-    return scoutOf(row)?.profile || row?.api || row?.profile || {};
-  }
-
-  function window30(row) {
-    const s = scoutOf(row);
-    return s?.w30 || s?.provisionalSource || {};
-  }
+  function scoutOf(row) { return row?.scout || (row?.w30 || row?.profile ? row : null); }
+  function profileOf(row) { return scoutOf(row)?.profile || row?.api || row?.profile || {}; }
+  function window30(row) { const s = scoutOf(row); return s?.w30 || s?.provisionalSource || {}; }
+  function candidateOf(row) { return row?.candidateLocal || row?.candidate || {}; }
 
   function fitOf(row) {
     const direct = finite(row?.fit);
     if (direct !== null) return direct;
     const s = scoutOf(row);
     if (!s) return null;
-    for (const key of ['currentFit', 'fit', 'originalFit']) {
+    for (const key of ['currentFit','fit','originalFit']) {
       const x = finite(s[key]);
       if (x !== null) return x;
     }
@@ -132,19 +127,56 @@
     return 'stale';
   }
 
+  function pipelineStageOf(row) {
+    const value = text(row?.pipelineStage || candidateOf(row)?.pipelineStage);
+    return PIPELINE_STAGES.find(stage => stage.toLowerCase() === value.toLowerCase()) || 'Not Contacted';
+  }
+
+  function sourceTypeOf(row) {
+    const direct = text(row?.sourceType || row?.latestSource?.sourceType);
+    if (direct) return direct.toUpperCase();
+    const sources = row?.discoverySources || candidateOf(row)?.discoverySources;
+    return Array.isArray(sources) && sources.length ? text(sources[sources.length - 1]).toUpperCase() : '';
+  }
+
+  function currentCompanyOf(row) {
+    const p = profileOf(row);
+    return text(row?.currentCompany || row?.companyName || p?.company?.name || p?.job?.company_name || p?.company_name);
+  }
+
+  function lookingForOf(row) {
+    const c = candidateOf(row);
+    return text(row?.lookingFor || c?.lookingFor || c?.desiredRole || c?.desiredCompany || row?.preferredCompany || row?.company);
+  }
+
+  function availabilityOf(row) { return text(row?.availability || candidateOf(row)?.availability) || 'Unknown'; }
+
+  function isActiveCandidate(row, nowMs = Date.now(), activeAgeDays = 30) {
+    if (row?.active === false || candidateOf(row)?.active === false) return false;
+    const limit = Math.max(0, finite(activeAgeDays) ?? 30) * 86400;
+    if (!limit) return true;
+    const idle = idleSeconds(row, nowMs);
+    return idle === null ? true : idle <= limit;
+  }
+
   const COLUMNS = Object.freeze([
-    { key:'player', label:'Player', type:'text', sortable:true, defaultDirection:'asc', getValue:r => String(r?.name || profileOf(r)?.name || '').trim().toLowerCase() },
+    { key:'player', label:'Player', type:'text', sortable:true, defaultDirection:'asc', getValue:r => lower(r?.name || profileOf(r)?.name) },
+    { key:'pipelineStage', label:'Stage', type:'text', sortable:true, defaultDirection:'asc', getValue:r => lower(pipelineStageOf(r)) },
+    { key:'match', label:'Match', type:'number', sortable:true, defaultDirection:'desc', getValue:r => finite(r?.matchScore) },
+    { key:'fit', label:'Fit', type:'number', sortable:true, defaultDirection:'desc', getValue:r => fitOf(r) },
+    { key:'lookingFor', label:'Looking For', type:'text', sortable:true, defaultDirection:'asc', getValue:r => lower(lookingForOf(r)) || null },
+    { key:'sourceType', label:'Source', type:'text', sortable:true, defaultDirection:'asc', getValue:r => lower(sourceTypeOf(r)) || null },
+    { key:'lastActive', label:'Last Active', type:'number', sortable:true, defaultDirection:'asc', getValue:(r,now) => idleSeconds(r, now) },
+    { key:'currentCompany', label:'Current Company', type:'text', sortable:true, defaultDirection:'asc', getValue:r => lower(currentCompanyOf(r)) || null },
+    { key:'availability', label:'Availability', type:'text', sortable:true, defaultDirection:'asc', getValue:r => lower(availabilityOf(r)) },
     { key:'man', label:'MAN', type:'number', sortable:true, defaultDirection:'desc', getValue:r => finite(r?.stats?.man) },
     { key:'int', label:'INT', type:'number', sortable:true, defaultDirection:'desc', getValue:r => finite(r?.stats?.int) },
     { key:'end', label:'END', type:'number', sortable:true, defaultDirection:'desc', getValue:r => finite(r?.stats?.end) },
     { key:'total', label:'TOTAL', type:'number', sortable:true, defaultDirection:'desc', getValue:r => finite(r?.stats?.total) },
     { key:'ee', label:'EE', type:'number', sortable:true, defaultDirection:'desc', getValue:r => finite(r?.ee) },
     { key:'preferredCompany', label:'Preferred Company', type:'text', sortable:true, defaultDirection:'asc', getValue:r => normalizeCompany(r?.preferredCompany || r?.company) || null },
-    { key:'fit', label:'Fit', type:'number', sortable:true, defaultDirection:'desc', getValue:r => fitOf(r) },
-    { key:'match', label:'Match', type:'number', sortable:true, defaultDirection:'desc', getValue:r => finite(r?.matchScore) },
     { key:'trend', label:'Trend', type:'number', sortable:true, defaultDirection:'desc', getValue:r => finite(scoutOf(r)?.trend ?? r?.trend) },
     { key:'activity30', label:'Activity', type:'number', sortable:true, defaultDirection:'desc', getValue:r => finite(window30(r)?.activityHours) },
-    { key:'lastActive', label:'Last Active', type:'number', sortable:true, defaultDirection:'asc', getValue:(r,now) => idleSeconds(r, now) },
     { key:'scoutStatus', label:'Scout Status', type:'rank', sortable:true, defaultDirection:'asc', getValue:(r,now) => SCOUT_STATUS_RANK[classifyScoutStatus(r, now)] ?? 999 },
     { key:'level', label:'Level', type:'number', sortable:true, defaultDirection:'desc', getValue:r => finite(profileOf(r)?.level) },
     { key:'xanax30', label:'Xanax 30d', type:'number', sortable:true, defaultDirection:'desc', getValue:r => finite(window30(r)?.xanax) },
@@ -159,7 +191,6 @@
   ]);
 
   const COLUMN_MAP = Object.freeze(Object.fromEntries(COLUMNS.map(c => [c.key, c])));
-
   function getColumn(key) { return COLUMN_MAP[String(key || '')] || null; }
 
   function missing(value, type) {
@@ -169,8 +200,8 @@
   }
 
   function tieBreak(a, b) {
-    const an = String(a?.name || profileOf(a)?.name || '').toLowerCase();
-    const bn = String(b?.name || profileOf(b)?.name || '').toLowerCase();
+    const an = lower(a?.name || profileOf(a)?.name);
+    const bn = lower(b?.name || profileOf(b)?.name);
     const byName = an.localeCompare(bn);
     if (byName) return byName;
     return (finite(a?.userId) || finite(a?.id) || 0) - (finite(b?.userId) || finite(b?.id) || 0);
@@ -187,9 +218,7 @@
       const bm = missing(bv, col.type);
       if (am !== bm) return am ? 1 : -1;
       if (am && bm) return tieBreak(a, b);
-      let cmp = 0;
-      if (col.type === 'text') cmp = String(av).localeCompare(String(bv));
-      else cmp = Number(av) - Number(bv);
+      const cmp = col.type === 'text' ? String(av).localeCompare(String(bv)) : Number(av) - Number(bv);
       return cmp ? cmp * sign : tieBreak(a, b);
     });
   }
@@ -201,8 +230,13 @@
     return parsed.valid && !parsed.empty ? parsed.value : null;
   }
 
+  function sameText(actual, expected) {
+    const wanted = lower(expected);
+    return !wanted || lower(actual) === wanted;
+  }
+
   function applyFilters(rows, filters = {}, nowMs = Date.now()) {
-    const q = String(filters.search || '').trim().toLowerCase();
+    const q = lower(filters.search);
     const minMan = numFilter(filters,'minMan');
     const minInt = numFilter(filters,'minInt');
     const minEnd = numFilter(filters,'minEnd');
@@ -225,16 +259,29 @@
     const minRwHits30 = numFilter(filters,'minRwHits30');
     const maxDataAgeDays = numFilter(filters,'maxDataAgeDays');
     const company = normalizeCompany(filters.preferredCompany);
-    const scoutStatus = String(filters.scoutStatus || '').toLowerCase();
-    const faction = String(filters.faction || 'any').toLowerCase();
+    const scoutStatus = lower(filters.scoutStatus);
+    const faction = lower(filters.faction || 'any');
+    const pipelineStage = text(filters.pipelineStage || filters.stage);
+    const sourceType = text(filters.sourceType || filters.source).toUpperCase();
+    const currentCompany = lower(filters.currentCompany);
+    const lookingFor = lower(filters.lookingFor);
+    const availability = lower(filters.availability);
+    const activeOnly = filters.activeOnly === true || String(filters.activeOnly).toLowerCase() === 'true';
+    const activeAgeDays = numFilter(filters,'activeAgeDays') ?? 30;
 
     return (rows || []).filter(row => {
       const p = profileOf(row);
       const s = scoutOf(row);
       const w = window30(row);
-      const name = String(row?.name || p?.name || '').toLowerCase();
+      const name = lower(row?.name || p?.name);
       const id = String(row?.userId || row?.id || '');
-      if (q && !name.includes(q) && !id.includes(q)) return false;
+      if (q && !name.includes(q) && !id.includes(q) && !lower(lookingForOf(row)).includes(q) && !lower(currentCompanyOf(row)).includes(q)) return false;
+      if (pipelineStage && pipelineStageOf(row).toLowerCase() !== pipelineStage.toLowerCase()) return false;
+      if (sourceType && sourceTypeOf(row) !== sourceType) return false;
+      if (currentCompany && !lower(currentCompanyOf(row)).includes(currentCompany)) return false;
+      if (lookingFor && !lower(lookingForOf(row)).includes(lookingFor)) return false;
+      if (availability && !sameText(availabilityOf(row), availability)) return false;
+      if (activeOnly && !isActiveCandidate(row, nowMs, activeAgeDays)) return false;
       if (minMan !== null && (finite(row?.stats?.man) === null || Number(row.stats.man) < minMan)) return false;
       if (minInt !== null && (finite(row?.stats?.int) === null || Number(row.stats.int) < minInt)) return false;
       if (minEnd !== null && (finite(row?.stats?.end) === null || Number(row.stats.end) < minEnd)) return false;
@@ -276,7 +323,8 @@
 
   function activeFilterCount(filters = {}) {
     return Object.entries(filters).filter(([key, value]) => {
-      if (key === 'search') return String(value || '').trim() !== '';
+      if (key === 'search') return text(value) !== '';
+      if (key === 'activeAgeDays') return false;
       if (value === null || value === undefined || value === '' || value === false || value === 'any') return false;
       return true;
     }).length;
@@ -287,6 +335,7 @@
   }
 
   return Object.freeze({
+    PIPELINE_STAGES,
     DEFAULT_VISIBLE_COLUMNS,
     DEFAULT_SORT,
     SCOUT_STATUS_ORDER,
@@ -299,6 +348,12 @@
     formatCompany,
     idleSeconds,
     classifyScoutStatus,
+    pipelineStageOf,
+    sourceTypeOf,
+    currentCompanyOf,
+    lookingForOf,
+    availabilityOf,
+    isActiveCandidate,
     getColumn,
     sortRows,
     applyFilters,

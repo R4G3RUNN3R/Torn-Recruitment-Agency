@@ -91,24 +91,67 @@ test('processRows filters before sorting and does not mutate input', () => {
   assert.deepEqual(rows, original);
 });
 
-test('default visible columns stay intentionally compact', () => {
-  assert.deepEqual([...R.DEFAULT_VISIBLE_COLUMNS], ['player','ee','preferredCompany','activity30','lastActive','fit']);
-  assert.deepEqual(R.DEFAULT_SORT, {key:'fit',direction:'desc'});
+test('v4.5 default columns are recruitment first and compact', () => {
+  assert.deepEqual([...R.DEFAULT_VISIBLE_COLUMNS], ['player','pipelineStage','match','fit','lookingFor','sourceType','lastActive']);
+  assert.deepEqual(R.DEFAULT_SORT, {key:'match',direction:'desc'});
 });
 
-test('Match exists as an optional column but is not visible by default', () => {
-  assert.ok(R.getColumn('match'));
-  assert.equal(R.DEFAULT_VISIBLE_COLUMNS.includes('match'), false);
+test('v4.5 exposes the exact six recruitment pipeline stages', () => {
+  assert.deepEqual([...R.PIPELINE_STAGES], ['Not Contacted','Shortlisted','Contacted','Replied','Hired','Rejected']);
 });
 
-test('minMatch filters measured rows and sorting keeps unmeasured Match last', () => {
+test('Match filtering and sorting keeps unmeasured Match last', () => {
   const rows = [
     {userId:1,name:'A',matchScore:88},
     {userId:2,name:'B',matchScore:null},
     {userId:3,name:'C',matchScore:72}
   ];
-  const filtered = R.applyFilters(rows, {minMatch:'80'}, NOW);
-  assert.deepEqual(filtered.map(x=>x.userId), [1]);
-  const sorted = R.sortRows(rows, {key:'match',direction:'desc'}, NOW);
-  assert.deepEqual(sorted.map(x=>x.userId), [1,3,2]);
+  assert.deepEqual(ids(R.applyFilters(rows, {minMatch:'80'}, NOW)), [1]);
+  assert.deepEqual(ids(R.sortRows(rows, {key:'match',direction:'desc'}, NOW)), [1,3,2]);
+});
+
+test('pipeline stage filter uses candidateLocal without inventing a second authority', () => {
+  const rows = [
+    {userId:1,name:'A',candidateLocal:{pipelineStage:'Shortlisted'}},
+    {userId:2,name:'B',candidateLocal:{pipelineStage:'Replied'}},
+    {userId:3,name:'C',candidateLocal:{}}
+  ];
+  assert.deepEqual(ids(R.applyFilters(rows, {pipelineStage:'Replied'}, NOW)), [2]);
+  assert.equal(R.pipelineStageOf(rows[2]), 'Not Contacted');
+});
+
+test('source filter accepts direct and candidate discovery source provenance', () => {
+  const rows = [
+    {userId:1,name:'A',sourceType:'TRAIN BUYER'},
+    {userId:2,name:'B',candidateLocal:{discoverySources:['JOB SEEKER','COMPANY FORUM']}},
+    {userId:3,name:'C'}
+  ];
+  assert.deepEqual(ids(R.applyFilters(rows, {sourceType:'TRAIN BUYER'}, NOW)), [1]);
+  assert.deepEqual(ids(R.applyFilters(rows, {sourceType:'COMPANY FORUM'}, NOW)), [2]);
+});
+
+test('current company and looking-for filters are case-insensitive contains matches', () => {
+  const rows = [
+    {userId:1,name:'A',currentCompany:'Bad Decisions',candidateLocal:{desiredRole:'Sales Assistant'}},
+    {userId:2,name:'B',currentCompany:'Other Place',candidateLocal:{desiredCompany:'Adult Novelties'}}
+  ];
+  assert.deepEqual(ids(R.applyFilters(rows, {currentCompany:'bad dec'}, NOW)), [1]);
+  assert.deepEqual(ids(R.applyFilters(rows, {lookingFor:'adult'}, NOW)), [2]);
+});
+
+test('active-only uses explicit inactive state first and then last activity age', () => {
+  const recent = {...scout(1), candidateLocal:{active:true}};
+  const old = {...scout(2), profile:{...scout(2).profile,lastActionTs:Math.floor(NOW/1000)-45*86400}};
+  const disabled = {...scout(3), candidateLocal:{active:false}};
+  assert.deepEqual(ids(R.applyFilters([recent,old,disabled], {activeOnly:true,activeAgeDays:30}, NOW)), [1]);
+});
+
+test('unknown recruitment values behave predictably', () => {
+  const row = {userId:1,name:'Unknown'};
+  assert.equal(R.sourceTypeOf(row), '');
+  assert.equal(R.currentCompanyOf(row), '');
+  assert.equal(R.lookingForOf(row), '');
+  assert.equal(R.availabilityOf(row), 'Unknown');
+  assert.deepEqual(ids(R.applyFilters([row], {sourceType:'TRAIN BUYER'}, NOW)), []);
+  assert.deepEqual(ids(R.applyFilters([row], {availability:'Unknown'}, NOW)), [1]);
 });
