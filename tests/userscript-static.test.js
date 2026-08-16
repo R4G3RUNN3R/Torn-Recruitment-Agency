@@ -93,6 +93,53 @@ test('Simple UI is default and Advanced controls are marked', () => {
   assert.match(s, /applyComplexityMode/);
 });
 
+test('v4.4 has an inline Settings hub and moves complexity controls into General settings', () => {
+  const s = source();
+  assert.match(s, /id=["']ra-settings-toggle["']/);
+  assert.match(s, /id=["']ra-settings-panel["']/);
+  for (const section of ['General','Recruitment','Scout','Results','Smart Match','Global Intelligence','Data & Reset','Danger Zone']) {
+    assert.match(s, new RegExp(`>${section}<|>${section}\\s*<`));
+  }
+  const headStart = s.indexOf('class=\\"ra-head-actions\\"');
+  const headEnd = s.indexOf('</div></div><div class=\\"ra-inner\\">', headStart);
+  const headBlock = headStart >= 0 && headEnd > headStart ? s.slice(headStart, headEnd) : '';
+  assert.equal(headBlock.includes('ra-complexity-simple'), false);
+  assert.match(s, /ra-settings-section[^\n]*General|data-settings-section=["']general["']/i);
+});
+
+test('v4.4 exposes Smart Match profile management controls and functions', () => {
+  const s = source();
+  for (const id of [
+    'ra-match-profile-select','ra-match-profile-new','ra-match-profile-duplicate','ra-match-profile-delete','ra-match-profile-save',
+    'ra-match-criterion-man','ra-match-criterion-fit','ra-match-criterion-salary','ra-match-criterion-availability'
+  ]) assert.match(s, new RegExp(id));
+  for (const name of ['renderMatchProfileManager','populateMatchProfileEditor','saveMatchProfileFromUI','duplicateActiveMatchProfile','deleteActiveMatchProfile']) {
+    assert.match(s, new RegExp(`function\\s+${name}\\s*\\(`));
+  }
+  assert.match(s, /New Match Profile/);
+  assert.match(s, /Default Recruit/);
+});
+
+test('v4.4 contextual help is centralized, accessible and performs no network work', () => {
+  const s = source();
+  assert.match(s, /HELP_REGISTRY/);
+  assert.match(s, /function\s+decorateContextHelp\s*\(/);
+  assert.match(s, /function\s+openContextHelp\s*\(/);
+  assert.match(s, /function\s+closeContextHelp\s*\(/);
+  assert.match(s, /id=["']ra-help-popover["']/);
+  assert.match(s, /data-help-key/);
+  assert.match(s, /pointerover/);
+  assert.match(s, /focusin/);
+  assert.match(s, /Escape/);
+  assert.match(s, /getBoundingClientRect/);
+  assert.match(s, /Torn API:/);
+  assert.match(s, /local-only|remain local|stored locally/i);
+  const helpStart = s.indexOf('const HELP_REGISTRY');
+  const helpEnd = s.indexOf('\n    };', helpStart);
+  const helpBlock = helpStart >= 0 && helpEnd > helpStart ? s.slice(helpStart, helpEnd + 7) : '';
+  assert.doesNotMatch(helpBlock, /fetch\s*\(|apiRequest\s*\(|gmRequest\s*\(/);
+});
+
 test('Scout API scheduler defaults to and hard-caps at 75 calls per minute', () => {
   const s = source();
   assert.match(s, /rate:\s*75/);
