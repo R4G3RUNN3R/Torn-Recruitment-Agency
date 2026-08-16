@@ -20,7 +20,7 @@ test('v4.4 contains no protected Recruit Scout backend or destructive DB upgrade
 });
 
 test('v4.4 keeps Match optional in default Results columns', () => {
-  assert.ok(ResultsCore.COLUMN_DEFS.some(column => column.key === 'match'));
+  assert.ok(ResultsCore.COLUMNS.some(column => column.key === 'match'));
   assert.equal(ResultsCore.DEFAULT_VISIBLE_COLUMNS.includes('match'), false);
 });
 
