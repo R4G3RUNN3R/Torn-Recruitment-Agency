@@ -26,3 +26,31 @@ test('v4.4 decorates major non-Settings surfaces with contextual help', () => {
   assert.match(s, /setContextHelpKey\(forum,\s*mode==="faction"\?"faction":"company"\)/);
   assert.match(s, /renderResultsFilters\(\);\s*renderResultsColumns\(\);\s*decorateContextHelp\(\)/);
 });
+
+test('v4.4 exposes reusable candidate hover intelligence and local editing', () => {
+  const s = source();
+  for (const name of ['renderCandidateHoverCard','openCandidateHover','scheduleCandidateHoverOpen','scheduleCandidateHoverClose','positionCandidateHover','beginCandidateEdit','saveCandidateEdit']) {
+    assert.match(s, new RegExp(`function\\s+${name}\\s*\\(`));
+  }
+  assert.match(s, /id="ra-candidate-hover"/);
+  assert.match(s, /ra-candidate-hover-target/);
+  assert.match(s, /data-candidate-id/);
+  assert.match(s, /Edit candidate/);
+  assert.match(s, /Desired company/i);
+  assert.match(s, /Desired role/i);
+  assert.match(s, /Expected salary/i);
+  assert.match(s, /Availability/i);
+  assert.match(s, /Recruiter note/i);
+  assert.match(s, /MATCH BREAKDOWN/);
+  assert.match(s, /Completeness/);
+  assert.match(s, /candidateHoverRuntime/);
+  assert.match(s, /180/);
+  assert.match(s, /220/);
+  assert.match(s, /pointerover/);
+  assert.match(s, /pointerout/);
+  assert.match(s, /focusin/);
+  assert.match(s, /focusout/);
+  assert.match(s, /Escape/);
+  assert.match(s, /minMatch/);
+  assert.match(s, /if\s*\(key==="match"\)/);
+});
