@@ -1103,7 +1103,8 @@
 
     function displayColumn(row,key) {
         const s=row.scout || (row.profile ? row : null), w=s?.w30 || s?.provisionalSource || {};
-        if(key==="player") return `<a href="${profileUrl(row.userId)}" target="_blank">${esc(row.name || s?.profile?.name || row.userId)}</a><small>${row.userId}</small>`;
+        if(key==="player") return `<a class="ra-candidate-hover-target" data-candidate-id="${row.userId}" href="${profileUrl(row.userId)}" target="_blank">${esc(row.name || s?.profile?.name || row.userId)}</a><small>${row.userId}</small>`;
+        if(key==="match") return row.matchScore == null ? "—" : Number(row.matchScore).toFixed(1);
         if(key==="man") return fmt(row.stats?.man); if(key==="int") return fmt(row.stats?.int); if(key==="end") return fmt(row.stats?.end); if(key==="total") return fmt(row.stats?.total);
         if(key==="ee") return row.ee ?? "—"; if(key==="preferredCompany") return esc(ResultsCore.formatCompany(row.preferredCompany || row.company));
         if(key==="fit") return scoutFitText(s); if(key==="trend") return trendText(s?.trend); if(key==="activity30") return fmt(w.activityHours,1);
@@ -1123,8 +1124,8 @@
     function renderResultsFilters() {
         const box=document.getElementById("ra-results-filters"); if(!box)return; const f=getModeResultsSettings().filters || {};
         const companies=ResultsCore.COMPANY_KEYS.map(k=>`<option value="${k}" ${f.preferredCompany===k?"selected":""}>${esc(ResultsCore.formatCompany(k))}</option>`).join("");
-        box.innerHTML=`<div class="ra-filter-grid">${[["minMan","MAN ≥"],["minInt","INT ≥"],["minEnd","END ≥"],["minTotal","TOTAL ≥"],["minEe","EE ≥"],["maxEe","EE ≤"],["minActivity30","Activity 30d ≥"],["maxIdleDays","Last Active ≤ days"],["minFit","Fit ≥"],["minLevel","Level ≥"],["maxLevel","Level ≤"],["minNetworth","Net Worth ≥"],["minActiveStreak","Active Streak ≥"],["minBestStreak","Best Streak ≥"],["minStatEnhancers","Stat Enhancers ≥"],["minXanax30","Xanax 30d ≥"],["minRefills30","Refills 30d ≥"],["minAttacks30","Attacks 30d ≥"],["minRwHits30","RW Hits 30d ≥"],["maxDataAgeDays","Scout Age ≤ days"]].map(([k,l])=>`<label>${l}<input class="ra-results-filter" data-filter="${k}" value="${esc(f[k]??"")}" inputmode="decimal"></label>`).join("")}<label>Preferred Company<select class="ra-results-filter" data-filter="preferredCompany"><option value="">Any</option>${companies}</select></label><label>Scout Status<select class="ra-results-filter" data-filter="scoutStatus"><option value="">Any</option>${ResultsCore.SCOUT_STATUS_ORDER.map(x=>`<option value="${x}" ${f.scoutStatus===x?"selected":""}>${x.toUpperCase()}</option>`).join("")}</select></label><label>Faction<select class="ra-results-filter" data-filter="faction"><option value="any">Any</option><option value="none" ${f.faction==="none"?"selected":""}>No faction</option><option value="has" ${f.faction==="has"?"selected":""}>Has faction</option></select></label></div>`;
-        const numericFilters=new Set(["minMan","minInt","minEnd","minTotal","minEe","maxEe","minActivity30","maxIdleDays","minFit","minLevel","maxLevel","minNetworth","minActiveStreak","minBestStreak","minStatEnhancers","minXanax30","minRefills30","minAttacks30","minRwHits30","maxDataAgeDays"]);
+        box.innerHTML=`<div class="ra-filter-grid">${[["minMatch","Match ≥"],["minMan","MAN ≥"],["minInt","INT ≥"],["minEnd","END ≥"],["minTotal","TOTAL ≥"],["minEe","EE ≥"],["maxEe","EE ≤"],["minActivity30","Activity 30d ≥"],["maxIdleDays","Last Active ≤ days"],["minFit","Fit ≥"],["minLevel","Level ≥"],["maxLevel","Level ≤"],["minNetworth","Net Worth ≥"],["minActiveStreak","Active Streak ≥"],["minBestStreak","Best Streak ≥"],["minStatEnhancers","Stat Enhancers ≥"],["minXanax30","Xanax 30d ≥"],["minRefills30","Refills 30d ≥"],["minAttacks30","Attacks 30d ≥"],["minRwHits30","RW Hits 30d ≥"],["maxDataAgeDays","Scout Age ≤ days"]].map(([k,l])=>`<label>${l}<input class="ra-results-filter" data-filter="${k}" value="${esc(f[k]??"")}" inputmode="decimal"></label>`).join("")}<label>Preferred Company<select class="ra-results-filter" data-filter="preferredCompany"><option value="">Any</option>${companies}</select></label><label>Scout Status<select class="ra-results-filter" data-filter="scoutStatus"><option value="">Any</option>${ResultsCore.SCOUT_STATUS_ORDER.map(x=>`<option value="${x}" ${f.scoutStatus===x?"selected":""}>${x.toUpperCase()}</option>`).join("")}</select></label><label>Faction<select class="ra-results-filter" data-filter="faction"><option value="any">Any</option><option value="none" ${f.faction==="none"?"selected":""}>No faction</option><option value="has" ${f.faction==="has"?"selected":""}>Has faction</option></select></label></div>`;
+        const numericFilters=new Set(["minMatch","minMan","minInt","minEnd","minTotal","minEe","maxEe","minActivity30","maxIdleDays","minFit","minLevel","maxLevel","minNetworth","minActiveStreak","minBestStreak","minStatEnhancers","minXanax30","minRefills30","minAttacks30","minRwHits30","maxDataAgeDays"]);
         box.querySelectorAll(".ra-results-filter").forEach(el=>el.addEventListener("change",async()=>{const next={...getModeResultsSettings().filters}; const key=el.dataset.filter; if(numericFilters.has(key) && el.value){const parsed=ResultsCore.parseCompactNumber(el.value);el.classList.toggle("ra-invalid",!parsed.valid);el.setAttribute("aria-invalid",parsed.valid?"false":"true");if(!parsed.valid)return;} if(el.value) next[key]=el.value; else delete next[key]; await saveResultsModeState({filters:next}); renderResults();}));
     }
 
@@ -1427,6 +1428,14 @@
         helpPopover.setAttribute("role","dialog");
         helpPopover.setAttribute("aria-live","polite");
         document.body.appendChild(helpPopover);
+        const candidateHover=document.createElement("div");
+        candidateHover.id="ra-candidate-hover";
+        candidateHover.className="ra-candidate-hover";
+        candidateHover.hidden=true;
+        candidateHover.setAttribute("role","dialog");
+        candidateHover.setAttribute("aria-label","Candidate intelligence");
+        candidateHover.style.cssText="position:fixed;z-index:2147483646;max-width:min(420px,calc(100vw - 12px));max-height:calc(100vh - 12px);overflow:auto;background:var(--ra-bg);color:var(--ra-text);border:1px solid var(--ra-line);border-radius:8px;padding:12px;box-shadow:0 8px 28px rgba(0,0,0,.45);";
+        document.body.appendChild(candidateHover);
 
         const results=document.createElement("div");
         results.id="ra-results-panel";
@@ -1706,7 +1715,201 @@
     }
 
 
+    const candidateHoverRuntime = {
+        userId:null,
+        anchor:null,
+        openTimer:null,
+        closeTimer:null,
+        editing:false
+    };
+
+    function candidateHoverRow(userId) {
+        const id = Number(userId);
+        return resultRows.find(row => Number(row.userId || row.id) === id) || null;
+    }
+
+    function cancelCandidateHoverTimers() {
+        if (candidateHoverRuntime.openTimer) clearTimeout(candidateHoverRuntime.openTimer);
+        if (candidateHoverRuntime.closeTimer) clearTimeout(candidateHoverRuntime.closeTimer);
+        candidateHoverRuntime.openTimer = null;
+        candidateHoverRuntime.closeTimer = null;
+    }
+
+    function closeCandidateHover() {
+        cancelCandidateHoverTimers();
+        if (candidateHoverRuntime.editing) return;
+        const card = document.getElementById("ra-candidate-hover");
+        if (card) card.hidden = true;
+        candidateHoverRuntime.userId = null;
+        candidateHoverRuntime.anchor = null;
+    }
+
+    function positionCandidateHover(anchor) {
+        const card = document.getElementById("ra-candidate-hover");
+        if (!card || !anchor || card.hidden) return;
+        const a = anchor.getBoundingClientRect();
+        const c = card.getBoundingClientRect();
+        const margin = 6;
+        let left = a.right + 8;
+        if (left + c.width > innerWidth - margin) left = a.left - c.width - 8;
+        let top = a.top;
+        left = Math.max(margin, Math.min(left, innerWidth - c.width - margin));
+        top = Math.max(margin, Math.min(top, innerHeight - c.height - margin));
+        card.style.position = "fixed";
+        card.style.left = `${left}px`;
+        card.style.top = `${top}px`;
+    }
+
+    function matchBreakdownHtml(result) {
+        const breakdown = result?.breakdown || {};
+        const lines = Object.entries(breakdown).map(([key, part]) => {
+            const label = part?.label || key;
+            const value = !part?.known || part.ratio == null ? "Unknown" : `${Math.round(Number(part.ratio) * 100)}%`;
+            return `<div class="ra-candidate-breakdown-row"><span>${esc(label)}</span><b>${esc(value)}</b></div>`;
+        });
+        return lines.length ? lines.join("") : '<div class="ra-note">No enabled Match criteria.</div>';
+    }
+
+    async function renderCandidateHoverCard(row) {
+        const card = document.getElementById("ra-candidate-hover");
+        if (!card || !row) return;
+        const userId = Number(row.userId || row.id);
+        const candidate = row.candidateLocal || await getCandidateLocal(userId) || {};
+        const profile = await getActiveMatchProfile();
+        const match = row.matchResult || await evaluateRowMatch(row, profile, candidate);
+        const scout = row.scout || (row.profile ? row : null);
+        const w = scout?.w30 || scout?.provisionalSource || {};
+        const name = row.name || scout?.profile?.name || `User ${userId}`;
+        const score = match?.score == null ? "Unmeasured" : Number(match.score).toFixed(1);
+        const completeness = `${match?.knownCriteria ?? 0} / ${match?.enabledCriteria ?? 0} criteria known`;
+        card.innerHTML = `<div class="ra-candidate-hover-head"><div><b>${esc(name)}</b><span>${esc(userId)}</span></div><b>Match ${esc(score)}</b></div>
+<div class="ra-note">Profile: ${esc(profile?.name || "Default Recruit")}</div>
+<div class="ra-kpis"><span>Fit<b>${esc(scoutFitText(scout))}</b></span><span>EE<b>${esc(row.ee ?? "—")}</b></span><span>Activity 30d<b>${esc(w.activityHours == null ? "—" : fmt(w.activityHours,1))}</b></span><span>MAN / INT / END<b>${esc(`${fmt(row.stats?.man)} / ${fmt(row.stats?.int)} / ${fmt(row.stats?.end)}`)}</b></span></div>
+<div class="ra-candidate-local"><div><span>Desired company</span><b>${esc(ResultsCore.formatCompany(candidate.desiredCompany || "") || "—")}</b></div><div><span>Desired role</span><b>${esc(candidate.desiredRole || "—")}</b></div><div><span>Expected salary</span><b>${esc(candidate.expectedSalary == null ? "—" : money(candidate.expectedSalary))}</b></div><div><span>Availability</span><b>${esc(candidate.availability || "—")}</b></div><div class="ra-candidate-note"><span>Recruiter note</span><b>${esc(candidate.recruiterNote || "—")}</b></div></div>
+<div class="ra-candidate-breakdown"><b>MATCH BREAKDOWN</b>${matchBreakdownHtml(match)}</div>
+<div class="ra-note"><b>Completeness</b> ${esc(completeness)}</div>
+<div class="ra-actions"><button class="ra-btn" id="ra-candidate-edit">Edit candidate</button><button class="ra-btn" id="ra-candidate-scout">Scout</button></div>`;
+        card.querySelector("#ra-candidate-edit")?.addEventListener("click", () => beginCandidateEdit(userId));
+        card.querySelector("#ra-candidate-scout")?.addEventListener("click", () => runScoutQueue([userId], {force:true,source:mode}).catch(e=>setStatus(e.message,true)));
+    }
+
+    async function openCandidateHover(userId, anchor) {
+        const row = candidateHoverRow(userId);
+        const card = document.getElementById("ra-candidate-hover");
+        if (!row || !card || !anchor) return;
+        cancelCandidateHoverTimers();
+        candidateHoverRuntime.userId = Number(userId);
+        candidateHoverRuntime.anchor = anchor;
+        candidateHoverRuntime.editing = false;
+        await renderCandidateHoverCard(row);
+        card.hidden = false;
+        positionCandidateHover(anchor);
+    }
+
+    function scheduleCandidateHoverOpen(userId, anchor) {
+        cancelCandidateHoverTimers();
+        candidateHoverRuntime.openTimer = setTimeout(() => {
+            candidateHoverRuntime.openTimer = null;
+            openCandidateHover(userId, anchor).catch(e => console.warn("[RA] Candidate hover failed", e));
+        }, 180);
+    }
+
+    function scheduleCandidateHoverClose() {
+        if (candidateHoverRuntime.closeTimer) clearTimeout(candidateHoverRuntime.closeTimer);
+        candidateHoverRuntime.closeTimer = setTimeout(() => {
+            candidateHoverRuntime.closeTimer = null;
+            closeCandidateHover();
+        }, 220);
+    }
+
+    async function beginCandidateEdit(userId) {
+        const card = document.getElementById("ra-candidate-hover");
+        const row = candidateHoverRow(userId);
+        if (!card || !row) return;
+        const candidate = row.candidateLocal || await getCandidateLocal(userId) || {};
+        candidateHoverRuntime.editing = true;
+        const companies = ResultsCore.COMPANY_KEYS.map(key => `<option value="${esc(key)}" ${candidate.desiredCompany===key?"selected":""}>${esc(ResultsCore.formatCompany(key))}</option>`).join("");
+        const availability = MatchCore.AVAILABILITY_VALUES.map(value => `<option value="${esc(value)}" ${candidate.availability===value?"selected":""}>${esc(value.replaceAll("_"," "))}</option>`).join("");
+        card.innerHTML = `<div class="ra-candidate-hover-head"><b>Edit candidate</b><span>${esc(userId)}</span></div>
+<div class="ra-field"><label>Desired company</label><select id="ra-candidate-desired-company"><option value="">Unknown / Any</option>${companies}</select></div>
+<div class="ra-field"><label>Desired role</label><input id="ra-candidate-desired-role" value="${esc(candidate.desiredRole || "")}"></div>
+<div class="ra-field"><label>Expected salary</label><input id="ra-candidate-expected-salary" inputmode="decimal" value="${esc(candidate.expectedSalary ?? "")}"></div>
+<div class="ra-field"><label>Availability</label><select id="ra-candidate-availability"><option value="">Unknown</option>${availability}</select></div>
+<div class="ra-field"><label>Recruiter note</label><textarea id="ra-candidate-recruiter-note">${esc(candidate.recruiterNote || "")}</textarea></div>
+<div id="ra-candidate-edit-error" class="ra-note"></div><div class="ra-actions"><button class="ra-btn ra-btn-primary" id="ra-candidate-save">Save</button><button class="ra-btn" id="ra-candidate-cancel">Cancel</button></div>`;
+        card.querySelector("#ra-candidate-save")?.addEventListener("click", () => saveCandidateEdit(userId));
+        card.querySelector("#ra-candidate-cancel")?.addEventListener("click", async () => {
+            candidateHoverRuntime.editing = false;
+            await openCandidateHover(userId, candidateHoverRuntime.anchor);
+        });
+        positionCandidateHover(candidateHoverRuntime.anchor);
+    }
+
+    async function saveCandidateEdit(userId) {
+        const salaryInput = document.getElementById("ra-candidate-expected-salary");
+        const salaryRaw = String(salaryInput?.value || "").trim();
+        let expectedSalary = null;
+        if (salaryRaw) {
+            const parsed = ResultsCore.parseCompactNumber(salaryRaw);
+            if (!parsed.valid || Number(parsed.value) < 0) {
+                salaryInput?.classList.add("ra-invalid");
+                const error = document.getElementById("ra-candidate-edit-error");
+                if (error) error.textContent = "Expected salary is not a valid number.";
+                return;
+            }
+            expectedSalary = Number(parsed.value);
+        }
+        await saveCandidateLocal(userId, {
+            desiredCompany:document.getElementById("ra-candidate-desired-company")?.value || "",
+            desiredRole:document.getElementById("ra-candidate-desired-role")?.value || "",
+            expectedSalary,
+            availability:document.getElementById("ra-candidate-availability")?.value || "",
+            recruiterNote:document.getElementById("ra-candidate-recruiter-note")?.value || "",
+            manualFields:{desiredCompany:true,desiredRole:true,expectedSalary:true,availability:true}
+        });
+        candidateHoverRuntime.editing = false;
+        await refreshMatchScores();
+        renderResults();
+        const anchor = document.querySelector(`.ra-candidate-hover-target[data-candidate-id="${Number(userId)}"]`) || candidateHoverRuntime.anchor;
+        if (anchor) await openCandidateHover(userId, anchor);
+    }
+
+    function bindCandidateHoverDelegation() {
+        document.addEventListener("pointerover", e => {
+            const target = e.target.closest?.(".ra-candidate-hover-target");
+            if (target) scheduleCandidateHoverOpen(Number(target.dataset.candidateId), target);
+            if (e.target.closest?.("#ra-candidate-hover") && candidateHoverRuntime.closeTimer) {
+                clearTimeout(candidateHoverRuntime.closeTimer);
+                candidateHoverRuntime.closeTimer = null;
+            }
+        });
+        document.addEventListener("pointerout", e => {
+            const target = e.target.closest?.(".ra-candidate-hover-target, #ra-candidate-hover");
+            if (!target) return;
+            const next = e.relatedTarget;
+            if (next && (next.closest?.(".ra-candidate-hover-target") || next.closest?.("#ra-candidate-hover"))) return;
+            scheduleCandidateHoverClose();
+        });
+        document.addEventListener("focusin", e => {
+            const target = e.target.closest?.(".ra-candidate-hover-target");
+            if (target) scheduleCandidateHoverOpen(Number(target.dataset.candidateId), target);
+        });
+        document.addEventListener("focusout", e => {
+            if (!e.target.closest?.(".ra-candidate-hover-target, #ra-candidate-hover")) return;
+            const next = e.relatedTarget;
+            if (next && (next.closest?.(".ra-candidate-hover-target") || next.closest?.("#ra-candidate-hover"))) return;
+            scheduleCandidateHoverClose();
+        });
+        document.addEventListener("keydown", e => {
+            if (e.key === "Escape") {
+                candidateHoverRuntime.editing = false;
+                closeCandidateHover();
+            }
+        });
+    }
+
     function bindUI() {
+        bindCandidateHoverDelegation();
         document.getElementById("ra-launch").onclick=openMainWindow;
         document.getElementById("ra-close").onclick=()=>document.getElementById("ra-panel").style.display="none";
         document.getElementById("ra-settings-toggle").onclick=async()=>{const p=document.getElementById("ra-settings-panel");p.hidden=!p.hidden;if(!p.hidden){decorateContextHelp();await renderMatchProfileManager();}};
@@ -1764,7 +1967,7 @@
         ["ra-search","ra-min-man","ra-min-int","ra-min-end","ra-min-total"].forEach(id=>document.getElementById(id)?.addEventListener("input",()=>refreshResults()));
         window.addEventListener("resize", () => {
             clearTimeout(window.__raResizeTimer);
-            window.__raResizeTimer = setTimeout(recoverManagedWindows, 150);
+            window.__raResizeTimer = setTimeout(()=>{recoverManagedWindows();if(candidateHoverRuntime.anchor)positionCandidateHover(candidateHoverRuntime.anchor);},150);
         });
     }
 
