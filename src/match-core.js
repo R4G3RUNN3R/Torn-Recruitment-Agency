@@ -141,23 +141,32 @@
 
   function normalizeCandidate(input) {
     const source = input && typeof input === 'object' ? input : {};
-    const manualFields = source.manualFields && typeof source.manualFields === 'object' ? clone(source.manualFields) : {};
-    const merged = mergeCandidateValues({
-      manual: Object.assign({}, source, manualFields),
-      parsed: source.parsed && typeof source.parsed === 'object' ? source.parsed : {}
-    });
+    const hasManualObject = !!(source.manualFields && typeof source.manualFields === 'object' && !Array.isArray(source.manualFields));
+    const manual = hasManualObject ? clone(source.manualFields) : {
+      desiredCompany: source.desiredCompany,
+      desiredRole: source.desiredRole,
+      expectedSalary: source.expectedSalary,
+      availability: source.availability
+    };
+    const parsed = source.parsed && typeof source.parsed === 'object' ? source.parsed : (hasManualObject ? {
+      desiredCompany: source.desiredCompany,
+      desiredRole: source.desiredRole,
+      expectedSalary: source.expectedSalary,
+      availability: source.availability
+    } : {});
+    const merged = mergeCandidateValues({ manual, parsed });
     return {
       userId: cleanText(source.userId || source.id || source.playerId),
       desiredCompany: merged.desiredCompany,
       desiredRole: merged.desiredRole,
       expectedSalary: merged.expectedSalary,
       availability: merged.availability,
-      recruiterNote: merged.recruiterNote,
+      recruiterNote: cleanText(source.recruiterNote || merged.recruiterNote),
       manualFields: {
-        desiredCompany: hasManualValue(manualFields, 'desiredCompany') || hasManualValue(source, 'desiredCompany'),
-        desiredRole: hasManualValue(manualFields, 'desiredRole') || hasManualValue(source, 'desiredRole'),
-        expectedSalary: hasManualValue(manualFields, 'expectedSalary') || hasManualValue(source, 'expectedSalary'),
-        availability: hasManualValue(manualFields, 'availability') || hasManualValue(source, 'availability')
+        desiredCompany: cleanText(manual.desiredCompany),
+        desiredRole: cleanText(manual.desiredRole),
+        expectedSalary: finitePositiveOrNull(manual.expectedSalary),
+        availability: normalizeAvailability(manual.availability)
       },
       createdAt: cleanText(source.createdAt),
       updatedAt: cleanText(source.updatedAt)
