@@ -5,8 +5,18 @@ const path=require('node:path');
 const root=path.join(__dirname,'..');
 const boot=fs.readFileSync(path.join(root,'R4G3RUNN3R-Recruitment-Agency.user.js'),'utf8');
 const app=fs.readFileSync(path.join(root,'src/v45-app.js'),'utf8');
+const PINNED_RUNTIME='9b22dc3478d7d57dba6ff3354681767b35cf0ba6';
 
-test('public userscript is the v4.5 modular bootstrap',()=>{assert.match(boot,/@version\s+4\.5\.0/);for(const file of ['forum-core.js','v45-runtime.js','v45-candidates.js','v45-discovery.js','v45-messaging.js','v45-app.js'])assert.ok(boot.includes('/src/'+file));assert.match(boot,/RA_V45App/);assert.match(boot,/app\.start\(\)/);});
+test('public userscript is the v4.5.1 modular bootstrap with immutable runtime requires',()=>{
+  assert.match(boot,/@version\s+4\.5\.1/);
+  for(const file of ['scout-core.js','results-core.js','global-core.js','match-core.js','forum-core.js','v45-runtime.js','v45-candidates.js','v45-discovery.js','v45-messaging.js','v45-app.js']){
+    assert.ok(boot.includes(`/${PINNED_RUNTIME}/src/${file}`),`pinned ${file}`);
+  }
+  assert.doesNotMatch(boot,/@require\s+https:\/\/raw\.githubusercontent\.com\/R4G3RUNN3R\/Torn-Recruitment-Agency\/main\/src\//);
+  assert.match(boot,/EXPECTED_APP_VERSION\s*=\s*'4\.5\.0'/);
+  assert.match(boot,/app\.SCRIPT_VERSION/);
+  assert.match(boot,/app\.start\(\)/);
+});
 
 test('v4.5 app targets additive DB12 and shared scheduler',()=>{assert.match(app,/DB_VERSION\s*=\s*12/);assert.doesNotMatch(app,/deleteObjectStore\s*\(/);assert.match(app,/HARD_API_RATE\s*=\s*75/);assert.match(app,/MIN_API_GAP_MS\s*=\s*800/);assert.match(app,/Math\.max\(MIN_API_GAP_MS,60000\/clampRate/);});
 
