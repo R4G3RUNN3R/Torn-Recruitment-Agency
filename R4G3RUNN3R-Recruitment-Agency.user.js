@@ -33,9 +33,7 @@
   if (window.top !== window.self) return;
 
   const root = document.documentElement;
-  const existingOwner = root.getAttribute(DOM_GUARD);
-  if (existingOwner && document.getElementById('ra-app')) return;
-  if (existingOwner) root.removeAttribute(DOM_GUARD);
+  if (root.hasAttribute(DOM_GUARD)) return;
   root.setAttribute(DOM_GUARD, INSTALLER_VERSION);
 
   if (window.__R4G3_RECRUITMENT_AGENCY_V45__) return;
