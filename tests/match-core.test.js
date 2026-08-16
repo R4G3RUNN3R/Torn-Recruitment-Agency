@@ -46,3 +46,30 @@ test('default profile is safe and normalized', () => {
   assert.ok(profile.profileId);
   assert.deepEqual(Object.keys(profile.criteria), MatchCore.CRITERIA_KEYS);
 });
+
+test('evaluateMatch excludes unknown enabled criteria from denominator', () => {
+  const profile = MatchCore.normalizeProfile({
+    profileId:'p1', name:'Sales', criteria:{
+      ee:{enabled:true,target:10,weight:20},
+      fit:{enabled:true,target:100,weight:20},
+      salary:{enabled:true,max:2_000_000,weight:20}
+    }
+  });
+  const result = MatchCore.evaluateMatch({
+    row:{ee:8, fit:90},
+    candidate:{expectedSalary:null},
+    profile
+  });
+  assert.equal(result.availableWeight, 40);
+  assert.equal(result.earnedWeight, 34);
+  assert.equal(result.score, 85);
+  assert.equal(result.knownCriteria, 2);
+  assert.equal(result.enabledCriteria, 3);
+});
+
+test('evaluateMatch returns unmeasured when no enabled criterion is known', () => {
+  const profile = MatchCore.normalizeProfile({profileId:'p2',name:'Role',criteria:{role:{enabled:true,value:'sales',weight:10}}});
+  const result = MatchCore.evaluateMatch({row:{},candidate:{},profile});
+  assert.equal(result.score, null);
+  assert.equal(result.availableWeight, 0);
+});
