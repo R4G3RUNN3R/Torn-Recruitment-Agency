@@ -1,0 +1,17 @@
+test('v4.4 exposes Smart Match profile management controls and functions', () => {
+  const s = source();
+  for (const id of [
+    'ra-match-profile-select','ra-match-profile-new','ra-match-profile-duplicate','ra-match-profile-delete','ra-match-profile-save'
+  ]) assert.match(s, new RegExp(id));
+  for (const name of ['criterionEditorHtml','renderMatchProfileManager','populateMatchProfileEditor','saveMatchProfileFromUI','duplicateActiveMatchProfile','deleteActiveMatchProfile']) {
+    assert.match(s, new RegExp(`function\\s+${name}\\s*\\(`));
+  }
+  assert.match(s, /MatchCore\.CRITERIA_KEYS\.map\(key=>criterionEditorHtml/);
+  assert.match(s, /id="ra-match-criterion-\$\{key\}"/);
+  assert.match(s, /man:"MAN"/);
+  assert.match(s, /fit:"Fit"/);
+  assert.match(s, /salary:"Salary"/);
+  assert.match(s, /availability:"Availability"/);
+  assert.match(s, /New Match Profile/);
+  assert.match(s, /Default Recruit/);
+});
