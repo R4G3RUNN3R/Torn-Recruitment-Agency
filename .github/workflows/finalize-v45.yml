@@ -5,6 +5,7 @@ on:
     branches: [feature/v4.5-forum-discovery]
     paths:
       - scripts/finalize-v45.js
+      - scripts/finalize-v45-tests.js
       - .github/workflows/finalize-v45.yml
 
 permissions:
@@ -23,7 +24,9 @@ jobs:
         with:
           node-version: '20'
       - name: Finalize v4.5 source
-        run: node scripts/finalize-v45.js
+        run: |
+          node scripts/finalize-v45.js
+          node scripts/finalize-v45-tests.js
       - name: Verify finalized source
         run: |
           npm test
