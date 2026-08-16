@@ -29,6 +29,23 @@
     availability: { enabled: false, value: '', weight: 10 }
   });
 
+  const CRITERIA_LABELS = Object.freeze({
+    man: 'Manual Labor',
+    int: 'Intelligence',
+    end: 'Endurance',
+    ee: 'EE',
+    fit: 'Fit',
+    activity30: 'Activity 30d',
+    xanax30: 'Xanax 30d',
+    refills30: 'Refills 30d',
+    attacks30: 'Attacks 30d',
+    rwHits30: 'RW Hits 30d',
+    company: 'Company',
+    role: 'Role',
+    salary: 'Salary',
+    availability: 'Availability'
+  });
+
   function clone(value) {
     return JSON.parse(JSON.stringify(value));
   }
@@ -147,9 +164,10 @@
     };
   }
 
-  function normalizeCriterion(key, input) {
+  function normalizeCriterion(key, input, disableWhenMissing) {
     const base = clone(DEFAULT_CRITERIA[key]);
     const source = input && typeof input === 'object' ? input : {};
+    if (disableWhenMissing && !input) base.enabled = false;
     base.enabled = source.enabled === undefined ? base.enabled : !!source.enabled;
     base.weight = finitePositiveOrNull(source.weight) ?? base.weight;
     if (Object.prototype.hasOwnProperty.call(base, 'target')) {
@@ -161,8 +179,6 @@
     if (Object.prototype.hasOwnProperty.call(base, 'value')) {
       const rawValue = source.value === undefined ? base.value : source.value;
       if (key === 'availability') base.value = normalizeAvailability(rawValue);
-      else if (key === 'company') base.value = cleanText(rawValue);
-      else if (key === 'role') base.value = cleanText(rawValue);
       else base.value = cleanText(rawValue);
     }
     return base;
@@ -170,10 +186,11 @@
 
   function normalizeProfile(input) {
     const source = input && typeof input === 'object' ? input : {};
-    const criteriaSource = source.criteria && typeof source.criteria === 'object' ? source.criteria : {};
+    const hasCriteria = !!(source.criteria && typeof source.criteria === 'object');
+    const criteriaSource = hasCriteria ? source.criteria : {};
     const criteria = {};
     CRITERIA_KEYS.forEach((key) => {
-      criteria[key] = normalizeCriterion(key, criteriaSource[key]);
+      criteria[key] = normalizeCriterion(key, criteriaSource[key], hasCriteria);
     });
     return {
       profileId: cleanText(source.profileId) || `profile-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -188,6 +205,72 @@
     return normalizeProfile({ name: cleanText(name) || 'Smart Match' });
   }
 
+  function roundOne(value) {
+    return Math.round((Number(value) + Number.EPSILON) * 10) / 10;
+  }
+
+  function evaluateMatch(input) {
+    const source = input && typeof input === 'object' ? input : {};
+    const row = source.row && typeof source.row === 'object' ? source.row : {};
+    const candidate = source.candidate && typeof source.candidate === 'object' ? source.candidate : {};
+    const profile = normalizeProfile(source.profile || {});
+    const values = {
+      man: row.stats && row.stats.man !== undefined ? row.stats.man : row.man,
+      int: row.stats && row.stats.int !== undefined ? row.stats.int : row.int,
+      end: row.stats && row.stats.end !== undefined ? row.stats.end : row.end,
+      ee: row.ee,
+      fit: row.matchInputs && row.matchInputs.fit !== undefined ? row.matchInputs.fit : row.fit,
+      activity30: row.matchInputs && row.matchInputs.activity30 !== undefined ? row.matchInputs.activity30 : row.activity30,
+      xanax30: row.matchInputs && row.matchInputs.xanax30 !== undefined ? row.matchInputs.xanax30 : row.xanax30,
+      refills30: row.matchInputs && row.matchInputs.refills30 !== undefined ? row.matchInputs.refills30 : row.refills30,
+      attacks30: row.matchInputs && row.matchInputs.attacks30 !== undefined ? row.matchInputs.attacks30 : row.attacks30,
+      rwHits30: row.matchInputs && row.matchInputs.rwHits30 !== undefined ? row.matchInputs.rwHits30 : row.rwHits30,
+      company: candidate.desiredCompany || row.preferredCompany,
+      role: candidate.desiredRole,
+      salary: candidate.expectedSalary,
+      availability: candidate.availability
+    };
+
+    const breakdown = {};
+    let earnedWeight = 0;
+    let availableWeight = 0;
+    let knownCriteria = 0;
+    let enabledCriteria = 0;
+
+    CRITERIA_KEYS.forEach((key) => {
+      const criterion = profile.criteria[key];
+      if (!criterion || !criterion.enabled) return;
+      enabledCriteria += 1;
+      let score;
+      if (key === 'salary') {
+        score = scoreSalary(values[key], criterion.max, criterion.weight);
+      } else if (key === 'company') {
+        score = scoreCategorical(values[key], criterion.value, criterion.weight, normalizeCompany);
+      } else if (key === 'role') {
+        score = scoreCategorical(values[key], criterion.value, criterion.weight, normalizeRole);
+      } else if (key === 'availability') {
+        score = scoreCategorical(values[key], criterion.value, criterion.weight, normalizeAvailability);
+      } else {
+        score = scoreNumeric(values[key], criterion.target, criterion.weight);
+      }
+      breakdown[key] = Object.assign({ label: CRITERIA_LABELS[key] }, score);
+      if (!score.known) return;
+      knownCriteria += 1;
+      earnedWeight += score.earned;
+      availableWeight += score.available;
+    });
+
+    return {
+      score: availableWeight > 0 ? roundOne((earnedWeight / availableWeight) * 100) : null,
+      earnedWeight: roundOne(earnedWeight),
+      availableWeight: roundOne(availableWeight),
+      knownCriteria,
+      enabledCriteria,
+      completeness: enabledCriteria > 0 ? roundOne(knownCriteria / enabledCriteria) : null,
+      breakdown
+    };
+  }
+
   return Object.freeze({
     CRITERIA_KEYS,
     AVAILABILITY_VALUES,
@@ -200,6 +283,7 @@
     scoreNumeric,
     scoreSalary,
     scoreCategorical,
+    evaluateMatch,
     mergeCandidateValues
   });
 });
