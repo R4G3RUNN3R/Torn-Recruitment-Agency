@@ -38,6 +38,7 @@
         let top = a.top;
         left = Math.max(margin, Math.min(left, innerWidth - c.width - margin));
         top = Math.max(margin, Math.min(top, innerHeight - c.height - margin));
+        card.style.position = "fixed";
         card.style.left = `${left}px`;
         card.style.top = `${top}px`;
     }
