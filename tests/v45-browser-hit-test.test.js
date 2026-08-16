@@ -93,7 +93,15 @@ test('real Chrome hit-testing and physical clicks can navigate the v4.5 UI', { t
     assert.equal(startupError, '', `startup errors: ${startupError}`);
     assert.equal(await page.evaluate(() => window.__raStarted), true);
 
-    await physicalClick(page, '#ra-launch');
+    const launcher = await page.evaluate(() => {
+      for (const selector of ['#ra-sidebar-launcher', '#ra-launch']) {
+        const el = document.querySelector(selector);
+        if (el && getComputedStyle(el).display !== 'none' && getComputedStyle(el).visibility !== 'hidden') return selector;
+      }
+      return '';
+    });
+    assert.ok(launcher, 'a visible Recruitment Agency launcher should exist');
+    await physicalClick(page, launcher);
     assert.equal(await page.$eval('#ra-app', el => getComputedStyle(el).display), 'block');
 
     const routes = [
