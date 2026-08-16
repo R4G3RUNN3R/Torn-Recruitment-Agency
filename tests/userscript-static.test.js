@@ -9,15 +9,17 @@ function source() {
   return fs.readFileSync(file, 'utf8');
 }
 
-test('userscript is version 4.3.0 and loads Scout, Results and Global cores', () => {
+test('userscript v4.4 loads Scout, Results, Global and Match cores', () => {
   const s = source();
-  assert.match(s, /@version\s+4\.3\.0/);
-  assert.match(s, /SCRIPT_VERSION\s*=\s*["']4\.3\.0["']/);
+  assert.match(s, /@version\s+4\.4\.0/);
+  assert.match(s, /SCRIPT_VERSION\s*=\s*["']4\.4\.0["']/);
   assert.match(s, /@require\s+https:\/\/raw\.githubusercontent\.com\/R4G3RUNN3R\/Torn-Recruitment-Agency\/main\/src\/scout-core\.js/);
   assert.match(s, /@require\s+https:\/\/raw\.githubusercontent\.com\/R4G3RUNN3R\/Torn-Recruitment-Agency\/main\/src\/results-core\.js/);
   assert.match(s, /@require\s+https:\/\/raw\.githubusercontent\.com\/R4G3RUNN3R\/Torn-Recruitment-Agency\/main\/src\/global-core\.js/);
+  assert.match(s, /@require\s+https:\/\/raw\.githubusercontent\.com\/R4G3RUNN3R\/Torn-Recruitment-Agency\/main\/src\/match-core\.js/);
   assert.match(s, /RA_ResultsCore/);
   assert.match(s, /RA_GlobalCore/);
+  assert.match(s, /RA_MatchCore/);
 });
 
 test('userscript never depends on the Recruit Scout paid backend', () => {
@@ -26,15 +28,40 @@ test('userscript never depends on the Recruit Scout paid backend', () => {
   assert.doesNotMatch(s, /script-session|\/api\/grade|membership/i);
 });
 
-test('userscript upgrades IndexedDB additively and defines Scout and Global stores', () => {
+test('userscript upgrades IndexedDB additively and defines Scout, Global and Match stores', () => {
   const s = source();
-  assert.match(s, /REQUIRED_DB_VERSION\s*=\s*10/);
+  assert.match(s, /REQUIRED_DB_VERSION\s*=\s*11/);
   assert.match(s, /scoutLatest/);
   assert.match(s, /scoutHistory/);
   assert.match(s, /globalLatest/);
   assert.match(s, /globalHistory/);
   assert.match(s, /globalSyncQueue/);
+  assert.match(s, /createObjectStore\(['"]candidateLocal['"],\s*\{\s*keyPath:\s*['"]userId['"]\s*\}\)/);
+  assert.match(s, /createObjectStore\(['"]matchProfiles['"],\s*\{\s*keyPath:\s*['"]profileId['"]\s*\}\)/);
   assert.doesNotMatch(s, /deleteObjectStore\s*\(/);
+});
+
+test('v4.4 exposes local Smart Match persistence and evaluation helpers', () => {
+  const s = source();
+  for (const name of [
+    'ensureDefaultMatchProfile', 'getActiveMatchProfile', 'saveMatchProfile', 'deleteMatchProfile',
+    'getCandidateLocal', 'saveCandidateLocal', 'buildMatchInputRow', 'evaluateRowMatch', 'refreshMatchScores'
+  ]) assert.match(s, new RegExp(`function\\s+${name}\\s*\\(`));
+  assert.match(s, /activeProfileId/);
+  assert.match(s, /candidateLocal/);
+  assert.match(s, /matchProfiles/);
+});
+
+test('v4.4 Match and recruiter-private fields stay out of global observation construction', () => {
+  const s = source();
+  const start = s.indexOf('function buildGlobalObservation');
+  assert.notEqual(start, -1);
+  const end = s.indexOf('\n  }', start);
+  const block = s.slice(start, end > start ? end + 4 : start + 2500);
+  for (const field of ['desiredRole','expectedSalary','availability','recruiterNote','matchScore','matchProfiles']) {
+    assert.equal(block.includes(field), false, `${field} must not enter buildGlobalObservation`);
+  }
+  assert.match(block, /GlobalCore\.sanitizeObservation/);
 });
 
 test('userscript exposes all three modes and hybrid Scout actions', () => {
