@@ -14,3 +14,18 @@ test('salary rewards values at or below budget and degrades proportionally above
   assert.equal(MatchCore.scoreSalary(4_000_000, 2_000_000, 20).earned, 10);
   assert.equal(MatchCore.scoreSalary(null, 2_000_000, 20).known, false);
 });
+
+test('categorical matching normalizes role/company/availability and excludes unknowns', () => {
+  assert.equal(MatchCore.normalizeRole('  Sales   Assistant '), 'sales assistant');
+  assert.equal(MatchCore.normalizeCompany('Adult Novelties'), 'adult_novelties');
+  assert.equal(MatchCore.normalizeAvailability('Immediate'), 'immediate');
+
+  assert.deepEqual(
+    MatchCore.scoreCategorical(' Sales Assistant ', 'sales assistant', 10, MatchCore.normalizeRole),
+    {known:true, earned:10, available:10, ratio:1}
+  );
+  assert.deepEqual(
+    MatchCore.scoreCategorical('', 'sales assistant', 10, MatchCore.normalizeRole),
+    {known:false, earned:0, available:0, ratio:null}
+  );
+});
