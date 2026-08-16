@@ -18,6 +18,32 @@
     return Number.isFinite(number) && number >= 0 ? number : null;
   }
 
+  function normalizeRole(value) {
+    return String(value || '').trim().replace(/\s+/g, ' ').toLowerCase();
+  }
+
+  function normalizeCompany(value) {
+    return String(value || '')
+      .trim()
+      .toLowerCase()
+      .replace(/&/g, ' and ')
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '');
+  }
+
+  function normalizeAvailability(value) {
+    const raw = String(value || '').trim().toLowerCase().replace(/\s+/g, '_');
+    const aliases = {
+      now: 'immediate',
+      available_now: 'immediate',
+      asap: 'immediate',
+      later: 'soon',
+      negotiable: 'flexible'
+    };
+    const normalized = aliases[raw] || raw;
+    return AVAILABILITY_VALUES.includes(normalized) ? normalized : '';
+  }
+
   function scoreNumeric(actual, target, weight) {
     const a = finitePositiveOrNull(actual);
     const t = finitePositiveOrNull(target);
@@ -40,10 +66,26 @@
     return { known: true, earned: ratio * w, available: w, ratio };
   }
 
+  function scoreCategorical(actual, expected, weight, normalizer) {
+    const normalize = typeof normalizer === 'function' ? normalizer : normalizeRole;
+    const a = normalize(actual);
+    const e = normalize(expected);
+    const w = finitePositiveOrNull(weight) || 0;
+    if (!a || !e || w <= 0) {
+      return { known: false, earned: 0, available: 0, ratio: null };
+    }
+    const ratio = a === e ? 1 : 0;
+    return { known: true, earned: ratio * w, available: w, ratio };
+  }
+
   return Object.freeze({
     CRITERIA_KEYS,
     AVAILABILITY_VALUES,
+    normalizeRole,
+    normalizeCompany,
+    normalizeAvailability,
     scoreNumeric,
-    scoreSalary
+    scoreSalary,
+    scoreCategorical
   });
 });
