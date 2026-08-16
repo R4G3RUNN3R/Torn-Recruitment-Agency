@@ -95,3 +95,20 @@ test('default visible columns stay intentionally compact', () => {
   assert.deepEqual([...R.DEFAULT_VISIBLE_COLUMNS], ['player','ee','preferredCompany','activity30','lastActive','fit']);
   assert.deepEqual(R.DEFAULT_SORT, {key:'fit',direction:'desc'});
 });
+
+test('Match exists as an optional column but is not visible by default', () => {
+  assert.ok(R.getColumn('match'));
+  assert.equal(R.DEFAULT_VISIBLE_COLUMNS.includes('match'), false);
+});
+
+test('minMatch filters measured rows and sorting keeps unmeasured Match last', () => {
+  const rows = [
+    {userId:1,name:'A',matchScore:88},
+    {userId:2,name:'B',matchScore:null},
+    {userId:3,name:'C',matchScore:72}
+  ];
+  const filtered = R.applyFilters(rows, {minMatch:'80'}, NOW);
+  assert.deepEqual(filtered.map(x=>x.userId), [1]);
+  const sorted = R.sortRows(rows, {key:'match',direction:'desc'}, NOW);
+  assert.deepEqual(sorted.map(x=>x.userId), [1,3,2]);
+});

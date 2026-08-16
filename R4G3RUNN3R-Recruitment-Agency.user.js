@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         R4G3RUNN3R's Recruitment Agency
 // @namespace    r4g3runn3r.recruitment.agency
-// @version      4.3.0
+// @version      4.4.0
 // @description  Company/faction recruitment scanner plus local Scout intelligence, Fit, Trend and history for Torn.
 // @author       R4G3RUNN3R[3877028]
 // @license      MIT
@@ -12,6 +12,7 @@
 // @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/main/src/scout-core.js
 // @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/main/src/results-core.js
 // @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/main/src/global-core.js
+// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/main/src/match-core.js
 // @downloadURL  https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/main/R4G3RUNN3R-Recruitment-Agency.user.js
 // @updateURL    https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/main/R4G3RUNN3R-Recruitment-Agency.user.js
 // ==/UserScript==
@@ -25,14 +26,15 @@
     const Core = window.RA_ScoutCore;
     const ResultsCore = window.RA_ResultsCore;
     const GlobalCore = window.RA_GlobalCore;
-    if (!Core || !ResultsCore || !GlobalCore) {
+    const MatchCore = window.RA_MatchCore;
+    if (!Core || !ResultsCore || !GlobalCore || !MatchCore) {
         console.error("[RA] Required core module did not load.");
         return;
     }
 
-    const SCRIPT_VERSION = "4.3.0";
+    const SCRIPT_VERSION = "4.4.0";
     const DB_NAME = "tornWorkerDB";
-    const REQUIRED_DB_VERSION = 10;
+    const REQUIRED_DB_VERSION = 11;
     const API_BASE = "https://api.torn.com/v2";
     const API_COMMENT = "R4G3RUNN3R Recruitment Agency";
     const PAGE_SIZE = 20;
@@ -102,6 +104,9 @@
             endpoint: "",
             lookupCacheMs: 30 * 60 * 1000,
             maxRetryAttempts: 5
+        },
+        match: {
+            activeProfileId: ""
         },
         scout: DEFAULT_SCOUT
     };
@@ -182,6 +187,7 @@
     function mergeSettings(raw = {}) {
         const scout = raw.scout || {};
         const global = raw.global || {};
+        const match = raw.match || {};
         const scoring = Core.normalizeScoring({
             targets: {...Core.DEFAULT_SCORING.targets, ...(scout.scoring?.targets || {})},
             weights: {...Core.DEFAULT_SCORING.weights, ...(scout.scoring?.weights || {})}
@@ -193,6 +199,7 @@
             resultsByMode: normalizeResultsSettings(raw),
             resultsPanels: {...DEFAULT_SETTINGS.resultsPanels,...(raw.resultsPanels || {})},
             global: {...DEFAULT_SETTINGS.global, ...global},
+            match: {...DEFAULT_SETTINGS.match, ...match},
             scout: {
                 ...DEFAULT_SCOUT,
                 ...scout,
@@ -223,6 +230,8 @@
                     g.createIndex("observedAt", "observedAt", {unique: false});
                 }
                 if (!d.objectStoreNames.contains("globalSyncQueue")) d.createObjectStore("globalSyncQueue", {keyPath: "queueId"});
+                if (!d.objectStoreNames.contains("candidateLocal")) d.createObjectStore("candidateLocal", {keyPath:"userId"});
+                if (!d.objectStoreNames.contains("matchProfiles")) d.createObjectStore("matchProfiles", {keyPath:"profileId"});
             };
             req.onsuccess = () => resolve(req.result);
             req.onerror = () => reject(req.error || new Error("IndexedDB open failed"));
@@ -247,6 +256,107 @@
         m.settings = mergeSettings({...m.settings, ...patch});
         await idb.put("meta", m);
         settings = m.settings;
+    }
+
+    async function saveMatchProfile(profile) {
+        const normalized = MatchCore.normalizeProfile(profile || {});
+        const existing = normalized.profileId ? await idb.get("matchProfiles", normalized.profileId) : null;
+        const now = new Date().toISOString();
+        normalized.createdAt = existing?.createdAt || normalized.createdAt || now;
+        normalized.updatedAt = now;
+        await idb.put("matchProfiles", normalized);
+        return normalized;
+    }
+
+    async function deleteMatchProfile(profileId) {
+        const id = String(profileId || "").trim();
+        return id ? idb.delete("matchProfiles", id) : false;
+    }
+
+    async function ensureDefaultMatchProfile() {
+        const profiles = await idb.getAll("matchProfiles");
+        if (profiles.length) {
+            const active = profiles.find(p => p.profileId === settings.match.activeProfileId) || profiles[0];
+            if (active.profileId !== settings.match.activeProfileId) {
+                await saveMetaSettings({match:{...settings.match,activeProfileId:active.profileId}});
+            }
+            return MatchCore.normalizeProfile(active);
+        }
+        const profile = await saveMatchProfile(MatchCore.createDefaultProfile("Default Recruit"));
+        await saveMetaSettings({match:{...settings.match,activeProfileId:profile.profileId}});
+        return profile;
+    }
+
+    async function getActiveMatchProfile() {
+        const id = String(settings?.match?.activeProfileId || "").trim();
+        if (id) {
+            const profile = await idb.get("matchProfiles", id);
+            if (profile) return MatchCore.normalizeProfile(profile);
+        }
+        return ensureDefaultMatchProfile();
+    }
+
+    async function getCandidateLocal(userId) {
+        const id = String(userId || "").trim();
+        if (!id) return null;
+        const record = await idb.get("candidateLocal", id);
+        return record ? MatchCore.normalizeCandidate(record) : null;
+    }
+
+    async function saveCandidateLocal(userId, patch = {}) {
+        const id = String(userId || "").trim();
+        if (!id) throw new Error("Candidate userId is required.");
+        const existing = await getCandidateLocal(id);
+        const manualFields = {...(existing?.manualFields || {})};
+        for (const key of ["desiredCompany","desiredRole","expectedSalary","availability"]) {
+            if (Object.prototype.hasOwnProperty.call(patch, key)) manualFields[key] = patch[key];
+        }
+        const now = new Date().toISOString();
+        const record = MatchCore.normalizeCandidate({
+            ...(existing || {}),
+            ...patch,
+            userId:id,
+            manualFields,
+            createdAt:existing?.createdAt || now,
+            updatedAt:now
+        });
+        await idb.put("candidateLocal", record);
+        return record;
+    }
+
+    function buildMatchInputRow(row) {
+        const scout = row?.scout || (row?.profile ? row : null);
+        const w = scout?.w30 || scout?.provisionalSource || {};
+        const fit = snapshotFit(scout);
+        return {
+            ...row,
+            fit,
+            matchInputs: {
+                fit,
+                activity30:w.activityHours ?? null,
+                xanax30:w.xanax ?? null,
+                refills30:w.refills ?? null,
+                attacks30:w.attacks ?? null,
+                rwHits30:w.rwHits ?? null
+            }
+        };
+    }
+
+    async function evaluateRowMatch(row, profile = null, candidate = undefined) {
+        const activeProfile = profile || await getActiveMatchProfile();
+        const local = candidate === undefined ? await getCandidateLocal(row?.userId || row?.id) : candidate;
+        return MatchCore.evaluateMatch({row:buildMatchInputRow(row),candidate:local || {},profile:activeProfile});
+    }
+
+    async function refreshMatchScores() {
+        const profile = await getActiveMatchProfile();
+        await Promise.all(resultRows.map(async row => {
+            const candidate = await getCandidateLocal(row?.userId || row?.id);
+            const result = MatchCore.evaluateMatch({row:buildMatchInputRow(row),candidate:candidate || {},profile});
+            row.candidateLocal = candidate;
+            row.matchResult = result;
+            row.matchScore = result.score;
+        }));
     }
 
     async function saveSync(modeName, patch) {
@@ -966,6 +1076,8 @@
             const latest = new Map((await idb.getAll("scoutLatest")).map(x => [Number(x.userId),x]));
             resultRows = users.map(u => ({...u,scout:latest.get(Number(u.userId)) || null}));
         }
+        try { await refreshMatchScores(); }
+        catch (e) { console.warn("[RA] Smart Match enrichment failed.", e); }
         renderResults();
     }
 
@@ -991,7 +1103,8 @@
 
     function displayColumn(row,key) {
         const s=row.scout || (row.profile ? row : null), w=s?.w30 || s?.provisionalSource || {};
-        if(key==="player") return `<a href="${profileUrl(row.userId)}" target="_blank">${esc(row.name || s?.profile?.name || row.userId)}</a><small>${row.userId}</small>`;
+        if(key==="player") return `<a class="ra-candidate-hover-target" data-candidate-id="${row.userId}" href="${profileUrl(row.userId)}" target="_blank">${esc(row.name || s?.profile?.name || row.userId)}</a><small>${row.userId}</small>`;
+        if(key==="match") return row.matchScore == null ? "—" : Number(row.matchScore).toFixed(1);
         if(key==="man") return fmt(row.stats?.man); if(key==="int") return fmt(row.stats?.int); if(key==="end") return fmt(row.stats?.end); if(key==="total") return fmt(row.stats?.total);
         if(key==="ee") return row.ee ?? "—"; if(key==="preferredCompany") return esc(ResultsCore.formatCompany(row.preferredCompany || row.company));
         if(key==="fit") return scoutFitText(s); if(key==="trend") return trendText(s?.trend); if(key==="activity30") return fmt(w.activityHours,1);
@@ -1011,8 +1124,8 @@
     function renderResultsFilters() {
         const box=document.getElementById("ra-results-filters"); if(!box)return; const f=getModeResultsSettings().filters || {};
         const companies=ResultsCore.COMPANY_KEYS.map(k=>`<option value="${k}" ${f.preferredCompany===k?"selected":""}>${esc(ResultsCore.formatCompany(k))}</option>`).join("");
-        box.innerHTML=`<div class="ra-filter-grid">${[["minMan","MAN ≥"],["minInt","INT ≥"],["minEnd","END ≥"],["minTotal","TOTAL ≥"],["minEe","EE ≥"],["maxEe","EE ≤"],["minActivity30","Activity 30d ≥"],["maxIdleDays","Last Active ≤ days"],["minFit","Fit ≥"],["minLevel","Level ≥"],["maxLevel","Level ≤"],["minNetworth","Net Worth ≥"],["minActiveStreak","Active Streak ≥"],["minBestStreak","Best Streak ≥"],["minStatEnhancers","Stat Enhancers ≥"],["minXanax30","Xanax 30d ≥"],["minRefills30","Refills 30d ≥"],["minAttacks30","Attacks 30d ≥"],["minRwHits30","RW Hits 30d ≥"],["maxDataAgeDays","Scout Age ≤ days"]].map(([k,l])=>`<label>${l}<input class="ra-results-filter" data-filter="${k}" value="${esc(f[k]??"")}" inputmode="decimal"></label>`).join("")}<label>Preferred Company<select class="ra-results-filter" data-filter="preferredCompany"><option value="">Any</option>${companies}</select></label><label>Scout Status<select class="ra-results-filter" data-filter="scoutStatus"><option value="">Any</option>${ResultsCore.SCOUT_STATUS_ORDER.map(x=>`<option value="${x}" ${f.scoutStatus===x?"selected":""}>${x.toUpperCase()}</option>`).join("")}</select></label><label>Faction<select class="ra-results-filter" data-filter="faction"><option value="any">Any</option><option value="none" ${f.faction==="none"?"selected":""}>No faction</option><option value="has" ${f.faction==="has"?"selected":""}>Has faction</option></select></label></div>`;
-        const numericFilters=new Set(["minMan","minInt","minEnd","minTotal","minEe","maxEe","minActivity30","maxIdleDays","minFit","minLevel","maxLevel","minNetworth","minActiveStreak","minBestStreak","minStatEnhancers","minXanax30","minRefills30","minAttacks30","minRwHits30","maxDataAgeDays"]);
+        box.innerHTML=`<div class="ra-filter-grid">${[["minMatch","Match ≥"],["minMan","MAN ≥"],["minInt","INT ≥"],["minEnd","END ≥"],["minTotal","TOTAL ≥"],["minEe","EE ≥"],["maxEe","EE ≤"],["minActivity30","Activity 30d ≥"],["maxIdleDays","Last Active ≤ days"],["minFit","Fit ≥"],["minLevel","Level ≥"],["maxLevel","Level ≤"],["minNetworth","Net Worth ≥"],["minActiveStreak","Active Streak ≥"],["minBestStreak","Best Streak ≥"],["minStatEnhancers","Stat Enhancers ≥"],["minXanax30","Xanax 30d ≥"],["minRefills30","Refills 30d ≥"],["minAttacks30","Attacks 30d ≥"],["minRwHits30","RW Hits 30d ≥"],["maxDataAgeDays","Scout Age ≤ days"]].map(([k,l])=>`<label>${l}<input class="ra-results-filter" data-filter="${k}" value="${esc(f[k]??"")}" inputmode="decimal"></label>`).join("")}<label>Preferred Company<select class="ra-results-filter" data-filter="preferredCompany"><option value="">Any</option>${companies}</select></label><label>Scout Status<select class="ra-results-filter" data-filter="scoutStatus"><option value="">Any</option>${ResultsCore.SCOUT_STATUS_ORDER.map(x=>`<option value="${x}" ${f.scoutStatus===x?"selected":""}>${x.toUpperCase()}</option>`).join("")}</select></label><label>Faction<select class="ra-results-filter" data-filter="faction"><option value="any">Any</option><option value="none" ${f.faction==="none"?"selected":""}>No faction</option><option value="has" ${f.faction==="has"?"selected":""}>Has faction</option></select></label></div>`;
+        const numericFilters=new Set(["minMatch","minMan","minInt","minEnd","minTotal","minEe","maxEe","minActivity30","maxIdleDays","minFit","minLevel","maxLevel","minNetworth","minActiveStreak","minBestStreak","minStatEnhancers","minXanax30","minRefills30","minAttacks30","minRwHits30","maxDataAgeDays"]);
         box.querySelectorAll(".ra-results-filter").forEach(el=>el.addEventListener("change",async()=>{const next={...getModeResultsSettings().filters}; const key=el.dataset.filter; if(numericFilters.has(key) && el.value){const parsed=ResultsCore.parseCompactNumber(el.value);el.classList.toggle("ra-invalid",!parsed.valid);el.setAttribute("aria-invalid",parsed.valid?"false":"true");if(!parsed.valid)return;} if(el.value) next[key]=el.value; else delete next[key]; await saveResultsModeState({filters:next}); renderResults();}));
     }
 
@@ -1028,7 +1141,7 @@
         const col=ResultsCore.getColumn(state.sort.key); if(meta)meta.textContent=`${rows.length} candidate(s) · ${col?.label||"Fit"} ${state.sort.direction==="asc"?"↑":"↓"}${filterCount?` · ${filterCount} filters`:""}`;
         const ft=document.getElementById("ra-results-filters-toggle"); if(ft)ft.textContent=filterCount?`Filters · ${filterCount}`:"Filters";
         const clear=document.getElementById("ra-clear-filters"); if(clear)clear.hidden=!filterCount;
-        renderResultsFilters(); renderResultsColumns();
+        renderResultsFilters(); renderResultsColumns(); decorateContextHelp();
         if(!rows.length){wrap.innerHTML='<div class="ra-empty">No matching results.</div>';return;}
         const cols=state.visibleColumns.filter(k=>ResultsCore.getColumn(k));
         if(settings.view==="cards") wrap.innerHTML=`<div class="ra-cards">${rows.map(r=>`<div class="ra-card"><div class="ra-card-head"><label><input type="checkbox" class="ra-select" data-id="${r.userId}" ${selectedIds.has(Number(r.userId))?"checked":""}> ${displayColumn(r,"player")}</label><b class="ra-fit">${displayColumn(r,"fit")}</b></div><div class="ra-kpis">${cols.filter(k=>!["player","fit"].includes(k)).map(k=>`<span>${esc(ResultsCore.getColumn(k).label)}<b>${displayColumn(r,k)}</b></span>`).join("")}</div><div class="ra-row-actions"><button data-scout="${r.userId}">Scout</button>${r.scout||r.profile?`<button data-history="${r.userId}">History</button>`:""}<a href="${messageUrl(r.userId)}" target="_blank">Message</a></div></div>`).join("")}</div>`;
@@ -1155,7 +1268,7 @@
 #ra-panel{position:fixed;left:calc(100vw - 590px);top:70px;width:560px;height:620px;z-index:2147483401;border-radius:12px;display:none;overflow:auto;resize:both;min-width:360px;min-height:300px;max-width:calc(100vw - 8px);max-height:calc(100vh - 8px)}
 #ra-results-panel{position:fixed;left:5vw;top:8vh;width:90vw;height:78vh;z-index:2147483402;border-radius:12px;display:none;overflow:hidden;flex-direction:column;resize:both;min-width:520px;min-height:320px;max-width:calc(100vw - 8px);max-height:calc(100vh - 8px)}
 #ra-history{position:fixed;left:18vw;top:14vh;width:760px;height:500px;z-index:2147483403;border-radius:12px;display:none;overflow:hidden;flex-direction:column;resize:both;min-width:420px;min-height:260px;max-width:calc(100vw - 8px);max-height:calc(100vh - 8px)}
-.ra-head{padding:10px 12px;background:var(--ra-bg2);border-bottom:1px solid var(--ra-line);display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:move;position:sticky;top:0;z-index:4}.ra-head b{font-size:14px}.ra-head-actions{display:flex;gap:5px;align-items:center}.ra-head button,.ra-btn,.ra-row-actions button,.ra-row-actions a,.ra-table button{border:1px solid var(--ra-line);border-radius:7px;padding:6px 8px;background:var(--ra-bg2);color:var(--ra-text);cursor:pointer;text-decoration:none;font-weight:700}.ra-btn-primary{border-color:var(--ra-accent)!important}.ra-btn-danger{border-color:var(--ra-danger)!important}.ra-inner{padding:var(--ra-pad)}#ra-status{font-weight:700;margin:0 0 9px;color:var(--ra-accent)}#ra-status.ra-bad{color:var(--ra-danger)}.ra-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.ra-grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.ra-field label{display:block;color:var(--ra-muted);font-size:10px;font-weight:900;text-transform:uppercase;margin-bottom:3px}.ra-field input,.ra-field select,.ra-field textarea{width:100%;box-sizing:border-box;padding:7px;border-radius:7px;border:1px solid var(--ra-line);background:var(--ra-bg2);color:var(--ra-text)}.ra-actions{display:flex;gap:6px;flex-wrap:wrap;margin:9px 0}.ra-actions .ra-btn{flex:1}.ra-section{border-top:1px solid var(--ra-line);padding-top:10px;margin-top:10px}.ra-section summary{cursor:pointer;font-weight:900}.ra-mode-only{display:none}.ra-progress{height:7px;background:var(--ra-line);border-radius:9px;overflow:hidden}.ra-progress>div{height:100%;width:0;background:var(--ra-accent)}#ra-progress-text{color:var(--ra-muted);font-size:10px;text-align:center}.ra-results-tools{padding:8px;border-bottom:1px solid var(--ra-line);display:flex;gap:7px;align-items:center;flex-wrap:wrap;background:var(--ra-bg2)}#ra-results-search{min-width:180px;padding:6px;border:1px solid var(--ra-line);background:var(--ra-bg);border-radius:7px}.ra-results-drawer{padding:9px;border-bottom:1px solid var(--ra-line);background:var(--ra-bg2)}.ra-filter-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:7px}.ra-filter-grid label{font-size:10px;font-weight:700}.ra-filter-grid input,.ra-filter-grid select{width:100%;box-sizing:border-box;margin-top:3px;padding:6px;background:var(--ra-bg);border:1px solid var(--ra-line);border-radius:6px}.ra-column-grid{display:flex;gap:8px;flex-wrap:wrap}.ra-sort-head{width:100%;border:0!important;background:transparent!important;text-align:left;padding:4px!important;touch-action:manipulation}.ra-invalid{border-color:var(--ra-danger)!important}#ra-results-body,.ra-history-body{overflow:auto;flex:1}.ra-table{border-collapse:collapse;width:100%;min-width:900px;color:var(--ra-text)}.ra-table th,.ra-table td{padding:6px;border-bottom:1px solid var(--ra-line);white-space:nowrap;text-align:left}.ra-table th{position:sticky;top:0;background:var(--ra-bg2);z-index:2}.ra-table td small{display:block;color:var(--ra-muted)}.ra-table a,.ra-card a{color:var(--ra-text)}.ra-fit{color:#fbbf24}.ra-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:8px;padding:8px}.ra-card{border:1px solid var(--ra-line);border-radius:10px;padding:10px;background:var(--ra-bg2)}.ra-card-head{display:flex;justify-content:space-between;gap:8px}.ra-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin:8px 0}.ra-kpis span{background:color-mix(in srgb,var(--ra-bg) 80%,transparent);padding:5px;border-radius:5px;color:var(--ra-muted)}.ra-kpis b{display:block;color:var(--ra-text)}.ra-row-actions{display:flex;align-items:center;gap:5px;flex-wrap:wrap}.ra-row-actions small{margin-left:auto;color:var(--ra-muted)}.ra-empty{padding:18px;color:var(--ra-muted)}.ra-score-row{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:6px;align-items:end;margin:5px 0}.ra-score-row span{font-weight:900}.ra-note{color:var(--ra-muted);font-size:10px}.ra-complexity-toggle{display:flex;gap:3px}.ra-complexity-toggle button{padding:4px 7px;font-size:10px}.ra-active-toggle{outline:1px solid var(--ra-accent);box-shadow:0 0 8px color-mix(in srgb,var(--ra-accent) 55%,transparent)}.ra-advanced-only[hidden]{display:none!important}
+.ra-head{padding:10px 12px;background:var(--ra-bg2);border-bottom:1px solid var(--ra-line);display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:move;position:sticky;top:0;z-index:4}.ra-head b{font-size:14px}.ra-head-actions{display:flex;gap:5px;align-items:center}.ra-head button,.ra-btn,.ra-row-actions button,.ra-row-actions a,.ra-table button{border:1px solid var(--ra-line);border-radius:7px;padding:6px 8px;background:var(--ra-bg2);color:var(--ra-text);cursor:pointer;text-decoration:none;font-weight:700}.ra-btn-primary{border-color:var(--ra-accent)!important}.ra-btn-danger{border-color:var(--ra-danger)!important}.ra-inner{padding:var(--ra-pad)}#ra-status{font-weight:700;margin:0 0 9px;color:var(--ra-accent)}#ra-status.ra-bad{color:var(--ra-danger)}.ra-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.ra-grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.ra-field label{display:block;color:var(--ra-muted);font-size:10px;font-weight:900;text-transform:uppercase;margin-bottom:3px}.ra-field input,.ra-field select,.ra-field textarea{width:100%;box-sizing:border-box;padding:7px;border-radius:7px;border:1px solid var(--ra-line);background:var(--ra-bg2);color:var(--ra-text)}.ra-actions{display:flex;gap:6px;flex-wrap:wrap;margin:9px 0}.ra-actions .ra-btn{flex:1}.ra-section{border-top:1px solid var(--ra-line);padding-top:10px;margin-top:10px}.ra-section summary{cursor:pointer;font-weight:900}.ra-mode-only{display:none}.ra-progress{height:7px;background:var(--ra-line);border-radius:9px;overflow:hidden}.ra-progress>div{height:100%;width:0;background:var(--ra-accent)}#ra-progress-text{color:var(--ra-muted);font-size:10px;text-align:center}.ra-results-tools{padding:8px;border-bottom:1px solid var(--ra-line);display:flex;gap:7px;align-items:center;flex-wrap:wrap;background:var(--ra-bg2)}#ra-results-search{min-width:180px;padding:6px;border:1px solid var(--ra-line);background:var(--ra-bg);border-radius:7px}.ra-results-drawer{padding:9px;border-bottom:1px solid var(--ra-line);background:var(--ra-bg2)}.ra-filter-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:7px}.ra-filter-grid label{font-size:10px;font-weight:700}.ra-filter-grid input,.ra-filter-grid select{width:100%;box-sizing:border-box;margin-top:3px;padding:6px;background:var(--ra-bg);border:1px solid var(--ra-line);border-radius:6px}.ra-column-grid{display:flex;gap:8px;flex-wrap:wrap}.ra-sort-head{width:100%;border:0!important;background:transparent!important;text-align:left;padding:4px!important;touch-action:manipulation}.ra-invalid{border-color:var(--ra-danger)!important}#ra-results-body,.ra-history-body{overflow:auto;flex:1}.ra-table{border-collapse:collapse;width:100%;min-width:900px;color:var(--ra-text)}.ra-table th,.ra-table td{padding:6px;border-bottom:1px solid var(--ra-line);white-space:nowrap;text-align:left}.ra-table th{position:sticky;top:0;background:var(--ra-bg2);z-index:2}.ra-table td small{display:block;color:var(--ra-muted)}.ra-table a,.ra-card a{color:var(--ra-text)}.ra-fit{color:#fbbf24}.ra-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:8px;padding:8px}.ra-card{border:1px solid var(--ra-line);border-radius:10px;padding:10px;background:var(--ra-bg2)}.ra-card-head{display:flex;justify-content:space-between;gap:8px}.ra-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin:8px 0}.ra-kpis span{background:color-mix(in srgb,var(--ra-bg) 80%,transparent);padding:5px;border-radius:5px;color:var(--ra-muted)}.ra-kpis b{display:block;color:var(--ra-text)}.ra-row-actions{display:flex;align-items:center;gap:5px;flex-wrap:wrap}.ra-row-actions small{margin-left:auto;color:var(--ra-muted)}.ra-empty{padding:18px;color:var(--ra-muted)}.ra-score-row{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:6px;align-items:end;margin:5px 0}.ra-score-row span{font-weight:900}.ra-note{color:var(--ra-muted);font-size:10px}.ra-complexity-toggle{display:flex;gap:3px}.ra-complexity-toggle button{padding:4px 7px;font-size:10px}.ra-active-toggle{outline:1px solid var(--ra-accent);box-shadow:0 0 8px color-mix(in srgb,var(--ra-accent) 55%,transparent)}.ra-advanced-only[hidden]{display:none!important}.ra-settings-panel{border-top:1px solid var(--ra-line);margin-top:10px;padding-top:6px}.ra-settings-section{border:1px solid var(--ra-line);border-radius:8px;padding:7px 9px;margin:7px 0;background:color-mix(in srgb,var(--ra-bg2) 86%,transparent)}.ra-settings-section>summary{font-weight:900;cursor:pointer}.ra-settings-section[open]>summary{margin-bottom:8px}.ra-help-button{display:inline-grid;place-items:center;width:20px;height:20px;padding:0!important;margin-left:6px;border-radius:50%!important;font-size:11px;vertical-align:middle}.ra-help-popover{position:fixed;z-index:2147483647;max-width:min(340px,calc(100vw - 16px));padding:10px;border:1px solid var(--ra-accent);border-radius:8px;background:var(--ra-bg2);box-shadow:0 10px 30px rgba(0,0,0,.45);white-space:normal}.ra-help-popover b{display:block;margin-bottom:5px}.ra-help-popover p{margin:4px 0}.ra-match-profile-toolbar{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.ra-match-profile-toolbar select{flex:1;min-width:160px}.ra-match-criteria{display:grid;gap:5px}.ra-match-criterion{display:grid;grid-template-columns:minmax(105px,1.2fr) 72px minmax(90px,1fr) 70px;gap:5px;align-items:center}.ra-match-criterion input,.ra-match-criterion select{min-width:0}.ra-match-criterion .ra-match-enable{width:auto}.ra-match-criterion-head{font-size:10px;color:var(--ra-muted);font-weight:900}.ra-settings-copy{font-size:10px;color:var(--ra-muted);margin:5px 0}
 #ra-sidebar-launcher{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;margin:0 2px;cursor:pointer;border-radius:5px;color:#39ff14}.ra-sidebar-launcher-svg{width:18px;height:18px;display:block}.ra-sidebar-launcher-svg path,.ra-sidebar-launcher-svg circle{stroke:currentColor}
 @media(max-width:700px){#ra-panel{left:6px;top:45px;width:calc(100vw - 12px);height:70vh}.ra-grid,.ra-grid3{grid-template-columns:1fr}.ra-kpis{grid-template-columns:repeat(2,1fr)}#ra-results-panel{left:2vw;top:5vh;width:96vw;height:85vh}#ra-history{left:4vw;top:10vh;width:92vw;height:70vh}}
 `;
@@ -1291,18 +1404,42 @@
 
         const panel=document.createElement("div");
         panel.id="ra-panel";
-        panel.innerHTML=`<div class="ra-head" id="ra-drag"><b>Recruitment Agency <span class="ra-note">v${SCRIPT_VERSION}</span></b><div class="ra-head-actions"><div class="ra-complexity-toggle"><button id="ra-complexity-simple">Simple</button><button id="ra-complexity-advanced">Advanced</button></div><button id="ra-open-results">Results</button><button id="ra-close">×</button></div></div><div class="ra-inner"><div id="ra-status">Ready.</div><div class="ra-grid"><div class="ra-field"><label>Mode</label><select id="ra-mode"><option value="company">Company</option><option value="faction">Faction</option><option value="scout">Scout</option></select></div></div>
+        panel.innerHTML=`<div class="ra-head" id="ra-drag"><b>Recruitment Agency <span class="ra-note">v${SCRIPT_VERSION}</span></b><div class="ra-head-actions"><button id="ra-settings-toggle">Settings</button><button id="ra-open-results">Results</button><button id="ra-close">×</button></div></div><div class="ra-inner"><div id="ra-status">Ready.</div><div class="ra-grid"><div class="ra-field"><label>Mode</label><select id="ra-mode"><option value="company">Company</option><option value="faction">Faction</option><option value="scout">Scout</option></select></div></div>
 <div id="ra-forum-controls" class="ra-mode-only"><div class="ra-grid"><div class="ra-field"><label>Target thread ID / URL</label><input id="ra-target-thread" placeholder="Thread ID or URL"></div><div class="ra-field ra-advanced-only"><label>Scope</label><select id="ra-forum-scope"><option value="thread">Single thread</option><option value="category">Whole category</option></select></div><div class="ra-field ra-advanced-only"><label>Days back (0 = all)</label><input id="ra-forum-days" type="number" min="0"></div><div class="ra-field"><label>Name / ID filter</label><input id="ra-search"></div></div><div class="ra-grid3"><div class="ra-field"><label>MAN ≥</label><input id="ra-min-man" type="number"></div><div class="ra-field"><label>INT ≥</label><input id="ra-min-int" type="number"></div><div class="ra-field"><label>END ≥</label><input id="ra-min-end" type="number"></div></div><div class="ra-field"><label>TOTAL ≥</label><input id="ra-min-total" type="number"></div><div class="ra-actions"><button class="ra-btn ra-btn-primary" id="ra-full-scan">Full Scan</button><button class="ra-btn ra-btn-primary" id="ra-update-scan">Update Scan</button><button class="ra-btn" id="ra-open-thread">Open Thread</button></div></div>
-<div id="ra-scout-controls" class="ra-mode-only"><div class="ra-field"><label>Player IDs / profile URLs</label><textarea id="ra-direct-ids" placeholder="3877028, profile URLs, etc."></textarea></div><div class="ra-actions"><button class="ra-btn ra-btn-primary" id="ra-scout-ids">Scout IDs</button><button class="ra-btn ra-btn-primary" id="ra-scout-page">Scout Search Users Page</button><button class="ra-btn ra-advanced-only" id="ra-reread-page">Read Page</button></div><div id="ra-page-count" class="ra-note"></div></div>
+<div id="ra-scout-controls" class="ra-mode-only" data-help-key="scout"><div class="ra-field"><label>Player IDs / profile URLs</label><textarea id="ra-direct-ids" placeholder="3877028, profile URLs, etc."></textarea></div><div class="ra-actions"><button class="ra-btn ra-btn-primary" id="ra-scout-ids">Scout IDs</button><button class="ra-btn ra-btn-primary" id="ra-scout-page">Scout Search Users Page</button><button class="ra-btn ra-advanced-only" id="ra-reread-page">Read Page</button></div><div id="ra-page-count" class="ra-note"></div></div>
 <div class="ra-progress"><div id="ra-progress-fill"></div></div><div id="ra-progress-text">Idle</div><div class="ra-actions"><button class="ra-btn ra-advanced-only" id="ra-pause-scout">Pause</button><button class="ra-btn ra-btn-danger ra-advanced-only" id="ra-cancel-scout" disabled>Cancel</button><button class="ra-btn" id="ra-scout-selected">Scout Selected</button><button class="ra-btn" id="ra-scout-all">Scout All</button></div>
 <details class="ra-section"><summary>Scout filters</summary>${simpleScoutFiltersHtml()}${advancedScoutFiltersHtml()}<button class="ra-btn" id="ra-apply-filters">Apply filters</button></details>
-<details class="ra-section"><summary>Fit Settings</summary>${scoreRowsHtml()}<div class="ra-actions"><button class="ra-btn ra-btn-primary" id="ra-save-scout-settings">Save Fit / Scout Settings</button></div></details>
-<details class="ra-section ra-advanced-only"><summary>Advanced Settings</summary><div class="ra-grid3"><div class="ra-field"><label>API calls/min</label><input id="ra-rate" type="number" min="10" max="75" step="1"></div><div class="ra-field"><label>Workers</label><input id="ra-workers" type="number" min="1" max="8"></div><div class="ra-field"><label>Call budget</label><input id="ra-budget" type="number" min="1"></div><div class="ra-field"><label>History gap ms</label><input id="ra-history-gap" type="number" min="0"></div><div class="ra-field"><label>Max candidates</label><input id="ra-max-candidates" type="number" min="1"></div><div class="ra-field"><label>Auto Scout new</label><input id="ra-auto-scout" type="checkbox" style="width:auto"></div></div><div class="ra-actions"><button class="ra-btn" id="ra-cache-test">Run cache test</button><span id="ra-cache-verdict" class="ra-note"></span></div><div class="ra-actions"><button class="ra-btn" id="ra-change-key">Set / Change API Key</button><button class="ra-btn" id="ra-density">Density</button><button class="ra-btn" id="ra-view">Table / Cards</button><button class="ra-btn" id="ra-reset-window-layout">Reset Window Layout</button><label><input id="ra-include-inactive" type="checkbox"> Include inactive forum posts</label></div><div class="ra-section"><b>Global Intelligence</b><div class="ra-field"><label>Apps Script /exec endpoint</label><input id="ra-global-endpoint" type="url" placeholder="https://script.google.com/macros/s/.../exec"></div><div class="ra-actions"><label><input id="ra-global-enabled" type="checkbox" style="width:auto"> Enable global intelligence</label><button class="ra-btn" id="ra-global-test">Test Global Service</button><button class="ra-btn" id="ra-global-retry">Retry Global Sync</button></div><div id="ra-global-status" class="ra-note">Not configured</div><div class="ra-note">Only sanitized Torn player intelligence is shared. API keys, recruiter notes, contact history and private CRM data remain local.</div></div></details><div class="ra-actions"><button class="ra-btn" id="ra-theme">Theme</button></div></div>`;
+<details class="ra-section" data-help-key="fit"><summary>Fit Settings</summary>${scoreRowsHtml()}<div class="ra-actions"><button class="ra-btn ra-btn-primary" id="ra-save-scout-settings">Save Fit / Scout Settings</button></div></details>
+<section id="ra-settings-panel" class="ra-settings-panel" hidden data-help-key="settings">
+<details class="ra-settings-section" data-settings-section="general" data-help-key="settings-general"><summary>General</summary><div class="ra-settings-copy">Interface, display and local launcher preferences.</div><div class="ra-actions"><div class="ra-complexity-toggle"><button id="ra-complexity-simple">Simple</button><button id="ra-complexity-advanced">Advanced</button></div><button class="ra-btn" id="ra-theme">Theme</button><button class="ra-btn" id="ra-density">Density</button><label><input id="ra-include-inactive" type="checkbox"> Include inactive forum posts</label></div></details>
+<details class="ra-settings-section" data-settings-section="recruitment" data-help-key="settings-recruitment"><summary>Recruitment</summary><div class="ra-settings-copy">Company and faction source defaults. Current thread IDs remain in their normal recruitment controls so they are visible while scanning.</div><div class="ra-note">Company thread: 15907925 · Faction thread: 15909136</div></details>
+<details class="ra-settings-section" data-settings-section="scout" data-help-key="settings-scout"><summary>Scout</summary><div class="ra-grid3"><div class="ra-field"><label>API calls/min</label><input id="ra-rate" type="number" min="10" max="75" step="1"></div><div class="ra-field"><label>Workers</label><input id="ra-workers" type="number" min="1" max="8"></div><div class="ra-field"><label>Call budget</label><input id="ra-budget" type="number" min="1"></div><div class="ra-field"><label>History gap ms</label><input id="ra-history-gap" type="number" min="0"></div><div class="ra-field"><label>Max candidates</label><input id="ra-max-candidates" type="number" min="1"></div><div class="ra-field"><label>Auto Scout new</label><input id="ra-auto-scout" type="checkbox" style="width:auto"></div></div><div class="ra-actions"><button class="ra-btn" id="ra-cache-test">Run cache test</button><span id="ra-cache-verdict" class="ra-note"></span><button class="ra-btn" id="ra-change-key">Set / Change API Key</button></div></details>
+<details class="ra-settings-section" data-settings-section="results" data-help-key="settings-results"><summary>Results</summary><div class="ra-actions"><button class="ra-btn" id="ra-view">Table / Cards</button><button class="ra-btn" id="ra-reset-window-layout">Reset Window Layout</button></div></details>
+<details class="ra-settings-section" data-settings-section="smart-match" data-help-key="match-profiles" open><summary>Smart Match</summary><div class="ra-match-profile-toolbar"><select id="ra-match-profile-select"></select><button class="ra-btn" id="ra-match-profile-new">New Match Profile</button><button class="ra-btn" id="ra-match-profile-duplicate">Duplicate</button><button class="ra-btn ra-btn-danger" id="ra-match-profile-delete">Delete</button></div><div id="ra-match-profile-editor"></div><div class="ra-actions"><button class="ra-btn ra-btn-primary" id="ra-match-profile-save">Save Match Profile</button></div><div class="ra-note">Match Profiles, candidate preferences, notes, salary and availability are local-only.</div></details>
+<details class="ra-settings-section" data-settings-section="global" data-help-key="settings-global"><summary>Global Intelligence</summary><div class="ra-field"><label>Apps Script /exec endpoint</label><input id="ra-global-endpoint" type="url" placeholder="https://script.google.com/macros/s/.../exec"></div><div class="ra-actions"><label><input id="ra-global-enabled" type="checkbox" style="width:auto"> Enable global intelligence</label><button class="ra-btn" id="ra-global-test">Test Global Service</button><button class="ra-btn" id="ra-global-retry">Retry Global Sync</button></div><div id="ra-global-status" class="ra-note">Not configured</div><div class="ra-note">Only sanitized Torn player intelligence is shared. API keys, recruiter notes, contact history and private CRM data remain local.</div></details>
+<details class="ra-settings-section" data-settings-section="data" data-help-key="settings-data"><summary>Data & Reset</summary><div class="ra-actions"><button class="ra-btn" id="ra-settings-clear-scout-cache">Clear Scout Cache</button><button class="ra-btn" id="ra-settings-clear-candidates">Clear Local Candidate Data</button></div><div class="ra-note">These actions affect browser-local data only.</div></details>
+<details class="ra-settings-section" data-settings-section="danger" data-help-key="settings-danger"><summary>Danger Zone</summary><div class="ra-note">Destructive resets require an explicit confirmation. No automatic reset is performed here.</div></details>
+</section></div>`;
         document.body.appendChild(panel);
+        const helpPopover=document.createElement("div");
+        helpPopover.id="ra-help-popover";
+        helpPopover.className="ra-help-popover";
+        helpPopover.hidden=true;
+        helpPopover.setAttribute("role","dialog");
+        helpPopover.setAttribute("aria-live","polite");
+        document.body.appendChild(helpPopover);
+        const candidateHover=document.createElement("div");
+        candidateHover.id="ra-candidate-hover";
+        candidateHover.className="ra-candidate-hover";
+        candidateHover.hidden=true;
+        candidateHover.setAttribute("role","dialog");
+        candidateHover.setAttribute("aria-label","Candidate intelligence");
+        candidateHover.style.cssText="position:fixed;z-index:2147483646;max-width:min(420px,calc(100vw - 12px));max-height:calc(100vh - 12px);overflow:auto;background:var(--ra-bg);color:var(--ra-text);border:1px solid var(--ra-line);border-radius:8px;padding:12px;box-shadow:0 8px 28px rgba(0,0,0,.45);";
+        document.body.appendChild(candidateHover);
 
         const results=document.createElement("div");
         results.id="ra-results-panel";
-        results.innerHTML=`<div class="ra-head" id="ra-results-drag"><b>Recruitment Results</b><div class="ra-head-actions"><button id="ra-copy">Copy CSV</button><button id="ra-results-close">×</button></div></div><div class="ra-results-tools"><input id="ra-results-search" placeholder="Name / ID"><button class="ra-btn" id="ra-results-filters-toggle">Filters</button><button class="ra-btn" id="ra-results-columns-toggle">Columns</button><button class="ra-btn" id="ra-clear-filters" hidden>Clear Filters</button><span id="ra-results-meta"></span><button class="ra-btn" id="ra-results-refresh">Refresh</button><button class="ra-btn" id="ra-select-all">Select all</button><button class="ra-btn" id="ra-clear-select">Clear selection</button></div><div id="ra-results-filters" class="ra-results-drawer" hidden></div><div id="ra-results-columns" class="ra-results-drawer" hidden></div><div id="ra-results-body"></div>`;
+        results.innerHTML=`<div class="ra-head" id="ra-results-drag"><b>Recruitment Results</b><div class="ra-head-actions"><button id="ra-copy">Copy CSV</button><button id="ra-results-close">×</button></div></div><div class="ra-results-tools"><input id="ra-results-search" placeholder="Name / ID"><button class="ra-btn" id="ra-results-filters-toggle">Filters</button><button class="ra-btn" id="ra-results-columns-toggle">Columns</button><button class="ra-btn" id="ra-clear-filters" hidden>Clear Filters</button><span id="ra-results-meta"></span><button class="ra-btn" id="ra-results-refresh">Refresh</button><button class="ra-btn" id="ra-select-all">Select all</button><button class="ra-btn" id="ra-clear-select">Clear selection</button></div><div id="ra-results-filters" class="ra-results-drawer" hidden data-help-key="filters"></div><div id="ra-results-columns" class="ra-results-drawer" hidden data-help-key="columns"></div><div id="ra-results-body"></div>`;
         document.body.appendChild(results);
 
         const history=document.createElement("div");
@@ -1317,6 +1454,8 @@
         bindUI();
         applyTheme();
         populateSettingsUI();
+        decorateContextHelp();
+        renderMatchProfileManager().catch(e=>console.warn("[RA] Match Profile manager failed.",e));
         syncModeUI();
         ensureSidebarLauncher();
         syncFallbackLauncher();
@@ -1327,6 +1466,7 @@
         if (modeEl) modeEl.value=mode;
         const forum=document.getElementById("ra-forum-controls");
         const scout=document.getElementById("ra-scout-controls");
+        if(forum)setContextHelpKey(forum, mode==="faction"?"faction":"company");
         if(forum)forum.style.display=mode==="scout"?"none":"block";
         if(scout)scout.style.display=mode==="scout"?"block":"none";
         const resultSearch=document.getElementById("ra-results-search"); if(resultSearch)resultSearch.value=getModeResultsSettings().filters?.search || "";
@@ -1412,12 +1552,383 @@
         fallback.style.display = document.getElementById("ra-sidebar-launcher") ? "none" : "block";
     }
 
+    const HELP_REGISTRY = Object.freeze({
+        company:{title:"Company recruitment",body:"Scans the configured company recruitment source for candidates. Torn API: forum requests are consumed only when you start a scan. Storage: candidate scan results are stored locally."},
+        faction:{title:"Faction recruitment",body:"Scans faction recruitment sources using the current forum controls. Torn API: forum requests are consumed only when scanning. Storage: results remain local."},
+        scout:{title:"Scout",body:"Collects current player intelligence through the official Torn API. Torn API: yes, through the shared scheduler capped at 75 calls/minute with at least 800 ms between calls."},
+        fit:{title:"Fit Settings",body:"Controls the general Fit calculation. Torn API: none when editing or recalculating. Storage: settings are stored locally."},
+        filters:{title:"Results filters",body:"Filters already-loaded candidate rows. Torn API: none. Storage: filter preferences are stored locally."},
+        columns:{title:"Results columns",body:"Chooses which result columns are visible. Torn API: none. Storage: display preferences are stored locally."},
+        settings:{title:"Settings",body:"Groups Recruitment Agency configuration without opening another managed window. Torn API: none merely by opening Settings."},
+        "settings-general":{title:"General",body:"Controls theme, density, Simple/Advanced mode and local display behavior. Torn API: none. Storage: stored locally."},
+        "settings-recruitment":{title:"Recruitment",body:"Explains recruitment source defaults and scan behavior. Torn API: none until a scan is explicitly started. Storage: recruitment preferences are stored locally."},
+        "settings-scout":{title:"Scout",body:"Controls scheduler rate, workers, budget, cache and API-key actions. Torn API: changing settings consumes none; Scout actions do."},
+        "settings-results":{title:"Results",body:"Controls result view and layout. Torn API: none. Storage: stored locally."},
+        "match-profiles":{title:"Smart Match",body:"Scores candidate suitability against a local vacancy profile. Torn API: none. Storage: Match Profiles and recruiter candidate fields are local-only and never enter Global Intelligence."},
+        "settings-global":{title:"Global Intelligence",body:"Shares only the approved sanitized public-player observation fields with the configured Apps Script endpoint. Torn API: none for local UI changes. Privacy: recruiter notes, Match data and CRM fields remain local."},
+        "settings-data":{title:"Data & Reset",body:"Clears selected local caches or candidate CRM records after confirmation. Torn API: none. Storage: browser-local IndexedDB."},
+        "settings-danger":{title:"Danger Zone",body:"Reserved for destructive local reset operations. Torn API: none. Nothing is deleted without explicit confirmation."}
+    });
+
+    let helpPinned = false;
+    let helpAnchor = null;
+    let helpCloseTimer = null;
+
+    function closeContextHelp(force = false) {
+        if (helpPinned && !force) return;
+        const pop = document.getElementById("ra-help-popover");
+        if (pop) pop.hidden = true;
+        helpPinned = false;
+        helpAnchor = null;
+        if (helpCloseTimer) clearTimeout(helpCloseTimer);
+        helpCloseTimer = null;
+    }
+
+    function positionContextHelp(anchor) {
+        const pop = document.getElementById("ra-help-popover");
+        if (!pop || !anchor || pop.hidden) return;
+        const rect = anchor.getBoundingClientRect();
+        const margin = 8;
+        const width = Math.min(340, Math.max(220, pop.offsetWidth || 280));
+        const height = Math.max(80, pop.offsetHeight || 120);
+        let left = rect.left;
+        let top = rect.bottom + 6;
+        if (left + width > innerWidth - margin) left = innerWidth - width - margin;
+        if (top + height > innerHeight - margin) top = Math.max(margin, rect.top - height - 6);
+        pop.style.left = Math.max(margin, left) + "px";
+        pop.style.top = Math.max(margin, top) + "px";
+    }
+
+    function openContextHelp(key, anchor, pinned = false) {
+        const entry = HELP_REGISTRY[key];
+        const pop = document.getElementById("ra-help-popover");
+        if (!entry || !pop || !anchor) return;
+        helpPinned = !!pinned;
+        helpAnchor = anchor;
+        pop.innerHTML = `<b>${esc(entry.title)}</b><p>${esc(entry.body)}</p>`;
+        pop.hidden = false;
+        positionContextHelp(anchor);
+    }
+
+    function decorateContextHelp() {
+        document.querySelectorAll("[data-help-key]").forEach(section => {
+            const key = section.dataset.helpKey;
+            if (!HELP_REGISTRY[key] || section.querySelector(":scope > .ra-help-button, :scope > summary > .ra-help-button")) return;
+            const target = section.matches("details") ? section.querySelector(":scope > summary") : section.querySelector(":scope > summary, :scope > b, :scope > label") || section;
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "ra-help-button";
+            button.dataset.helpKey = key;
+            button.setAttribute("aria-label", `About ${HELP_REGISTRY[key].title}`);
+            button.textContent = "i";
+            target.appendChild(button);
+        });
+    }
+
+    function setContextHelpKey(element, key) {
+        if (!element || !HELP_REGISTRY[key]) return;
+        element.dataset.helpKey = key;
+        const button = element.querySelector(":scope > .ra-help-button, :scope > summary > .ra-help-button");
+        if (button) {
+            button.dataset.helpKey = key;
+            button.setAttribute("aria-label", `About ${HELP_REGISTRY[key].title}`);
+        }
+        decorateContextHelp();
+    }
+
+    function criterionEditorHtml(key, label, criterion) {
+        const numeric = !["company","role","salary","availability"].includes(key);
+        let valueControl = "";
+        if (numeric) valueControl = `<input id="ra-match-${key}-target" type="number" min="0" step="any" value="${esc(criterion.target ?? 0)}">`;
+        else if (key === "salary") valueControl = `<input id="ra-match-salary-max" type="number" min="0" step="1" value="${esc(criterion.max ?? 0)}">`;
+        else if (key === "availability") valueControl = `<select id="ra-match-availability-value"><option value="">Any</option>${MatchCore.AVAILABILITY_VALUES.map(v=>`<option value="${esc(v)}" ${criterion.value===v?"selected":""}>${esc(v)}</option>`).join("")}</select>`;
+        else valueControl = `<input id="ra-match-${key}-value" value="${esc(criterion.value || "")}">`;
+        return `<div class="ra-match-criterion"><label><input class="ra-match-enable" id="ra-match-criterion-${key}" type="checkbox" ${criterion.enabled?"checked":""}> ${esc(label)}</label><span>${numeric?"Target":key==="salary"?"Max":"Value"}</span>${valueControl}<input id="ra-match-${key}-weight" type="number" min="0" step="any" value="${esc(criterion.weight ?? 0)}" title="Weight"></div>`;
+    }
+
+    function populateMatchProfileEditor(profile) {
+        const editor = document.getElementById("ra-match-profile-editor");
+        if (!editor || !profile) return;
+        const labels = {man:"MAN",int:"INT",end:"END",ee:"EE",fit:"Fit",activity30:"Activity 30d",xanax30:"Xanax 30d",refills30:"Refills 30d",attacks30:"Attacks 30d",rwHits30:"RW Hits 30d",company:"Company",role:"Role",salary:"Salary",availability:"Availability"};
+        editor.innerHTML = `<div class="ra-field"><label>Profile name</label><input id="ra-match-profile-name" value="${esc(profile.name)}"></div><div class="ra-match-criteria"><div class="ra-match-criterion ra-match-criterion-head"><span>Criterion</span><span>Rule</span><span>Target / Value</span><span>Weight</span></div>${MatchCore.CRITERIA_KEYS.map(key=>criterionEditorHtml(key,labels[key]||key,profile.criteria[key])).join("")}</div>`;
+        editor.dataset.profileId = profile.profileId;
+        editor.dataset.createdAt = profile.createdAt || "";
+    }
+
+    async function renderMatchProfileManager() {
+        const select = document.getElementById("ra-match-profile-select");
+        if (!select) return;
+        let profiles = await idb.getAll("matchProfiles");
+        if (!profiles.length) {
+            await ensureDefaultMatchProfile();
+            profiles = await idb.getAll("matchProfiles");
+        }
+        profiles = profiles.map(MatchCore.normalizeProfile).sort((a,b)=>a.name.localeCompare(b.name));
+        const active = profiles.find(p=>p.profileId === settings.match.activeProfileId) || profiles[0];
+        if (active && active.profileId !== settings.match.activeProfileId) await saveMetaSettings({match:{...settings.match,activeProfileId:active.profileId}});
+        select.innerHTML = profiles.map(p=>`<option value="${esc(p.profileId)}" ${p.profileId===active?.profileId?"selected":""}>${esc(p.name)}</option>`).join("");
+        if (active) populateMatchProfileEditor(active);
+    }
+
+    async function saveMatchProfileFromUI() {
+        const editor = document.getElementById("ra-match-profile-editor");
+        if (!editor) return;
+        const active = await getActiveMatchProfile();
+        const criteria = {};
+        for (const key of MatchCore.CRITERIA_KEYS) {
+            const enabled = !!document.getElementById(`ra-match-criterion-${key}`)?.checked;
+            const weight = n(document.getElementById(`ra-match-${key}-weight`)?.value, 0);
+            if (["company","role"].includes(key)) criteria[key] = {enabled,weight,value:document.getElementById(`ra-match-${key}-value`)?.value || ""};
+            else if (key === "availability") criteria[key] = {enabled,weight,value:document.getElementById("ra-match-availability-value")?.value || ""};
+            else if (key === "salary") criteria[key] = {enabled,weight,max:n(document.getElementById("ra-match-salary-max")?.value,0)};
+            else criteria[key] = {enabled,weight,target:n(document.getElementById(`ra-match-${key}-target`)?.value,0)};
+        }
+        const saved = await saveMatchProfile({profileId:active.profileId,name:document.getElementById("ra-match-profile-name")?.value || active.name,criteria,createdAt:active.createdAt});
+        await saveMetaSettings({match:{...settings.match,activeProfileId:saved.profileId}});
+        await refreshMatchScores();
+        renderResults();
+        await renderMatchProfileManager();
+        setStatus("Match Profile saved.");
+    }
+
+    async function duplicateActiveMatchProfile() {
+        const active = await getActiveMatchProfile();
+        const duplicate = MatchCore.normalizeProfile({...active,profileId:"",name:`${active.name} Copy`,createdAt:"",updatedAt:""});
+        const saved = await saveMatchProfile(duplicate);
+        await saveMetaSettings({match:{...settings.match,activeProfileId:saved.profileId}});
+        await renderMatchProfileManager();
+        await refreshMatchScores();
+        renderResults();
+    }
+
+    async function deleteActiveMatchProfile() {
+        const active = await getActiveMatchProfile();
+        if (!active || !confirm(`Delete Match Profile "${active.name}"?`)) return;
+        await deleteMatchProfile(active.profileId);
+        const remaining = await idb.getAll("matchProfiles");
+        let next = remaining[0] || null;
+        if (!next) next = await saveMatchProfile(MatchCore.createDefaultProfile("Default Recruit"));
+        await saveMetaSettings({match:{...settings.match,activeProfileId:next.profileId}});
+        await renderMatchProfileManager();
+        await refreshMatchScores();
+        renderResults();
+    }
+
+
+    const candidateHoverRuntime = {
+        userId:null,
+        anchor:null,
+        openTimer:null,
+        closeTimer:null,
+        editing:false
+    };
+
+    function candidateHoverRow(userId) {
+        const id = Number(userId);
+        return resultRows.find(row => Number(row.userId || row.id) === id) || null;
+    }
+
+    function cancelCandidateHoverTimers() {
+        if (candidateHoverRuntime.openTimer) clearTimeout(candidateHoverRuntime.openTimer);
+        if (candidateHoverRuntime.closeTimer) clearTimeout(candidateHoverRuntime.closeTimer);
+        candidateHoverRuntime.openTimer = null;
+        candidateHoverRuntime.closeTimer = null;
+    }
+
+    function closeCandidateHover() {
+        cancelCandidateHoverTimers();
+        if (candidateHoverRuntime.editing) return;
+        const card = document.getElementById("ra-candidate-hover");
+        if (card) card.hidden = true;
+        candidateHoverRuntime.userId = null;
+        candidateHoverRuntime.anchor = null;
+    }
+
+    function positionCandidateHover(anchor) {
+        const card = document.getElementById("ra-candidate-hover");
+        if (!card || !anchor || card.hidden) return;
+        const a = anchor.getBoundingClientRect();
+        const c = card.getBoundingClientRect();
+        const margin = 6;
+        let left = a.right + 8;
+        if (left + c.width > innerWidth - margin) left = a.left - c.width - 8;
+        let top = a.top;
+        left = Math.max(margin, Math.min(left, innerWidth - c.width - margin));
+        top = Math.max(margin, Math.min(top, innerHeight - c.height - margin));
+        card.style.position = "fixed";
+        card.style.left = `${left}px`;
+        card.style.top = `${top}px`;
+    }
+
+    function matchBreakdownHtml(result) {
+        const breakdown = result?.breakdown || {};
+        const lines = Object.entries(breakdown).map(([key, part]) => {
+            const label = part?.label || key;
+            const value = !part?.known || part.ratio == null ? "Unknown" : `${Math.round(Number(part.ratio) * 100)}%`;
+            return `<div class="ra-candidate-breakdown-row"><span>${esc(label)}</span><b>${esc(value)}</b></div>`;
+        });
+        return lines.length ? lines.join("") : '<div class="ra-note">No enabled Match criteria.</div>';
+    }
+
+    async function renderCandidateHoverCard(row) {
+        const card = document.getElementById("ra-candidate-hover");
+        if (!card || !row) return;
+        const userId = Number(row.userId || row.id);
+        const candidate = row.candidateLocal || await getCandidateLocal(userId) || {};
+        const profile = await getActiveMatchProfile();
+        const match = row.matchResult || await evaluateRowMatch(row, profile, candidate);
+        const scout = row.scout || (row.profile ? row : null);
+        const w = scout?.w30 || scout?.provisionalSource || {};
+        const name = row.name || scout?.profile?.name || `User ${userId}`;
+        const score = match?.score == null ? "Unmeasured" : Number(match.score).toFixed(1);
+        const completeness = `${match?.knownCriteria ?? 0} / ${match?.enabledCriteria ?? 0} criteria known`;
+        card.innerHTML = `<div class="ra-candidate-hover-head"><div><b>${esc(name)}</b><span>${esc(userId)}</span></div><b>Match ${esc(score)}</b></div>
+<div class="ra-note">Profile: ${esc(profile?.name || "Default Recruit")}</div>
+<div class="ra-kpis"><span>Fit<b>${esc(scoutFitText(scout))}</b></span><span>EE<b>${esc(row.ee ?? "—")}</b></span><span>Activity 30d<b>${esc(w.activityHours == null ? "—" : fmt(w.activityHours,1))}</b></span><span>MAN / INT / END<b>${esc(`${fmt(row.stats?.man)} / ${fmt(row.stats?.int)} / ${fmt(row.stats?.end)}`)}</b></span></div>
+<div class="ra-candidate-local"><div><span>Desired company</span><b>${esc(ResultsCore.formatCompany(candidate.desiredCompany || "") || "—")}</b></div><div><span>Desired role</span><b>${esc(candidate.desiredRole || "—")}</b></div><div><span>Expected salary</span><b>${esc(candidate.expectedSalary == null ? "—" : money(candidate.expectedSalary))}</b></div><div><span>Availability</span><b>${esc(candidate.availability || "—")}</b></div><div class="ra-candidate-note"><span>Recruiter note</span><b>${esc(candidate.recruiterNote || "—")}</b></div></div>
+<div class="ra-candidate-breakdown"><b>MATCH BREAKDOWN</b>${matchBreakdownHtml(match)}</div>
+<div class="ra-note"><b>Completeness</b> ${esc(completeness)}</div>
+<div class="ra-actions"><button class="ra-btn" id="ra-candidate-edit">Edit candidate</button><button class="ra-btn" id="ra-candidate-scout">Scout</button></div>`;
+        card.querySelector("#ra-candidate-edit")?.addEventListener("click", () => beginCandidateEdit(userId));
+        card.querySelector("#ra-candidate-scout")?.addEventListener("click", () => runScoutQueue([userId], {force:true,source:mode}).catch(e=>setStatus(e.message,true)));
+    }
+
+    async function openCandidateHover(userId, anchor) {
+        const row = candidateHoverRow(userId);
+        const card = document.getElementById("ra-candidate-hover");
+        if (!row || !card || !anchor) return;
+        cancelCandidateHoverTimers();
+        candidateHoverRuntime.userId = Number(userId);
+        candidateHoverRuntime.anchor = anchor;
+        candidateHoverRuntime.editing = false;
+        await renderCandidateHoverCard(row);
+        card.hidden = false;
+        positionCandidateHover(anchor);
+    }
+
+    function scheduleCandidateHoverOpen(userId, anchor) {
+        cancelCandidateHoverTimers();
+        candidateHoverRuntime.openTimer = setTimeout(() => {
+            candidateHoverRuntime.openTimer = null;
+            openCandidateHover(userId, anchor).catch(e => console.warn("[RA] Candidate hover failed", e));
+        }, 180);
+    }
+
+    function scheduleCandidateHoverClose() {
+        if (candidateHoverRuntime.closeTimer) clearTimeout(candidateHoverRuntime.closeTimer);
+        candidateHoverRuntime.closeTimer = setTimeout(() => {
+            candidateHoverRuntime.closeTimer = null;
+            closeCandidateHover();
+        }, 220);
+    }
+
+    async function beginCandidateEdit(userId) {
+        const card = document.getElementById("ra-candidate-hover");
+        const row = candidateHoverRow(userId);
+        if (!card || !row) return;
+        const candidate = row.candidateLocal || await getCandidateLocal(userId) || {};
+        candidateHoverRuntime.editing = true;
+        const companies = ResultsCore.COMPANY_KEYS.map(key => `<option value="${esc(key)}" ${candidate.desiredCompany===key?"selected":""}>${esc(ResultsCore.formatCompany(key))}</option>`).join("");
+        const availability = MatchCore.AVAILABILITY_VALUES.map(value => `<option value="${esc(value)}" ${candidate.availability===value?"selected":""}>${esc(value.replaceAll("_"," "))}</option>`).join("");
+        card.innerHTML = `<div class="ra-candidate-hover-head"><b>Edit candidate</b><span>${esc(userId)}</span></div>
+<div class="ra-field"><label>Desired company</label><select id="ra-candidate-desired-company"><option value="">Unknown / Any</option>${companies}</select></div>
+<div class="ra-field"><label>Desired role</label><input id="ra-candidate-desired-role" value="${esc(candidate.desiredRole || "")}"></div>
+<div class="ra-field"><label>Expected salary</label><input id="ra-candidate-expected-salary" inputmode="decimal" value="${esc(candidate.expectedSalary ?? "")}"></div>
+<div class="ra-field"><label>Availability</label><select id="ra-candidate-availability"><option value="">Unknown</option>${availability}</select></div>
+<div class="ra-field"><label>Recruiter note</label><textarea id="ra-candidate-recruiter-note">${esc(candidate.recruiterNote || "")}</textarea></div>
+<div id="ra-candidate-edit-error" class="ra-note"></div><div class="ra-actions"><button class="ra-btn ra-btn-primary" id="ra-candidate-save">Save</button><button class="ra-btn" id="ra-candidate-cancel">Cancel</button></div>`;
+        card.querySelector("#ra-candidate-save")?.addEventListener("click", () => saveCandidateEdit(userId));
+        card.querySelector("#ra-candidate-cancel")?.addEventListener("click", async () => {
+            candidateHoverRuntime.editing = false;
+            await openCandidateHover(userId, candidateHoverRuntime.anchor);
+        });
+        positionCandidateHover(candidateHoverRuntime.anchor);
+    }
+
+    async function saveCandidateEdit(userId) {
+        const salaryInput = document.getElementById("ra-candidate-expected-salary");
+        const salaryRaw = String(salaryInput?.value || "").trim();
+        let expectedSalary = null;
+        if (salaryRaw) {
+            const parsed = ResultsCore.parseCompactNumber(salaryRaw);
+            if (!parsed.valid || Number(parsed.value) < 0) {
+                salaryInput?.classList.add("ra-invalid");
+                const error = document.getElementById("ra-candidate-edit-error");
+                if (error) error.textContent = "Expected salary is not a valid number.";
+                return;
+            }
+            expectedSalary = Number(parsed.value);
+        }
+        await saveCandidateLocal(userId, {
+            desiredCompany:document.getElementById("ra-candidate-desired-company")?.value || "",
+            desiredRole:document.getElementById("ra-candidate-desired-role")?.value || "",
+            expectedSalary,
+            availability:document.getElementById("ra-candidate-availability")?.value || "",
+            recruiterNote:document.getElementById("ra-candidate-recruiter-note")?.value || "",
+            manualFields:{desiredCompany:true,desiredRole:true,expectedSalary:true,availability:true}
+        });
+        candidateHoverRuntime.editing = false;
+        await refreshMatchScores();
+        renderResults();
+        const anchor = document.querySelector(`.ra-candidate-hover-target[data-candidate-id="${Number(userId)}"]`) || candidateHoverRuntime.anchor;
+        if (anchor) await openCandidateHover(userId, anchor);
+    }
+
+    function bindCandidateHoverDelegation() {
+        document.addEventListener("pointerover", e => {
+            const target = e.target.closest?.(".ra-candidate-hover-target");
+            if (target) scheduleCandidateHoverOpen(Number(target.dataset.candidateId), target);
+            if (e.target.closest?.("#ra-candidate-hover") && candidateHoverRuntime.closeTimer) {
+                clearTimeout(candidateHoverRuntime.closeTimer);
+                candidateHoverRuntime.closeTimer = null;
+            }
+        });
+        document.addEventListener("pointerout", e => {
+            const target = e.target.closest?.(".ra-candidate-hover-target, #ra-candidate-hover");
+            if (!target) return;
+            const next = e.relatedTarget;
+            if (next && (next.closest?.(".ra-candidate-hover-target") || next.closest?.("#ra-candidate-hover"))) return;
+            scheduleCandidateHoverClose();
+        });
+        document.addEventListener("focusin", e => {
+            const target = e.target.closest?.(".ra-candidate-hover-target");
+            if (target) scheduleCandidateHoverOpen(Number(target.dataset.candidateId), target);
+        });
+        document.addEventListener("focusout", e => {
+            if (!e.target.closest?.(".ra-candidate-hover-target, #ra-candidate-hover")) return;
+            const next = e.relatedTarget;
+            if (next && (next.closest?.(".ra-candidate-hover-target") || next.closest?.("#ra-candidate-hover"))) return;
+            scheduleCandidateHoverClose();
+        });
+        document.addEventListener("keydown", e => {
+            if (e.key === "Escape") {
+                candidateHoverRuntime.editing = false;
+                closeCandidateHover();
+            }
+        });
+    }
+
     function bindUI() {
+        bindCandidateHoverDelegation();
         document.getElementById("ra-launch").onclick=openMainWindow;
         document.getElementById("ra-close").onclick=()=>document.getElementById("ra-panel").style.display="none";
+        document.getElementById("ra-settings-toggle").onclick=async()=>{const p=document.getElementById("ra-settings-panel");p.hidden=!p.hidden;if(!p.hidden){decorateContextHelp();await renderMatchProfileManager();}};
+        document.getElementById("ra-match-profile-select").onchange=async e=>{await saveMetaSettings({match:{...settings.match,activeProfileId:e.target.value}});populateMatchProfileEditor(await getActiveMatchProfile());await refreshMatchScores();renderResults();};
+        document.getElementById("ra-match-profile-new").onclick=async()=>{const p=await saveMatchProfile(MatchCore.createDefaultProfile("New Match Profile"));await saveMetaSettings({match:{...settings.match,activeProfileId:p.profileId}});await renderMatchProfileManager();};
+        document.getElementById("ra-match-profile-duplicate").onclick=duplicateActiveMatchProfile;
+        document.getElementById("ra-match-profile-delete").onclick=deleteActiveMatchProfile;
+        document.getElementById("ra-match-profile-save").onclick=saveMatchProfileFromUI;
+        document.getElementById("ra-settings-clear-scout-cache").onclick=async()=>{if(!confirm("Clear local Scout cache and history?"))return;await idb.clear("scoutLatest");await idb.clear("scoutHistory");setStatus("Scout cache cleared.");};
+        document.getElementById("ra-settings-clear-candidates").onclick=async()=>{if(!confirm("Clear all local candidate recruitment fields?"))return;await idb.clear("candidateLocal");await refreshMatchScores();renderResults();setStatus("Local candidate data cleared.");};
         document.getElementById("ra-open-results").onclick=async()=>{const r=document.getElementById("ra-results-panel");r.style.display="flex";bringManagedWindowToFront("results");await refreshResults();};
         document.getElementById("ra-results-close").onclick=()=>document.getElementById("ra-results-panel").style.display="none";
         document.getElementById("ra-history-close").onclick=()=>document.getElementById("ra-history").style.display="none";
+        document.addEventListener("pointerover",e=>{const b=e.target.closest?.(".ra-help-button");if(b&&!helpPinned)openContextHelp(b.dataset.helpKey,b,false);});
+        document.addEventListener("pointerout",e=>{if(e.target.closest?.(".ra-help-button")&&!helpPinned)helpCloseTimer=setTimeout(()=>closeContextHelp(),120);});
+        document.addEventListener("focusin",e=>{const b=e.target.closest?.(".ra-help-button");if(b&&!helpPinned)openContextHelp(b.dataset.helpKey,b,false);});
+        document.addEventListener("focusout",e=>{if(e.target.closest?.(".ra-help-button")&&!helpPinned)closeContextHelp();});
+        document.addEventListener("click",e=>{const b=e.target.closest?.(".ra-help-button");if(!b)return;e.preventDefault();e.stopPropagation();if(helpPinned&&helpAnchor===b)closeContextHelp(true);else openContextHelp(b.dataset.helpKey,b,true);});
+        document.addEventListener("keydown",e=>{if(e.key==="Escape")closeContextHelp(true);});
         document.getElementById("ra-complexity-simple").onclick=async()=>{await saveMetaSettings({complexity:"simple"});applyComplexityMode();};
         document.getElementById("ra-complexity-advanced").onclick=async()=>{await saveMetaSettings({complexity:"advanced"});applyComplexityMode();};
         document.getElementById("ra-mode").onchange=e=>switchMode(e.target.value);
@@ -1456,7 +1967,7 @@
         ["ra-search","ra-min-man","ra-min-int","ra-min-end","ra-min-total"].forEach(id=>document.getElementById(id)?.addEventListener("input",()=>refreshResults()));
         window.addEventListener("resize", () => {
             clearTimeout(window.__raResizeTimer);
-            window.__raResizeTimer = setTimeout(recoverManagedWindows, 150);
+            window.__raResizeTimer = setTimeout(()=>{recoverManagedWindows();if(candidateHoverRuntime.anchor)positionCandidateHover(candidateHoverRuntime.anchor);},150);
         });
     }
 

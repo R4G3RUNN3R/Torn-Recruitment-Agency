@@ -1,12 +1,12 @@
 # Torn Recruitment Agency
 
-R4G3RUNN3R's Recruitment Agency v4.3 combines Company/Faction forum recruitment discovery, local Scout intelligence, Results Intelligence, and an optional shared Google Sheets history layer for Torn.
+R4G3RUNN3R's Recruitment Agency v4.4 combines Company/Faction forum recruitment discovery, local Scout intelligence, Results Intelligence, local-only Smart Match vacancy scoring, contextual help, and an optional shared Google Sheets history layer for Torn.
 
-The Scout, Results, and Global Intelligence client engines are clean-room implementations. They do not call, authenticate against, or depend on `rs.dnonetwork.com` or another proprietary grading backend.
+The Scout, Results, Global Intelligence, and Smart Match client engines are clean-room implementations. They do not call, authenticate against, or depend on `rs.dnonetwork.com` or another proprietary grading backend.
 
 ## Main features
 
-- Simple interface by default, with a persistent Advanced toggle
+- Simple interface by default, with Simple/Advanced complexity controls inside the inline Settings hub
 - Company and faction forum recruitment scanning
 - Dedicated Scout mode with Scout intelligence attached to Company/Faction recruits
 - Torn Search Users page discovery and direct player-ID scouting
@@ -14,6 +14,10 @@ The Scout, Results, and Global Intelligence client engines are clean-room implem
 - 12-hour Scout cache plus permanent local IndexedDB history
 - Configurable 0-100 Fit scoring and weighted Trend
 - Provisional Fit with confidence when 30 days are unavailable
+- Local-only **Smart Match** profiles for vacancy-specific 0-100 candidate suitability
+- Reusable player-name hover card with Match breakdown, completeness, Scout context, and local candidate editing
+- Optional Match Results column, sorting, and minimum-Match filtering without changing the default compact Results layout
+- Inline Settings hub with centralized contextual help for major sections
 - Results filtering, sorting, selectable columns, Cards/Table views, and CSV export
 - Optional **Global Intelligence** backed by a private Google Sheet through a Google Apps Script web app
 - Failed global uploads are queued locally and never turn a successful Scout measurement into a failure
@@ -23,6 +27,49 @@ The Scout, Results, and Global Intelligence client engines are clean-room implem
 - Independent draggable/resizable Main, Results, and Scout History windows with saved geometry and viewport recovery
 - Dark theme with neon-green text and a light theme with black/dark text
 - Non-destructive IndexedDB upgrades
+
+## Smart Match v4.4
+
+**Fit** and **Match** answer different questions.
+
+- **Fit** is the general Scout activity/value signal calculated from player activity data.
+- **Match** is suitability for the currently active local vacancy profile.
+
+A Match Profile can enable any combination of MAN, INT, END, EE, Fit, Activity 30d, Xanax 30d, Refills 30d, Attacks 30d, RW Hits 30d, company, role, salary, and availability. Numeric criteria scale linearly up to their target and then cap at full credit. Salary receives full credit at or below budget and degrades proportionally above it. Known categorical mismatches score zero for that criterion.
+
+Unknown candidate-specific values are **excluded from the denominator** rather than treated as zero. The hover card therefore shows both the Match score and completeness, for example `7 / 10 criteria known`. If none of the enabled criteria are known, Match is shown as **Unmeasured**, not `0`.
+
+Smart Match remains deliberately local:
+
+- Match Profiles stay in browser IndexedDB.
+- Desired Company, Desired Role, Expected Salary, Availability, and Recruiter Note stay local.
+- Match Score and Match breakdown are calculated transiently and are not uploaded to Global Intelligence.
+- Editing a candidate or changing a Match Profile recalculates Match locally and consumes **zero Torn API calls**.
+
+Hover or keyboard-focus a player name in Results to open the reusable candidate intelligence card. It shows Match, Fit, EE, Activity, work stats, local candidate context, the per-criterion breakdown, and completeness. **Edit candidate** modifies the local candidate record and recalculates immediately.
+
+The default Results columns remain:
+
+`Player | EE | Preferred Company | Activity | Last Active | Fit`
+
+`Match` is an optional column. It can be enabled, sorted, and filtered with `Match ≥` without being forced into the default layout.
+
+## Settings and contextual help v4.4
+
+The main toolbar opens one inline **Settings** hub rather than another floating managed window. Its sections are:
+
+- General
+- Recruitment
+- Scout
+- Results
+- Smart Match
+- Global Intelligence
+- Data & Reset
+- Danger Zone
+
+Simple/Advanced mode now lives under **Settings → General**. Existing persisted values are retained when switching complexity modes.
+
+Major panels use one centralized contextual-help system. The information controls explain what a section does, what data it changes, where the data comes from or is stored, whether Torn API calls are consumed, and relevant privacy/limitations. Help opens on hover/focus or click/tap, supports Escape, stays within the viewport, and performs no network work.
 
 ## Global Intelligence v4.3
 
@@ -50,7 +97,7 @@ Only the following player-intelligence fields are eligible to leave the browser:
 
 `playerId, name, observedAt, level, ee, activity30, xanax30, refills30, attacks30, rwHits30, networth, fit, fitType, lastActive, scoutStatus, sourceVersion`
 
-The client builds uploads from an explicit whitelist. It does **not** serialize complete settings, Scout records, forum records, or browser storage objects.
+The client builds uploads from an explicit whitelist. It does **not** serialize complete settings, Scout records, forum records, browser storage objects, Smart Match profiles, Match scores, or candidate CRM records.
 
 The following always remain local and are not part of the global schema:
 
@@ -60,6 +107,7 @@ The following always remain local and are not part of the global schema:
 - contact history or message contents
 - recruiter-entered salary/pay negotiations
 - private role or availability notes
+- Smart Match Profiles, Match Score, and Match breakdown
 - Google credentials
 
 ### Shared history behavior
@@ -92,7 +140,7 @@ The Scout History window shows the local history separately from the optional Gl
 
 The reproducible Apps Script service lives in [`global/google-apps-script/`](global/google-apps-script/).
 
-Follow [`global/google-apps-script/README.md`](global/google-apps-script/README.md) once to bind/deploy the service, then paste the resulting Apps Script `/exec` URL into **Advanced Settings -> Global Intelligence** and use **Test Global Service**.
+Follow [`global/google-apps-script/README.md`](global/google-apps-script/README.md) once to bind/deploy the service, then paste the resulting Apps Script `/exec` URL into **Settings → Global Intelligence** and use the service test control.
 
 The userscript remains fully functional when no endpoint is configured.
 
@@ -116,6 +164,7 @@ Additional power is available only when requested:
 - Invalid shorthand is rejected rather than silently becoming zero
 - Preferred Company parsing is conservative and only records explicit recruiting intent
 - Sortable/filterable Scout-backed fields include Activity 30d, Last Active, and Scout Status
+- Smart Match adds optional Match sorting/filtering while leaving Match out of default columns
 - Scout Status distinguishes LIVE, FRESH, CACHED, PROVISIONAL, STALE, FAILED, and UNSCOUTED data
 - Table and Cards use the same processed result order
 - **Copy CSV** exports the currently filtered/sorted result set using the currently selected columns
@@ -124,7 +173,7 @@ Additional power is available only when requested:
 - Conflicting scan/Scout start controls are visibly disabled while work is running
 - Sidebar recovery uses bounded retries plus a debounced Torn SPA observer rather than repeatedly rescanning on every DOM mutation
 
-The Results engine lives in `src/results-core.js`. Global sanitization, precedence, response normalization, and retry classification live in `src/global-core.js`, keeping those rules testable without Torn's UI.
+The Results engine lives in `src/results-core.js`. Smart Match scoring/normalization lives in `src/match-core.js`. Global sanitization, precedence, response normalization, and retry classification live in `src/global-core.js`, keeping those rules testable without Torn's UI.
 
 ## Install
 
@@ -136,13 +185,13 @@ A Torn API key is stored only in the browser database used by the script. Recrui
 
 **Simple** is the default. It exposes the normal Company, Faction and Scout workflows, Results, Theme, and a collapsed Fit Settings section. Results itself keeps detailed filters and extra columns hidden until the user opens them.
 
-**Advanced** reveals technical controls such as API rate, workers, call budget, history spacing, cache diagnostics, maximum candidates, Auto Scout, detailed Scout filters, API-key controls, density, table/card settings, window-layout reset, and the optional Global Intelligence endpoint/test/retry controls. Switching modes does not reset saved values.
+**Advanced** reveals technical controls such as API rate, workers, call budget, history spacing, cache diagnostics, maximum candidates, Auto Scout, detailed Scout filters, API-key controls, density, table/card settings, window-layout reset, Smart Match Profile management, and the optional Global Intelligence endpoint/test/retry controls. Simple/Advanced is changed from **Settings → General** and switching modes does not reset saved values.
 
 ## API pacing
 
 The script uses one shared scheduler for Torn API requests. The configurable rate is clamped to a maximum of **75 calls per minute**, which is **800 ms per call** at the cap. Workers cannot bypass this scheduler.
 
-Results sorting/filtering and Google Apps Script traffic do not consume Torn API calls and are not routed through the Torn scheduler.
+Results sorting/filtering, Smart Match scoring/editing, contextual help, and Google Apps Script traffic do not consume Torn API calls and are not routed through the Torn scheduler.
 
 Scout also keeps its per-run call budget. Temporary Torn retries pass through the same scheduler rather than firing outside the rate gate.
 
@@ -166,4 +215,4 @@ Weights are normalized to 100 automatically.
 
 ## Notes
 
-Recruit Scout was used only to understand observable behavior and Torn API usage patterns. This project implements its own scoring, storage, UI, scheduling, history, sorting, filtering, global sanitization, and shared-history service.
+Recruit Scout was used only to understand observable behavior and Torn API usage patterns. This project implements its own scoring, storage, UI, scheduling, history, sorting, filtering, Smart Match, global sanitization, and shared-history service.

@@ -2,9 +2,11 @@
 
 ## Purpose
 
-Scout is the local player-intelligence subsystem inside Recruitment Agency v4.3. It is available as its own mode and also enriches Company/Faction recruitment records.
+Scout is the local player-intelligence subsystem inside Recruitment Agency v4.4. It is available as its own mode and also enriches Company/Faction recruitment records.
 
-The browser talks directly to Torn for current player intelligence. v4.3 optionally adds a separate Google Apps Script service for sanitized shared history. That service is not a grading backend and is never authoritative over fresher direct/local Torn data.
+The browser talks directly to Torn for current player intelligence. The optional v4.3 Global Intelligence layer adds a separate Google Apps Script service for sanitized shared history. That service is not a grading backend and is never authoritative over fresher direct/local Torn data.
+
+v4.4 adds Smart Match as a separate local decision layer. Scout supplies activity/Fit inputs to Match, but Scout does not own vacancy requirements, recruiter notes, salary expectations, desired roles, availability, Match Scores, or Match breakdowns.
 
 ## Data collection
 
@@ -46,20 +48,22 @@ Every completed measurement is also stored permanently in `scoutHistory`.
 
 ## Database
 
-Recruitment Agency v4.3 uses IndexedDB database `tornWorkerDB`, version 10.
+Recruitment Agency v4.4 uses IndexedDB database `tornWorkerDB`, version 11.
 
-Existing/local stores:
+Existing/local stores include:
 
 - `users` - forum recruitment records from Company/Faction modes
-- `meta` - application settings, synchronization history, UI mode, Results state, Global Intelligence configuration, and window geometry
+- `meta` - application settings, synchronization history, UI mode, Results state, Global Intelligence configuration, Smart Match active-profile state, and window geometry
 - `scoutLatest` - newest Scout snapshot per Torn user ID
 - `scoutHistory` - immutable timestamped local Scout snapshots
-
-v4.3 adds these stores additively:
-
 - `globalLatest` - newest fetched shared-history response per Torn user ID, with cache timestamp
 - `globalHistory` - locally cached shared observations keyed by player/timestamp
 - `globalSyncQueue` - pending sanitized uploads that could not yet be delivered
+
+v4.4 adds these stores additively:
+
+- `candidateLocal` - recruiter/candidate context keyed by Torn user ID
+- `matchProfiles` - local vacancy profiles keyed by `profileId`
 
 The upgrade does not delete or recreate earlier stores.
 
@@ -99,6 +103,49 @@ Sorting, filtering, changing visible columns, switching Table/Cards, and CSV gen
 
 Company, Faction, and Scout each remember independent Results sort/filter/column state. Table, Cards, and CSV consume the same filtered and sorted row array so their order cannot diverge.
 
+## Smart Match v4.4 integration
+
+Smart Match is intentionally separate from Scout Fit.
+
+```text
+Scout
+  -> supplies local Fit/activity intelligence
+
+candidateLocal
+  -> supplies Desired Company / Desired Role / Expected Salary / Availability / Recruiter Note
+
+Match Profile
+  -> supplies vacancy requirements, enabled criteria, targets, and weights
+
+src/match-core.js
+  -> calculates Match Score + completeness + transparent breakdown
+```
+
+The Match engine is pure/local. `refreshMatchScores()` reads the active Match Profile and local candidate record, maps the already-available Scout/Results fields into Match inputs, and calculates the result without making a Torn request.
+
+Changing a Match Profile, switching active profiles, or editing a candidate immediately recalculates Match from existing local data. A recruiter can therefore change hiring rules repeatedly without rescanning players or consuming Torn API calls.
+
+Match handles unknowns differently from a naive zero-fill model. An enabled criterion whose candidate value is unknown is excluded from the available denominator. Completeness separately reports how many enabled criteria are known. If no enabled criterion is known, Match is unmeasured rather than zero.
+
+The reusable player-name hover card displays Match beside Fit and the underlying candidate context. It also exposes the per-criterion breakdown and local candidate editor. Hover rendering/editing itself performs no network work. The explicit **Scout** action in the card is the only operation there that intentionally starts Scout/Torn activity.
+
+`Match` is supported as an optional Results column, sort key, and `Match ≥` filter, but it is deliberately absent from `DEFAULT_VISIBLE_COLUMNS`.
+
+### Smart Match privacy boundary
+
+These values remain local and are not Global Intelligence fields:
+
+- Match Profiles
+- Desired Company
+- Desired Role
+- Expected Salary
+- Availability override
+- Recruiter Note
+- Match Score
+- Match breakdown/completeness
+
+Match is not written into Scout history. Scout snapshots remain measurements of Torn player data; Match is a current local interpretation of those measurements under the recruiter's active vacancy rules.
+
 ## Global Intelligence v4.3
 
 `src/global-core.js` is the pure client-side contract for the optional Google Sheets history layer. It owns:
@@ -113,11 +160,11 @@ Company, Faction, and Scout each remember independent Results sort/filter/column
 
 After a **fresh successful Scout measurement**, local persistence completes first. Recruitment Agency then constructs a sanitized observation and adds it to `globalSyncQueue`. Network delivery happens afterward and is fail-open.
 
-The allowed shared fields are:
+The allowed shared fields remain exactly:
 
 `playerId, name, observedAt, level, ee, activity30, xanax30, refills30, attacks30, rwHits30, networth, fit, fitType, lastActive, scoutStatus, sourceVersion`
 
-Complete Scout objects, application settings, API keys, recruiter notes, contact history, private CRM status, message contents, and recruiter-entered negotiation data are not serialized to the service.
+Complete Scout objects, application settings, API keys, recruiter notes, contact history, private CRM status, message contents, recruiter-entered negotiation data, Smart Match profiles, and Match results are not serialized to the service.
 
 The shared service uses a private Google Sheet with fixed `Players`, `Observations`, and `Meta` tabs. Google Apps Script is the public gateway and enforces its own validation, lock, deduplication, bounded-history, and lightweight rate controls.
 
@@ -159,7 +206,7 @@ Scout can read Torn's current Search Users page by locating profile links that c
 
 ## Torn API scheduler
 
-Recruitment Agency v4.3 retains one shared rate gate for **Torn API traffic generated by the script**.
+Recruitment Agency v4.4 retains one shared rate gate for **Torn API traffic generated by the script**.
 
 The configured rate:
 
@@ -169,9 +216,9 @@ The configured rate:
 
 Forum scans, profile enrichment, key validation, Scout current-stat requests, historical requests, cache diagnostics, and Scout retries all pass through the shared Torn scheduler. Worker count cannot multiply the global Torn request rate.
 
-Google Apps Script requests are not Torn API calls, use their own conservative queue/retry path, and do not change the 75/min or 800 ms Torn limits.
+Google Apps Script requests and Smart Match calculations are not Torn API calls. They do not change or bypass the 75/min or 800 ms Torn limits.
 
-Advanced controls include:
+Settings expose advanced Scout controls for:
 
 - API calls per minute, limited to 10-75
 - worker count

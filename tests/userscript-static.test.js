@@ -9,15 +9,17 @@ function source() {
   return fs.readFileSync(file, 'utf8');
 }
 
-test('userscript is version 4.3.0 and loads Scout, Results and Global cores', () => {
+test('userscript v4.4 loads Scout, Results, Global and Match cores', () => {
   const s = source();
-  assert.match(s, /@version\s+4\.3\.0/);
-  assert.match(s, /SCRIPT_VERSION\s*=\s*["']4\.3\.0["']/);
+  assert.match(s, /@version\s+4\.4\.0/);
+  assert.match(s, /SCRIPT_VERSION\s*=\s*["']4\.4\.0["']/);
   assert.match(s, /@require\s+https:\/\/raw\.githubusercontent\.com\/R4G3RUNN3R\/Torn-Recruitment-Agency\/main\/src\/scout-core\.js/);
   assert.match(s, /@require\s+https:\/\/raw\.githubusercontent\.com\/R4G3RUNN3R\/Torn-Recruitment-Agency\/main\/src\/results-core\.js/);
   assert.match(s, /@require\s+https:\/\/raw\.githubusercontent\.com\/R4G3RUNN3R\/Torn-Recruitment-Agency\/main\/src\/global-core\.js/);
+  assert.match(s, /@require\s+https:\/\/raw\.githubusercontent\.com\/R4G3RUNN3R\/Torn-Recruitment-Agency\/main\/src\/match-core\.js/);
   assert.match(s, /RA_ResultsCore/);
   assert.match(s, /RA_GlobalCore/);
+  assert.match(s, /RA_MatchCore/);
 });
 
 test('userscript never depends on the Recruit Scout paid backend', () => {
@@ -26,15 +28,40 @@ test('userscript never depends on the Recruit Scout paid backend', () => {
   assert.doesNotMatch(s, /script-session|\/api\/grade|membership/i);
 });
 
-test('userscript upgrades IndexedDB additively and defines Scout and Global stores', () => {
+test('userscript upgrades IndexedDB additively and defines Scout, Global and Match stores', () => {
   const s = source();
-  assert.match(s, /REQUIRED_DB_VERSION\s*=\s*10/);
+  assert.match(s, /REQUIRED_DB_VERSION\s*=\s*11/);
   assert.match(s, /scoutLatest/);
   assert.match(s, /scoutHistory/);
   assert.match(s, /globalLatest/);
   assert.match(s, /globalHistory/);
   assert.match(s, /globalSyncQueue/);
+  assert.match(s, /createObjectStore\(['"]candidateLocal['"],\s*\{\s*keyPath:\s*['"]userId['"]\s*\}\)/);
+  assert.match(s, /createObjectStore\(['"]matchProfiles['"],\s*\{\s*keyPath:\s*['"]profileId['"]\s*\}\)/);
   assert.doesNotMatch(s, /deleteObjectStore\s*\(/);
+});
+
+test('v4.4 exposes local Smart Match persistence and evaluation helpers', () => {
+  const s = source();
+  for (const name of [
+    'ensureDefaultMatchProfile', 'getActiveMatchProfile', 'saveMatchProfile', 'deleteMatchProfile',
+    'getCandidateLocal', 'saveCandidateLocal', 'buildMatchInputRow', 'evaluateRowMatch', 'refreshMatchScores'
+  ]) assert.match(s, new RegExp(`function\\s+${name}\\s*\\(`));
+  assert.match(s, /activeProfileId/);
+  assert.match(s, /candidateLocal/);
+  assert.match(s, /matchProfiles/);
+});
+
+test('v4.4 Match and recruiter-private fields stay out of global observation construction', () => {
+  const s = source();
+  const start = s.indexOf('function buildGlobalObservation');
+  assert.notEqual(start, -1);
+  const end = s.indexOf('\n  }', start);
+  const block = s.slice(start, end > start ? end + 4 : start + 2500);
+  for (const field of ['desiredRole','expectedSalary','availability','recruiterNote','matchScore','matchProfiles']) {
+    assert.equal(block.includes(field), false, `${field} must not enter buildGlobalObservation`);
+  }
+  assert.match(block, /GlobalCore\.sanitizeObservation/);
 });
 
 test('userscript exposes all three modes and hybrid Scout actions', () => {
@@ -64,6 +91,101 @@ test('Simple UI is default and Advanced controls are marked', () => {
   assert.match(s, /ra-advanced-only/);
   assert.match(s, /Fit Settings/);
   assert.match(s, /applyComplexityMode/);
+});
+
+test('v4.4 has an inline Settings hub and moves complexity controls into General settings', () => {
+  const s = source();
+  assert.match(s, /id="ra-settings-toggle"/);
+  assert.match(s, /id="ra-settings-panel"/);
+  for (const section of ['General','Recruitment','Scout','Results','Smart Match','Global Intelligence','Data & Reset','Danger Zone']) {
+    assert.ok(s.includes(`<summary>${section}</summary>`), `missing Settings subsection: ${section}`);
+  }
+  const headStart = s.indexOf('<div class="ra-head" id="ra-drag">');
+  const headEnd = s.indexOf('<div class="ra-inner">', headStart);
+  assert.notEqual(headStart, -1);
+  assert.notEqual(headEnd, -1);
+  const headBlock = s.slice(headStart, headEnd);
+  assert.equal(headBlock.includes('ra-complexity-simple'), false);
+  assert.match(s, /data-settings-section="general"/);
+});
+
+test('v4.4 exposes Smart Match profile management controls and functions', () => {
+  const s = source();
+  for (const id of [
+    'ra-match-profile-select','ra-match-profile-new','ra-match-profile-duplicate','ra-match-profile-delete','ra-match-profile-save'
+  ]) assert.match(s, new RegExp(id));
+  for (const name of ['criterionEditorHtml','renderMatchProfileManager','populateMatchProfileEditor','saveMatchProfileFromUI','duplicateActiveMatchProfile','deleteActiveMatchProfile']) {
+    assert.match(s, new RegExp(`function\\s+${name}\\s*\\(`));
+  }
+  assert.match(s, /MatchCore\.CRITERIA_KEYS\.map\(key=>criterionEditorHtml/);
+  assert.match(s, /id="ra-match-criterion-\$\{key\}"/);
+  assert.match(s, /man:"MAN"/);
+  assert.match(s, /fit:"Fit"/);
+  assert.match(s, /salary:"Salary"/);
+  assert.match(s, /availability:"Availability"/);
+  assert.match(s, /New Match Profile/);
+  assert.match(s, /Default Recruit/);
+});
+
+test('v4.4 decorates major non-Settings surfaces with contextual help', () => {
+  const s = source();
+  assert.match(s, /function\s+setContextHelpKey\s*\(/);
+  assert.match(s, /id="ra-scout-controls"[^>]*data-help-key="scout"/);
+  assert.match(s, /<details class="ra-section"[^>]*data-help-key="fit"><summary>Fit Settings<\/summary>/);
+  assert.match(s, /id="ra-results-filters"[^>]*data-help-key="filters"/);
+  assert.match(s, /id="ra-results-columns"[^>]*data-help-key="columns"/);
+  assert.match(s, /setContextHelpKey\(forum,\s*mode==="faction"\?"faction":"company"\)/);
+  assert.match(s, /renderResultsFilters\(\);\s*renderResultsColumns\(\);\s*decorateContextHelp\(\)/);
+});
+
+test('v4.4 exposes reusable candidate hover intelligence and local editing', () => {
+  const s = source();
+  for (const name of ['renderCandidateHoverCard','openCandidateHover','scheduleCandidateHoverOpen','scheduleCandidateHoverClose','positionCandidateHover','beginCandidateEdit','saveCandidateEdit']) {
+    assert.match(s, new RegExp(`function\\s+${name}\\s*\\(`));
+  }
+  assert.match(s, /id="ra-candidate-hover"/);
+  assert.match(s, /ra-candidate-hover-target/);
+  assert.match(s, /data-candidate-id/);
+  assert.match(s, /Edit candidate/);
+  assert.match(s, /Desired company/i);
+  assert.match(s, /Desired role/i);
+  assert.match(s, /Expected salary/i);
+  assert.match(s, /Availability/i);
+  assert.match(s, /Recruiter note/i);
+  assert.match(s, /MATCH BREAKDOWN/);
+  assert.match(s, /Completeness/);
+  assert.match(s, /candidateHoverRuntime/);
+  assert.match(s, /180/);
+  assert.match(s, /220/);
+  assert.match(s, /pointerover/);
+  assert.match(s, /pointerout/);
+  assert.match(s, /focusin/);
+  assert.match(s, /focusout/);
+  assert.match(s, /Escape/);
+  assert.match(s, /minMatch/);
+  assert.match(s, /if\s*\(key==="match"\)/);
+});
+
+test('v4.4 contextual help is centralized, accessible and performs no network work', () => {
+  const s = source();
+  assert.match(s, /HELP_REGISTRY/);
+  assert.match(s, /function\s+decorateContextHelp\s*\(/);
+  assert.match(s, /function\s+openContextHelp\s*\(/);
+  assert.match(s, /function\s+closeContextHelp\s*\(/);
+  assert.match(s, /(?:id=\\?["']ra-help-popover["']|\.id\s*=\s*["']ra-help-popover["'])/);
+  assert.match(s, /data-help-key/);
+  assert.match(s, /pointerover/);
+  assert.match(s, /focusin/);
+  assert.match(s, /Escape/);
+  assert.match(s, /getBoundingClientRect/);
+  assert.match(s, /Torn API:/);
+  assert.match(s, /local-only|remain local|stored locally/i);
+  const helpStart = s.indexOf('const HELP_REGISTRY');
+  const helpEnd = s.indexOf('\n    });', helpStart);
+  assert.notEqual(helpStart, -1);
+  assert.notEqual(helpEnd, -1);
+  const helpBlock = s.slice(helpStart, helpEnd + 8);
+  assert.doesNotMatch(helpBlock, /fetch\s*\(|apiRequest\s*\(|gmRequest\s*\(/);
 });
 
 test('Scout API scheduler defaults to and hard-caps at 75 calls per minute', () => {
