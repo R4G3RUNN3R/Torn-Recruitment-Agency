@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         R4G3RUNN3R's Recruitment Agency
 // @namespace    r4g3runn3r.recruitment.agency
-// @version      4.5.2
+// @version      4.5.3
 // @description  Recruitment discovery, candidate pipeline, Scout intelligence and local recruitment workflow for Torn.
 // @author       R4G3RUNN3R[3877028]
 // @license      MIT
@@ -26,9 +26,10 @@
 
 (() => {
   'use strict';
-  const INSTALLER_VERSION = '4.5.2';
+  const INSTALLER_VERSION = '4.5.3';
   const EXPECTED_APP_VERSION = '4.5.0';
   const DOM_GUARD = 'data-r4g3-ra-v45-owner';
+  const RA_ROOT_SELECTOR = '#ra-app,#ra-hover,#ra-context,#ra-help-popover';
 
   if (window.top !== window.self) return;
 
@@ -47,7 +48,83 @@
     document.querySelectorAll('.ra-dock-icon').forEach(node => node.remove());
   }
 
-  function installPrimaryInputShield() {
+  function isRecruitmentElement(target) {
+    return !!(target && typeof target.closest === 'function' && target.closest(RA_ROOT_SELECTOR));
+  }
+
+  function installClickListenerBridge() {
+    if (window.__R4G3_RA_CLICK_BRIDGE__) return window.__R4G3_RA_CLICK_BRIDGE__;
+
+    const registry = new WeakMap();
+    const nativeAdd = EventTarget.prototype.addEventListener;
+    const nativeRemove = EventTarget.prototype.removeEventListener;
+    const captureFlag = options => typeof options === 'boolean' ? options : !!options?.capture;
+
+    EventTarget.prototype.addEventListener = function(type, listener, options) {
+      if (type === 'click' && listener && isRecruitmentElement(this)) {
+        const capture = captureFlag(options);
+        const entries = registry.get(this) || [];
+        if (!entries.some(entry => entry.listener === listener && entry.capture === capture)) {
+          entries.push({listener, capture, once:!!(options && typeof options === 'object' && options.once), options});
+          registry.set(this, entries);
+        }
+      }
+      return nativeAdd.call(this, type, listener, options);
+    };
+
+    EventTarget.prototype.removeEventListener = function(type, listener, options) {
+      if (type === 'click' && listener && registry.has(this)) {
+        const capture = captureFlag(options);
+        const remaining = registry.get(this).filter(entry => entry.listener !== listener || entry.capture !== capture);
+        if (remaining.length) registry.set(this, remaining);
+        else registry.delete(this);
+      }
+      return nativeRemove.call(this, type, listener, options);
+    };
+
+    const reportFailure = error => {
+      console.error(`[RA] ${INSTALLER_VERSION} bridged click handler failed.`, error);
+      try { alert(`Recruitment Agency click failed: ${error?.message || error}`); } catch {}
+    };
+
+    const bridge = {
+      has(action) {
+        return !!(action && (typeof action.onclick === 'function' || (registry.get(action)?.length)));
+      },
+      invoke(action, event) {
+        let handled = false;
+        if (typeof action.onclick === 'function') {
+          handled = true;
+          try {
+            const result = action.onclick.call(action, event);
+            if (result && typeof result.then === 'function') result.catch(reportFailure);
+          } catch (error) {
+            reportFailure(error);
+          }
+        }
+
+        const entries = [...(registry.get(action) || [])];
+        for (const entry of entries) {
+          handled = true;
+          try {
+            const result = typeof entry.listener === 'function'
+              ? entry.listener.call(action, event)
+              : entry.listener?.handleEvent?.(event);
+            if (result && typeof result.then === 'function') result.catch(reportFailure);
+          } catch (error) {
+            reportFailure(error);
+          }
+          if (entry.once) nativeRemove.call(action, 'click', entry.listener, entry.options);
+        }
+        return handled;
+      }
+    };
+
+    window.__R4G3_RA_CLICK_BRIDGE__ = bridge;
+    return bridge;
+  }
+
+  function installPrimaryInputShield(clickBridge) {
     if (window.__R4G3_RA_INPUT_SHIELD__) return;
     window.__R4G3_RA_INPUT_SHIELD__ = true;
 
@@ -57,15 +134,15 @@
         const target = event.target;
         if (!target || typeof target.closest !== 'function') return;
 
-        const appRoot = target.closest('#ra-app');
-        if (!appRoot) return;
+        const raRoot = target.closest(RA_ROOT_SELECTOR);
+        if (!raRoot) return;
 
         const action = target.closest('button,a,[role="button"]');
-        if (!action || !appRoot.contains(action) || typeof action.onclick !== 'function') return;
+        if (!action || !raRoot.contains(action) || action.disabled || !clickBridge.has(action)) return;
 
         event.preventDefault();
         event.stopImmediatePropagation();
-        action.onclick.call(action, event);
+        clickBridge.invoke(action, event);
       } catch (error) {
         console.error(`[RA] ${INSTALLER_VERSION} primary click handler failed.`, error);
         try {
@@ -76,7 +153,8 @@
   }
 
   removeLegacyRecruitmentUi();
-  installPrimaryInputShield();
+  const clickBridge = installClickListenerBridge();
+  installPrimaryInputShield(clickBridge);
 
   const app = window.RA_V45App;
   if (!app || typeof app.start !== 'function') {
