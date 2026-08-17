@@ -1,6 +1,6 @@
 {
   "name": "torn-recruitment-agency",
-  "version": "4.5.1",
+  "version": "4.5.2",
   "private": true,
   "description": "Tests and tooling for R4G3RUNN3R's Torn Recruitment Agency userscript",
   "scripts": {
@@ -9,7 +9,8 @@
   },
   "devDependencies": {
     "fake-indexeddb": "6.2.5",
-    "jsdom": "26.1.0"
+    "jsdom": "26.1.0",
+    "puppeteer-core": "23.11.1"
   },
   "engines": {
     "node": ">=20"
