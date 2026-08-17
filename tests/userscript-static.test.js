@@ -7,31 +7,36 @@ const boot=fs.readFileSync(path.join(root,'R4G3RUNN3R-Recruitment-Agency.user.js
 const app=fs.readFileSync(path.join(root,'src/v45-app.js'),'utf8');
 const PINNED_RUNTIME='9b22dc3478d7d57dba6ff3354681767b35cf0ba6';
 
-test('public userscript is the v4.5.2 modular bootstrap with immutable runtime requires',()=>{
-  assert.match(boot,/@version\s+4\.5\.2/);
+test('public userscript is the v4.5.3 modular bootstrap with immutable runtime requires',()=>{
+  assert.match(boot,/@version\s+4\.5\.3/);
   assert.match(boot,/@noframes/);
   for(const file of ['scout-core.js','results-core.js','global-core.js','match-core.js','forum-core.js','v45-runtime.js','v45-candidates.js','v45-discovery.js','v45-messaging.js','v45-app.js']){
     assert.ok(boot.includes(`/${PINNED_RUNTIME}/src/${file}`),`pinned ${file}`);
   }
   assert.doesNotMatch(boot,/@require\s+https:\/\/raw\.githubusercontent\.com\/R4G3RUNN3R\/Torn-Recruitment-Agency\/main\/src\//);
-  assert.match(boot,/INSTALLER_VERSION\s*=\s*'4\.5\.2'/);
+  assert.match(boot,/INSTALLER_VERSION\s*=\s*'4\.5\.3'/);
   assert.match(boot,/EXPECTED_APP_VERSION\s*=\s*'4\.5\.0'/);
   assert.match(boot,/app\.SCRIPT_VERSION/);
   assert.match(boot,/app\.start\(\)/);
 });
 
-test('v4.5.2 owns direct primary actions at window capture before host listeners',()=>{
-  assert.match(boot,/function installPrimaryInputShield\(\)/);
+test('v4.5.3 bridges direct and addEventListener page actions through window capture',()=>{
+  assert.match(boot,/function installClickListenerBridge\(\)/);
+  assert.match(boot,/registry = new WeakMap\(\)/);
+  assert.match(boot,/EventTarget\.prototype\.addEventListener/);
+  assert.match(boot,/EventTarget\.prototype\.removeEventListener/);
+  assert.match(boot,/type === 'click'/);
+  assert.match(boot,/function installPrimaryInputShield\(clickBridge\)/);
   assert.match(boot,/window\.addEventListener\('click',[\s\S]*?,\s*true\s*\)/);
   assert.match(boot,/typeof target\.closest !== 'function'/);
   assert.doesNotMatch(boot,/target instanceof Element/);
-  assert.match(boot,/target\.closest\('#ra-app'\)/);
-  assert.match(boot,/typeof action\.onclick !== 'function'/);
+  assert.match(boot,/target\.closest\(RA_ROOT_SELECTOR\)/);
+  assert.match(boot,/clickBridge\.has\(action\)/);
   assert.match(boot,/event\.stopImmediatePropagation\(\)/);
-  assert.match(boot,/action\.onclick\.call\(action, event\)/);
+  assert.match(boot,/clickBridge\.invoke\(action, event\)/);
 });
 
-test('v4.5.2 guards the shared DOM against duplicate worlds and legacy RA UI',()=>{
+test('v4.5.3 guards the shared DOM against duplicate worlds and legacy RA UI',()=>{
   assert.match(boot,/DOM_GUARD\s*=\s*'data-r4g3-ra-v45-owner'/);
   assert.match(boot,/root\.getAttribute\(DOM_GUARD\)/);
   assert.match(boot,/root\.setAttribute\(DOM_GUARD, INSTALLER_VERSION\)/);
