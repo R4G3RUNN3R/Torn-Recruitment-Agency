@@ -57,7 +57,13 @@ test('v4.5.2 primary controls survive a hostile document-capture click blocker',
       await page.addScriptTag({content:fs.readFileSync(path.join(ROOT,'src',file),'utf8')});
     }
     await page.addScriptTag({content:fs.readFileSync(path.join(ROOT,'R4G3RUNN3R-Recruitment-Agency.user.js'),'utf8')});
-    await page.waitForFunction(()=>document.getElementById('ra-app'));
+    await page.waitForFunction(()=>{
+      if(!document.getElementById('ra-app')) return false;
+      return ['#ra-sidebar-launcher','#ra-launch'].some(s=>{
+        const e=document.querySelector(s);
+        return e&&getComputedStyle(e).display!=='none'&&getComputedStyle(e).visibility!=='hidden';
+      });
+    },{timeout:5000});
 
     const launcher=await page.evaluate(()=>['#ra-sidebar-launcher','#ra-launch'].find(s=>{const e=document.querySelector(s);return e&&getComputedStyle(e).display!=='none'&&getComputedStyle(e).visibility!=='hidden'})||'');
     assert.ok(launcher,'visible launcher should exist');
