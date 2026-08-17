@@ -72,6 +72,8 @@ test('primary navigation and in-page controls survive a hostile document-capture
 
     await physicalClick(page,'[data-page="discover"]');
     await page.waitForFunction(()=>document.getElementById('ra-page-title')?.textContent==='Discover',{timeout:5000});
+    await page.waitForSelector('#ra-discover-menu',{visible:true});
+    await page.waitForSelector('#ra-discover-more');
     assert.equal(await page.$eval('#ra-discover-more',e=>e.hidden),true,'Discover More starts closed');
     await physicalClick(page,'#ra-discover-menu');
     await page.waitForFunction(()=>document.getElementById('ra-discover-more')?.hidden===false,{timeout:5000});
@@ -79,6 +81,8 @@ test('primary navigation and in-page controls survive a hostile document-capture
 
     await physicalClick(page,'[data-page="candidates"]');
     await page.waitForFunction(()=>document.getElementById('ra-page-title')?.textContent==='Candidates',{timeout:5000});
+    await page.waitForSelector('#ra-more-filters',{visible:true});
+    await page.waitForSelector('#ra-more-filter-box');
     assert.equal(await page.$eval('#ra-more-filter-box',e=>e.hidden),true,'Candidate extra filters start closed');
     await physicalClick(page,'#ra-more-filters');
     await page.waitForFunction(()=>document.getElementById('ra-more-filter-box')?.hidden===false,{timeout:5000});
