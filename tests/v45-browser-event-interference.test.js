@@ -44,7 +44,7 @@ async function physicalClick(page,selector){
   await page.mouse.click(point.x,point.y);
 }
 
-test('v4.5.2 primary controls survive a hostile document-capture click blocker',{timeout:60000},async()=>{
+test('primary navigation and in-page controls survive a hostile document-capture click blocker',{timeout:60000},async()=>{
   const server=await serve();
   const port=server.address().port;
   const browser=await puppeteer.launch({executablePath:chromePath(),headless:true,args:['--no-sandbox','--disable-setuid-sandbox','--disable-dev-shm-usage']});
@@ -70,7 +70,21 @@ test('v4.5.2 primary controls survive a hostile document-capture click blocker',
     await physicalClick(page,launcher);
     assert.equal(await page.$eval('#ra-app',e=>getComputedStyle(e).display),'block');
 
-    for(const [route,title] of [['discover','Discover'],['candidates','Candidates'],['pipeline','Pipeline'],['scout','Scout'],['smart-match','Smart Match'],['global-intelligence','Global Intelligence']]){
+    await physicalClick(page,'[data-page="discover"]');
+    await page.waitForFunction(()=>document.getElementById('ra-page-title')?.textContent==='Discover',{timeout:5000});
+    assert.equal(await page.$eval('#ra-discover-more',e=>e.hidden),true,'Discover More starts closed');
+    await physicalClick(page,'#ra-discover-menu');
+    await page.waitForFunction(()=>document.getElementById('ra-discover-more')?.hidden===false,{timeout:5000});
+    assert.equal(await page.$eval('#ra-page-title',e=>e.textContent),'Discover','in-page Discover control must not change route');
+
+    await physicalClick(page,'[data-page="candidates"]');
+    await page.waitForFunction(()=>document.getElementById('ra-page-title')?.textContent==='Candidates',{timeout:5000});
+    assert.equal(await page.$eval('#ra-more-filter-box',e=>e.hidden),true,'Candidate extra filters start closed');
+    await physicalClick(page,'#ra-more-filters');
+    await page.waitForFunction(()=>document.getElementById('ra-more-filter-box')?.hidden===false,{timeout:5000});
+    assert.equal(await page.$eval('#ra-page-title',e=>e.textContent),'Candidates','in-page Candidate control must not change route');
+
+    for(const [route,title] of [['pipeline','Pipeline'],['scout','Scout'],['smart-match','Smart Match'],['global-intelligence','Global Intelligence']]){
       await physicalClick(page,`[data-page="${route}"]`);
       await page.waitForFunction(t=>document.getElementById('ra-page-title')?.textContent===t,{timeout:5000},title);
     }
@@ -80,7 +94,7 @@ test('v4.5.2 primary controls survive a hostile document-capture click blocker',
     await physicalClick(page,'#ra-close');
     assert.equal(await page.$eval('#ra-app',e=>getComputedStyle(e).display),'none');
 
-    assert.equal(await page.evaluate(()=>window.__blockedClicks),0,'window capture shield should handle primary actions before document capture blocker');
+    assert.equal(await page.evaluate(()=>window.__blockedClicks),0,'window capture shield should handle RA actions before document capture blocker');
   }finally{
     await browser.close();
     await new Promise(resolve=>server.close(resolve));
