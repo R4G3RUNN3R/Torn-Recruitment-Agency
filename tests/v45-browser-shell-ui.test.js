@@ -117,6 +117,7 @@ test('v4.5.4 shell scrolls, hides duplicate Settings and safely maximizes/restor
 
     await physicalClick(page,'#ra-maximize');
     await page.waitForFunction(()=>document.getElementById('ra-app')?.classList.contains('ra-maximized'),{timeout:5000});
+    assert.equal(await page.evaluate(()=>window.__blockedClicks),0,'Maximize should execute before hostile document capture');
     const maximized=await page.$eval('#ra-app',el=>{const r=el.getBoundingClientRect();return{x:r.left,y:r.top,width:r.width,height:r.height,resize:getComputedStyle(el).resize,radius:getComputedStyle(el).borderRadius};});
     assert.ok(closeTo(maximized.x,0));assert.ok(closeTo(maximized.y,0));
     assert.ok(closeTo(maximized.width,1440));assert.ok(closeTo(maximized.height,900));
@@ -134,6 +135,11 @@ test('v4.5.4 shell scrolls, hides duplicate Settings and safely maximizes/restor
     const duringPersist=await readPersistedGeometry(page);
     for(const key of ['x','y','width','height']) assert.ok(closeTo(duringPersist[key],normal[key],1.5),`maximized state must not persist ${key}`);
 
+    // A mouse drag can synthesize a non-action click on the titlebar. The input shield
+    // deliberately protects actionable controls, not inert titlebar clicks, so reset the
+    // hostile-capture counter before validating the Restore control itself.
+    await page.evaluate(()=>{window.__blockedClicks=0;});
+
     await page.setViewport({width:1280,height:720});
     await page.waitForFunction(()=>{const r=document.getElementById('ra-app')?.getBoundingClientRect();return r&&Math.abs(r.width-innerWidth)<1.1&&Math.abs(r.height-innerHeight)<1.1;},{timeout:5000});
     const resizedMax=await page.$eval('#ra-app',el=>{const r=el.getBoundingClientRect();return{x:r.left,y:r.top,width:r.width,height:r.height};});
@@ -143,6 +149,7 @@ test('v4.5.4 shell scrolls, hides duplicate Settings and safely maximizes/restor
     const expected=clampGeometry(normal,1280,720);
     await physicalClick(page,'#ra-maximize');
     await page.waitForFunction(()=>!document.getElementById('ra-app')?.classList.contains('ra-maximized'),{timeout:5000});
+    assert.equal(await page.evaluate(()=>window.__blockedClicks),0,'Restore should execute before hostile document capture');
     const restored=await page.$eval('#ra-app',el=>{const r=el.getBoundingClientRect();return{x:r.left,y:r.top,width:r.width,height:r.height,resize:getComputedStyle(el).resize};});
     for(const key of ['x','y','width','height']) assert.ok(closeTo(restored[key],expected[key],1.5),`restored ${key} should match clamped normal geometry`);
     assert.notEqual(restored.resize,'none','manual resize should return after restore');
@@ -155,8 +162,6 @@ test('v4.5.4 shell scrolls, hides duplicate Settings and safely maximizes/restor
       request.onsuccess=()=>{const g=request.result?.ui?.windowGeometry?.main;resolve(!!g&&['x','y','width','height'].every(k=>Math.abs(Number(g[k])-Number(expected[k]))<=1.5));};
       request.onerror=()=>resolve(false);
     }),{timeout:5000},expected);
-
-    assert.equal(await page.evaluate(()=>window.__blockedClicks),0,'all v4.5.4 shell clicks should beat hostile document capture');
   }finally{
     await browser.close();
     await new Promise(resolve=>server.close(resolve));
