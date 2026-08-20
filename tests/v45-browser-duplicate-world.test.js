@@ -30,7 +30,7 @@ test('DOM singleton prevents duplicate v4.5 mounts across isolated userscript wo
     await page.waitForFunction(()=>document.querySelectorAll('#ra-app').length===1,{timeout:10000});
 
     assert.equal(await page.evaluate(()=>document.querySelectorAll('#ra-app').length),1,'only one app shell may mount');
-    assert.equal(await page.evaluate(()=>document.documentElement.getAttribute('data-r4g3-ra-v45-owner')),'4.5.3');
+    assert.equal(await page.evaluate(()=>document.documentElement.getAttribute('data-r4g3-ra-v45-owner')),'4.5.4');
     for(const id of ['ra-styles','ra-panel','ra-results-panel','ra-config-modal','ra-dock-fallback','ra-launcher']) assert.equal(await page.$(`#${id}`),null,`legacy ${id} should be removed`);
     assert.equal(await page.evaluate(()=>document.querySelectorAll('.ra-dock-icon').length),0,'legacy dock icons should be removed');
     assert.deepEqual(await isolatedEval(client,a,`__errors`),[]);

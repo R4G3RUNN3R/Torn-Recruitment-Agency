@@ -2,9 +2,27 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
-const app=fs.readFileSync(path.join(__dirname,'..','src','v45-app.js'),'utf8');
+const root=path.join(__dirname,'..');
+const app=fs.readFileSync(path.join(root,'src','v45-app.js'),'utf8');
+const boot=fs.readFileSync(path.join(root,'R4G3RUNN3R-Recruitment-Agency.user.js'),'utf8');
 
 test('v4.5 shell is movable, resizable, routed and responsive',()=>{assert.match(app,/resize:both/);assert.match(app,/bindWindow/);assert.match(app,/saveGeometry/);assert.match(app,/restoreGeometry/);assert.match(app,/@media\(max-width:640px\)/);assert.match(app,/Runtime\.visiblePages/);});
+
+test('v4.5.4 shell layer owns scroll constraints, settings cleanup and maximize restore',()=>{
+  assert.match(boot,/#ra-app \.ra-shell\{min-height:0!important\}/);
+  assert.match(boot,/#ra-app \.ra-main\{min-height:0!important;overflow:hidden!important\}/);
+  assert.match(boot,/#ra-app \.ra-content\{min-height:0!important;overflow:auto!important/);
+  assert.match(boot,/scrollbar-color:var\(--ra-accent\) var\(--ra-panel2\)/);
+  assert.match(boot,/#ra-app\.ra-maximized\{/);
+  assert.match(boot,/function stripSidebarSettings\(\)/);
+  assert.match(boot,/#ra-nav \[data-page=\"settings\"\]/);
+  assert.match(boot,/id = 'ra-maximize'/);
+  assert.match(boot,/function maximizeApp\(appModule\)/);
+  assert.match(boot,/function restoreApp\(appModule\)/);
+  assert.match(boot,/function persistNormalGeometry\(appModule, geometry\)/);
+  assert.match(boot,/function installShellResizeGuard\(\)/);
+  assert.match(boot,/function installMaximizedDragGuard\(\)/);
+});
 
 test('Simple mode hides Logs through the runtime navigation contract',()=>{const R=require('../src/v45-runtime');assert.equal(R.visiblePages('simple').flatMap(g=>g.pages).some(p=>p.id==='logs'),false);assert.equal(R.visiblePages('advanced').flatMap(g=>g.pages).some(p=>p.id==='logs'),true);});
 

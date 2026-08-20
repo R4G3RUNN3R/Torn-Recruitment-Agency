@@ -1,6 +1,6 @@
 # Torn Recruitment Agency
 
-R4G3RUNN3R's Recruitment Agency **v4.5.0** is a modular Torn recruitment workspace combining official forum discovery, a local candidate CRM and six-stage pipeline, Scout intelligence, local-only Smart Match scoring, optional Global Intelligence, contextual help, and safe browser-local persistence.
+R4G3RUNN3R's Recruitment Agency **v4.5.4** is a modular Torn recruitment workspace combining official forum discovery, a local candidate CRM and six-stage pipeline, Scout intelligence, local-only Smart Match scoring, optional Global Intelligence, contextual help, and safe browser-local persistence.
 
 The Scout, Results, Global Intelligence, Smart Match, Forum Discovery, and v4.5 application modules are clean-room implementations. They do not call, authenticate against, or depend on `rs.dnonetwork.com` or another proprietary Recruit Scout grading backend.
 
@@ -33,11 +33,13 @@ v4.5 replaces the older multi-window recruitment workflow with one managed, mova
 
 ### Application
 
-- **Settings** as a real routed page
+- **Settings** as a real routed page opened from the title bar without a duplicate sidebar entry
 - **Data** for local store counts and CSV export
 - **Logs** for sanitized local diagnostics in Advanced mode
 - Simple/Advanced interface modes
-- Responsive layout, saved geometry, collapsible sidebar, Torn Information launcher, and floating fallback launcher
+- Responsive layout, saved normal-window geometry, collapsible sidebar, Torn Information launcher, and floating fallback launcher
+- Routed content scrolls inside the managed window with a visible scrollbar while the title bar, page header, and sidebar remain in place
+- **Maximize / Restore** fills the browser viewport without using browser fullscreen and restores the previous normal window geometry
 - Centralized contextual help anchored to the relevant panel or section
 - Dark theme with off-white text and restrained green accents, plus a light theme with black/dark text
 - Proper **NUKE IT ALL!** Danger Zone reset scoped only to Recruitment Agency browser-local data
@@ -240,7 +242,7 @@ Simple mode keeps the normal recruitment workflow visible while hiding technical
 
 Install [`R4G3RUNN3R-Recruitment-Agency.user.js`](R4G3RUNN3R-Recruitment-Agency.user.js) in Tampermonkey or another compatible userscript manager.
 
-The public userscript metadata is version **4.5.0** and loads the v4.5 modules from this repository's `main` branch.
+The public userscript metadata is version **4.5.4**. Its application modules are loaded from the repository through immutable commit-pinned `@require` URLs rather than mutable branch URLs.
 
 A Torn API key is stored only in the browser database used by Recruitment Agency. Torn API requests are made directly from the browser through the application scheduler.
 
@@ -253,10 +255,11 @@ npm test
 npm run syntax
 ```
 
-The v4.5 release regression suite covers the exact pipeline stages, DB12 migration contract, Global Intelligence whitelist, API pacing, shared scheduler, safe forum checkpoint ordering, local/private-field boundaries, manual message sending, routed Settings, candidate workspace/pipeline behavior, responsive shell, contextual help, and syntax of the public userscript and application modules.
+The v4.5 release regression suite covers the exact pipeline stages, DB12 migration contract, Global Intelligence whitelist, API pacing, shared scheduler, safe forum checkpoint ordering, local/private-field boundaries, manual message sending, routed Settings, candidate workspace/pipeline behavior, responsive shell, internal scrolling, Maximize/Restore geometry preservation, hostile host click capture, contextual help, and syntax of the public userscript and application modules.
 
 ## Version history
 
+- **v4.5.4** - internal routed-content scrolling, duplicate Settings navigation cleanup, viewport Maximize/Restore with normal-geometry preservation
 - **v4.5.0** - routed recruitment application, Forum Discovery pipeline, unified candidate CRM, six-stage Pipeline, messaging workflow, DB12, Scout/Smart Match/Global pages, Settings/Data/Logs, privacy and release hardening
 - **v4.4** - Smart Match and Settings/contextual-help improvements
 - **v4.3** - optional Global Intelligence shared-history layer
