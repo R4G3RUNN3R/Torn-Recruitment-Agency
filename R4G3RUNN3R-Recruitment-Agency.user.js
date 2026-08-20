@@ -289,10 +289,18 @@
     }
 
     shellUiState.restoreGeometry = geometry;
-    await persistNormalGeometry(appModule, geometry);
     shellUiState.maximized = true;
     appNode.classList.add('ra-maximized');
     syncMaximizeButton();
+    try {
+      await persistNormalGeometry(appModule, geometry);
+    } catch (error) {
+      shellUiState.maximized = false;
+      appNode.classList.remove('ra-maximized');
+      shellUiState.restoreGeometry = null;
+      syncMaximizeButton();
+      throw error;
+    }
   }
 
   async function restoreApp(appModule) {
