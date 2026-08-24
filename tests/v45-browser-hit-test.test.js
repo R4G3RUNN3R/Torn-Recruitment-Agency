@@ -104,6 +104,9 @@ test('real Chrome hit-testing and physical clicks can navigate the v4.5 UI', { t
     await physicalClick(page, launcher);
     assert.equal(await page.$eval('#ra-app', el => getComputedStyle(el).display), 'block');
 
+    await physicalClick(page, '[data-nav-toggle="intelligence"]');
+    await page.waitForFunction(() => document.querySelector('[data-nav-toggle="intelligence"]')?.getAttribute('aria-expanded') === 'true');
+
     const routes = [
       ['discover', 'Discover'],
       ['candidates', 'Candidates'],
