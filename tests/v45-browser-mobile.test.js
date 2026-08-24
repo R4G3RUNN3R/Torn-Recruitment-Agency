@@ -70,18 +70,18 @@ test('421px mobile shell keeps hamburger sidebar open and routes Discover by phy
     await physicalClick(page,launcher);
     assert.equal(await page.$eval('#ra-app',e=>getComputedStyle(e).display),'block');
 
-    const before=await page.$eval('[data-page="discover"]',e=>{const r=e.getBoundingClientRect();return{x:r.x,right:r.right,width:r.width}});
+    const before=await page.$eval('[data-page="company-discover"]',e=>{const r=e.getBoundingClientRect();return{x:r.x,right:r.right,width:r.width}});
     assert.ok(before.right<=60,`mobile nav should begin off-canvas before hamburger: ${JSON.stringify(before)}`);
 
     await physicalClick(page,'#ra-mobile-menu');
     await new Promise(resolve=>setTimeout(resolve,350));
     assert.equal(await page.$eval('.ra-shell',e=>e.classList.contains('sidebar-open')),true,'hamburger sidebar class must persist after transition');
 
-    const after=await page.$eval('[data-page="discover"]',e=>{const r=e.getBoundingClientRect();const x=r.left+r.width/2,y=r.top+r.height/2,hit=document.elementFromPoint(x,y);return{x:r.x,right:r.right,width:r.width,hit:hit&&(hit.id||hit.className||hit.tagName),clickable:hit===e||!!(hit&&e.contains(hit))}});
+    const after=await page.$eval('[data-page="company-discover"]',e=>{const r=e.getBoundingClientRect();const x=r.left+r.width/2,y=r.top+r.height/2,hit=document.elementFromPoint(x,y);return{x:r.x,right:r.right,width:r.width,hit:hit&&(hit.id||hit.className||hit.tagName),clickable:hit===e||!!(hit&&e.contains(hit))}});
     assert.ok(after.x>=0,`Discover should be on-screen after hamburger: ${JSON.stringify(after)}`);
     assert.equal(after.clickable,true,`Discover must receive the physical click after hamburger: ${JSON.stringify(after)}`);
 
-    await physicalClick(page,'[data-page="discover"]');
+    await physicalClick(page,'[data-page="company-discover"]');
     await page.waitForFunction(()=>document.getElementById('ra-page-title')?.textContent==='Discover',{timeout:5000});
     assert.equal(await page.$eval('.ra-shell',e=>e.classList.contains('sidebar-open')),false,'routing should close the mobile sidebar only after navigation');
   }finally{

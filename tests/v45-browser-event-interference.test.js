@@ -70,7 +70,7 @@ test('primary navigation and in-page controls survive a hostile document-capture
     await physicalClick(page,launcher);
     assert.equal(await page.$eval('#ra-app',e=>getComputedStyle(e).display),'block');
 
-    await physicalClick(page,'[data-page="discover"]');
+    await physicalClick(page,'[data-page="company-discover"]');
     await page.waitForFunction(()=>document.getElementById('ra-page-title')?.textContent==='Discover',{timeout:5000});
     await page.waitForSelector('#ra-discover-menu',{visible:true});
     await page.waitForSelector('#ra-discover-more');
@@ -79,7 +79,7 @@ test('primary navigation and in-page controls survive a hostile document-capture
     await page.waitForFunction(()=>document.getElementById('ra-discover-more')?.hidden===false,{timeout:5000});
     assert.equal(await page.$eval('#ra-page-title',e=>e.textContent),'Discover','in-page Discover control must not change route');
 
-    await physicalClick(page,'[data-page="candidates"]');
+    await physicalClick(page,'[data-page="company-candidates"]');
     await page.waitForFunction(()=>document.getElementById('ra-page-title')?.textContent==='Candidates',{timeout:5000});
     await page.waitForSelector('#ra-more-filters',{visible:true});
     await page.waitForSelector('#ra-more-filter-box');
