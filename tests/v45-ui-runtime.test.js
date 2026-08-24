@@ -74,9 +74,9 @@ test('v4.5 application mounts and primary navigation responds to real clicks', a
     if (expectedControl) assert.ok(document.getElementById(expectedControl), `${expectedControl} should exist after routing to ${page}`);
   }
 
-  await openPage('discover', 'Discover', 'ra-sync');
-  await openPage('candidates', 'Candidates', 'ra-toggle-view');
-  await openPage('pipeline', 'Pipeline', 'ra-mobile-stage-select');
+  await openPage('company-discover', 'Company Discover', 'ra-sync');
+  await openPage('company-candidates', 'Company Candidates', 'ra-toggle-view');
+  await openPage('company-pipeline', 'Company Pipeline', 'ra-mobile-stage-select');
 
   const intelligenceToggle = document.querySelector('[data-nav-toggle="intelligence"]');
   assert.ok(intelligenceToggle, 'Intelligence navigation group toggle should exist');

@@ -71,27 +71,27 @@ test('primary navigation and in-page controls survive a hostile document-capture
     assert.equal(await page.$eval('#ra-app',e=>getComputedStyle(e).display),'block');
 
     await physicalClick(page,'[data-page="company-discover"]');
-    await page.waitForFunction(()=>document.getElementById('ra-page-title')?.textContent==='Discover',{timeout:5000});
+    await page.waitForFunction(()=>document.getElementById('ra-page-title')?.textContent==='Company Discover',{timeout:5000});
     await page.waitForSelector('#ra-discover-menu',{visible:true});
     await page.waitForSelector('#ra-discover-more');
     assert.equal(await page.$eval('#ra-discover-more',e=>e.hidden),true,'Discover More starts closed');
     await physicalClick(page,'#ra-discover-menu');
     await page.waitForFunction(()=>document.getElementById('ra-discover-more')?.hidden===false,{timeout:5000});
-    assert.equal(await page.$eval('#ra-page-title',e=>e.textContent),'Discover','in-page Discover control must not change route');
+    assert.equal(await page.$eval('#ra-page-title',e=>e.textContent),'Company Discover','in-page Discover control must not change route');
 
     await physicalClick(page,'[data-page="company-candidates"]');
-    await page.waitForFunction(()=>document.getElementById('ra-page-title')?.textContent==='Candidates',{timeout:5000});
+    await page.waitForFunction(()=>document.getElementById('ra-page-title')?.textContent==='Company Candidates',{timeout:5000});
     await page.waitForSelector('#ra-more-filters',{visible:true});
     await page.waitForSelector('#ra-more-filter-box');
     assert.equal(await page.$eval('#ra-more-filter-box',e=>e.hidden),true,'Candidate extra filters start closed');
     await physicalClick(page,'#ra-more-filters');
     await page.waitForFunction(()=>document.getElementById('ra-more-filter-box')?.hidden===false,{timeout:5000});
-    assert.equal(await page.$eval('#ra-page-title',e=>e.textContent),'Candidates','in-page Candidate control must not change route');
+    assert.equal(await page.$eval('#ra-page-title',e=>e.textContent),'Company Candidates','in-page Candidate control must not change route');
 
     await physicalClick(page,'[data-nav-toggle="intelligence"]');
     await page.waitForFunction(()=>document.querySelector('[data-nav-toggle="intelligence"]')?.getAttribute('aria-expanded')==='true',{timeout:5000});
 
-    for(const [route,title] of [['pipeline','Pipeline'],['scout','Scout'],['smart-match','Smart Match'],['global-intelligence','Global Intelligence']]){
+    for(const [route,title] of [['company-pipeline','Company Pipeline'],['scout','Scout'],['smart-match','Smart Match'],['global-intelligence','Global Intelligence']]){
       await physicalClick(page,`[data-page="${route}"]`);
       await page.waitForFunction(t=>document.getElementById('ra-page-title')?.textContent===t,{timeout:5000},title);
     }

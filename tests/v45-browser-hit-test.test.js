@@ -108,9 +108,9 @@ test('real Chrome hit-testing and physical clicks can navigate the v4.5 UI', { t
     await page.waitForFunction(() => document.querySelector('[data-nav-toggle="intelligence"]')?.getAttribute('aria-expanded') === 'true');
 
     const routes = [
-      ['discover', 'Discover'],
-      ['candidates', 'Candidates'],
-      ['pipeline', 'Pipeline'],
+      ['company-discover', 'Company Discover'],
+      ['company-candidates', 'Company Candidates'],
+      ['company-pipeline', 'Company Pipeline'],
       ['scout', 'Scout'],
       ['smart-match', 'Smart Match'],
       ['global-intelligence', 'Global Intelligence']
