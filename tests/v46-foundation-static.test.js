@@ -5,7 +5,7 @@ const path=require('node:path');
 const root=path.join(__dirname,'..');
 const app=fs.readFileSync(path.join(root,'src','v45-app.js'),'utf8');
 
-test('source foundation wires v4.6 dependencies and additive DB13',()=>{
+test('source foundation wires v4.6 dependencies and additive DB14',()=>{
   assert.match(app,/V46Domain:\s*root\s*&&\s*root\.RA_V46DomainCore/);
   assert.match(app,/V46Storage:\s*root\s*&&\s*root\.RA_V46StorageCore/);
   assert.match(app,/V46Navigation:\s*root\s*&&\s*root\.RA_V46Navigation/);
@@ -22,7 +22,7 @@ test('source foundation preserves API pacing and public app version contract',()
 });
 
 test('new stores are owned by scoped reset and startup backfill runs before match setup',()=>{
-  for(const store of ['playerIntelligence','companyRecruitment','factionRecruitment']) assert.ok(app.includes(`'${store}'`),store);
+  for(const store of ['playerIntelligence','companyRecruitment','factionRecruitment','companyBaselines','companyVacancies']) assert.ok(app.includes(`'${store}'`),store);
   const startIndex=app.indexOf('async function start(options={})');
   const returnIndex=app.indexOf('return Object.freeze',startIndex);
   assert.ok(startIndex>=0&&returnIndex>startIndex,'start function should be present');
