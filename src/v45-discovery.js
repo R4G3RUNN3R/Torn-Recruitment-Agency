@@ -91,7 +91,7 @@
       merged.name = text(existing?.name || source.authorName || merged.name);
       merged.latestForumSourceId = source.sourceId;
       merged.updatedAt = new Date(options.observedAt || Date.now()).toISOString();
-      await persistCandidate(merged);
+      await persistCandidate(merged, source);
       if (existing) counters.candidatesUpdated += 1;
       else counters.candidatesCreated += 1;
       if (source.parsed?.wantsTrains) counters.explicitTrainBuyers += 1;
