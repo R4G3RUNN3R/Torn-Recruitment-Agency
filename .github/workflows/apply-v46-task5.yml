@@ -1,0 +1,37 @@
+name: apply v4.6 foundation task5
+
+on:
+  push:
+    branches: [feature/v4.6-foundation]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: contains(github.event.head_commit.message, '[apply-v46-task5]')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/v4.6-foundation
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Validate and apply guarded patch
+        run: |
+          node --check scripts/apply-v46-navigation-task5.js
+          node scripts/apply-v46-navigation-task5.js
+          git diff --check
+      - name: Commit navigation integration
+        run: |
+          if git diff --quiet; then
+            echo "Guarded patch produced no changes" >&2
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/v45-app.js
+          git commit -m "feat: integrate collapsible recruitment navigation"
+          git push origin HEAD:feature/v4.6-foundation
