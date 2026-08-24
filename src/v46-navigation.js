@@ -5,13 +5,27 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
 
+  const COMPANY_PAGES = Object.freeze([
+    Object.freeze({id:'company-overview',label:'Overview'}),
+    Object.freeze({id:'company-today',label:'Today'}),
+    Object.freeze({id:'company-discover',label:'Discover'}),
+    Object.freeze({id:'company-candidates',label:'Candidates'}),
+    Object.freeze({id:'company-pipeline',label:'Pipeline'}),
+    Object.freeze({id:'company-vacancies',label:'Vacancies'}),
+    Object.freeze({id:'company-campaigns',label:'Campaigns'}),
+    Object.freeze({id:'company-followups',label:'Follow-ups'}),
+    Object.freeze({id:'company-timeline',label:'Timeline'}),
+    Object.freeze({id:'company-stage-aging',label:'Stage Aging'}),
+    Object.freeze({id:'company-contact-outcomes',label:'Contact Outcomes'}),
+    Object.freeze({id:'company-recruitment-sessions',label:'Recruitment Sessions'}),
+    Object.freeze({id:'company-talent-pool',label:'Talent Pool'}),
+    Object.freeze({id:'company-reactivation',label:'Reactivation'}),
+    Object.freeze({id:'company-opportunity',label:'Opportunity Queue'}),
+    Object.freeze({id:'company-compare',label:'Compare'})
+  ]);
+
   const GROUPS = Object.freeze([
-    Object.freeze({id:'recruitment',label:'RECRUITMENT',pages:Object.freeze([
-      Object.freeze({id:'overview',label:'Overview'}),
-      Object.freeze({id:'discover',label:'Discover'}),
-      Object.freeze({id:'candidates',label:'Candidates'}),
-      Object.freeze({id:'pipeline',label:'Pipeline'})
-    ])}),
+    Object.freeze({id:'company-recruitment',label:'COMPANY RECRUITMENT',pages:COMPANY_PAGES}),
     Object.freeze({id:'intelligence',label:'INTELLIGENCE',pages:Object.freeze([
       Object.freeze({id:'scout',label:'Scout'}),
       Object.freeze({id:'smart-match',label:'Smart Match'}),
@@ -23,6 +37,12 @@
     ])})
   ]);
 
+  const LEGACY_ROUTE_ALIASES = Object.freeze({
+    overview:'company-overview',
+    discover:'company-discover',
+    candidates:'company-candidates',
+    pipeline:'company-pipeline'
+  });
   const GROUP_IDS = Object.freeze(GROUPS.map(group => group.id));
   const ROUTES = Object.freeze([...GROUPS.flatMap(group => group.pages.map(page => page.id)),'settings']);
 
@@ -31,9 +51,10 @@
   }
 
   function normalizeRoute(value, complexity = 'simple') {
-    const requested = String(value || '').trim().toLowerCase();
-    if (!ROUTES.includes(requested)) return 'overview';
-    if (requested === 'logs' && complexityValue(complexity) !== 'advanced') return 'overview';
+    const raw = String(value || '').trim().toLowerCase();
+    const requested = LEGACY_ROUTE_ALIASES[raw] || raw;
+    if (!ROUTES.includes(requested)) return 'company-overview';
+    if (requested === 'logs' && complexityValue(complexity) !== 'advanced') return 'company-overview';
     return requested;
   }
 
@@ -49,14 +70,15 @@
   }
 
   function normalizeExpandedGroups(value) {
-    if (value === undefined) return ['recruitment'];
-    if (!Array.isArray(value)) return ['recruitment'];
-    const requested = new Set(value.map(item => String(item || '').trim().toLowerCase()));
+    if (value === undefined) return ['company-recruitment'];
+    if (!Array.isArray(value)) return ['company-recruitment'];
+    const requested = new Set(value.map(item => String(item || '').trim().toLowerCase()).map(id => id === 'recruitment' ? 'company-recruitment' : id));
     return GROUP_IDS.filter(id => requested.has(id));
   }
 
   function toggleExpandedGroup(current, groupId) {
-    const id = String(groupId || '').trim().toLowerCase();
+    let id = String(groupId || '').trim().toLowerCase();
+    if (id === 'recruitment') id = 'company-recruitment';
     const normalized = normalizeExpandedGroups(Array.isArray(current) ? current : undefined);
     if (!GROUP_IDS.includes(id)) return normalized;
     const open = new Set(normalized);
@@ -65,5 +87,5 @@
     return GROUP_IDS.filter(group => open.has(group));
   }
 
-  return Object.freeze({GROUPS,GROUP_IDS,ROUTES,normalizeRoute,visibleGroups,normalizeExpandedGroups,toggleExpandedGroup});
+  return Object.freeze({COMPANY_PAGES,GROUPS,GROUP_IDS,ROUTES,LEGACY_ROUTE_ALIASES,normalizeRoute,visibleGroups,normalizeExpandedGroups,toggleExpandedGroup});
 });
