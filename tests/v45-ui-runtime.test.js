@@ -69,7 +69,7 @@ test('v4.5 application mounts and primary navigation responds to real clicks', a
     const button = document.querySelector(`[data-page="${page}"]`);
     assert.ok(button, `navigation button for ${page} should exist`);
     button.click();
-    await tick();
+    await waitFor(() => document.getElementById('ra-page-title')?.textContent === expectedTitle);
     assert.equal(document.getElementById('ra-page-title').textContent, expectedTitle);
     if (expectedControl) assert.ok(document.getElementById(expectedControl), `${expectedControl} should exist after routing to ${page}`);
   }
@@ -89,7 +89,7 @@ test('v4.5 application mounts and primary navigation responds to real clicks', a
   await openPage('global-intelligence', 'Global Intelligence', 'ra-global-test');
 
   document.getElementById('ra-settings-button').click();
-  await tick();
+  await waitFor(() => document.getElementById('ra-page-title')?.textContent === 'Settings');
   assert.equal(document.getElementById('ra-page-title').textContent, 'Settings');
   assert.ok(document.getElementById('ra-save-settings'), 'Settings controls should be live after clicking the titlebar Settings button');
 
