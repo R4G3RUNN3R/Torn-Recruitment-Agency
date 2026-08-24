@@ -6,9 +6,9 @@ const root=path.join(__dirname,'..');
 const app=fs.readFileSync(path.join(root,'src','v45-app.js'),'utf8');
 
 test('source foundation wires v4.6 dependencies and additive DB13',()=>{
-  assert.match(app,/V46Domain:root&&root\.RA_V46DomainCore/);
-  assert.match(app,/V46Storage:root&&root\.RA_V46StorageCore/);
-  assert.match(app,/V46Navigation:root&&root\.RA_V46Navigation/);
+  assert.match(app,/V46Domain:\s*root\s*&&\s*root\.RA_V46DomainCore/);
+  assert.match(app,/V46Storage:\s*root\s*&&\s*root\.RA_V46StorageCore/);
+  assert.match(app,/V46Navigation:\s*root\s*&&\s*root\.RA_V46Navigation/);
   assert.match(app,/DB_VERSION\s*=\s*V46Storage\.DB_VERSION/);
   assert.match(app,/V46Storage\.applyUpgrade\(db\)/);
   assert.match(app,/V46Storage\.createRepositories\(idb\)/);
@@ -23,9 +23,13 @@ test('source foundation preserves API pacing and public app version contract',()
 
 test('new stores are owned by scoped reset and startup backfill runs before match setup',()=>{
   for(const store of ['playerIntelligence','companyRecruitment','factionRecruitment']) assert.ok(app.includes(`'${store}'`),store);
-  const migrate=app.indexOf('await migrateLegacyUsers()');
-  const backfill=app.indexOf('await repositories.backfillLegacy(Date.now())');
-  const match=app.indexOf('await ensureDefaultMatchProfile()');
+  const startIndex=app.indexOf('async function start(options={})');
+  const returnIndex=app.indexOf('return Object.freeze',startIndex);
+  assert.ok(startIndex>=0&&returnIndex>startIndex,'start function should be present');
+  const startBlock=app.slice(startIndex,returnIndex);
+  const migrate=startBlock.indexOf('await migrateLegacyUsers()');
+  const backfill=startBlock.indexOf('await repositories.backfillLegacy(Date.now())');
+  const match=startBlock.indexOf('await ensureDefaultMatchProfile()');
   assert.ok(migrate>=0&&backfill>migrate&&match>backfill,'startup migration/backfill/match order');
 });
 
