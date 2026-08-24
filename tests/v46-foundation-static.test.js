@@ -5,12 +5,15 @@ const path=require('node:path');
 const root=path.join(__dirname,'..');
 const app=fs.readFileSync(path.join(root,'src','v45-app.js'),'utf8');
 
-test('source foundation wires v4.6 dependencies and additive DB13',()=>{
+test('source foundation remains wired beneath additive DB14 Company storage',()=>{
   assert.match(app,/V46Domain:\s*root\s*&&\s*root\.RA_V46DomainCore/);
   assert.match(app,/V46Storage:\s*root\s*&&\s*root\.RA_V46StorageCore/);
   assert.match(app,/V46Navigation:\s*root\s*&&\s*root\.RA_V46Navigation/);
-  assert.match(app,/DB_VERSION\s*=\s*V46Storage\.DB_VERSION/);
-  assert.match(app,/V46Storage\.applyUpgrade\(db\)/);
+  assert.match(app,/V46CompanyStorage:\s*root\s*&&\s*root\.RA_V46CompanyStorage/);
+  assert.match(app,/DB_VERSION\s*=\s*V46CompanyStorage\.DB_VERSION/);
+  const foundationUpgrade=app.indexOf('V46Storage.applyUpgrade(db)');
+  const companyUpgrade=app.indexOf('V46CompanyStorage.applyUpgrade(db)');
+  assert.ok(foundationUpgrade>=0&&companyUpgrade>foundationUpgrade,'DB13 foundation must upgrade before DB14 Company stores');
   assert.match(app,/V46Storage\.createRepositories\(idb\)/);
   assert.doesNotMatch(app,/deleteObjectStore\s*\(/);
 });
