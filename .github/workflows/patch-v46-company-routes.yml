@@ -1,0 +1,83 @@
+name: patch-v46-company-routes
+on:
+  push:
+    branches: [feature/v4.6-company-recruitment]
+    paths: ['.github/workflows/patch-v46-company-routes.yml']
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/v4.6-company-recruitment
+      - name: Apply guarded Company route migration
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def replace(path, old, new, count=1):
+              p=Path(path)
+              text=p.read_text()
+              actual=text.count(old)
+              if actual != count:
+                  raise SystemExit(f'{path}: expected {count} occurrence(s), found {actual}: {old[:100]!r}')
+              p.write_text(text.replace(old,new))
+
+          app='src/v45-app.js'
+          replace(app,"launcherEnabled:true, includeInactive:false, activePage:'overview', navigation:{expandedGroups:['recruitment']}, apiKey:'', ownCompanyName:'',","launcherEnabled:true, includeInactive:false, activePage:'company-overview', navigation:{expandedGroups:['company-recruitment']}, apiKey:'', ownCompanyName:'',")
+          replace(app,"db:null, settings:null, page:'overview', mounted:false, topZ:2147483400,","db:null, settings:null, page:'company-overview', mounted:false, topZ:2147483400,")
+          replace(app,"function pageMeta(page){return({overview:['Overview','Recruitment status and work needing attention.'],discover:['Discover','Sync official Torn forum recruitment sources and enrich candidates.'],candidates:['Candidates','Search, filter and manage the unified local candidate workspace.'],pipeline:['Pipeline','Move candidates through the exact six approved stages.'],scout:['Scout','Collect official Torn player intelligence through the shared scheduler.'],'smart-match':['Smart Match','Build local vacancy profiles and explain candidate Match scores.'],'global-intelligence':['Global Intelligence','Review the sanitized shared intelligence service.'],settings:['Settings','Application, recruitment, Scout, candidate and privacy configuration.'],data:['Data','Local IndexedDB counts, export and reset controls.'],logs:['Logs','Sanitized Recruitment Agency diagnostic events.']})[page]||['Overview','Recruitment Agency'];}","function pageMeta(page){return({'company-overview':['Company Overview','Company recruitment status and work needing attention.'],'company-today':['Company Today','Prioritized Company recruitment work for today.'],'company-discover':['Company Discover','Sync Company recruitment sources and enrich Company candidates.'],'company-candidates':['Company Candidates','Search, filter and manage Company recruitment candidates.'],'company-pipeline':['Company Pipeline','Move Company candidates through explicit recruitment stages.'],'company-vacancies':['Company Vacancies','Define and manage Company hiring needs.'],'company-campaigns':['Company Campaigns','Organize Company recruitment campaigns.'],'company-followups':['Company Follow-ups','Track Company candidate follow-ups.'],'company-timeline':['Company Timeline','Review Company recruitment history.'],'company-stage-aging':['Company Stage Aging','Review candidates aging in their current Company stage.'],'company-contact-outcomes':['Company Contact Outcomes','Track Company recruitment contact outcomes.'],'company-recruitment-sessions':['Company Recruitment Sessions','Work focused Company recruitment queues.'],'company-talent-pool':['Company Talent Pool','Maintain reusable Company talent prospects.'],'company-reactivation':['Company Reactivation','Restart Company recruitment cycles without duplicating identity.'],'company-opportunity':['Company Opportunity Queue','Review explainable Company recruitment opportunities.'],'company-compare':['Company Compare','Compare Company candidates side by side.'],scout:['Scout','Collect official Torn player intelligence through the shared scheduler.'],'smart-match':['Smart Match','Build local vacancy profiles and explain candidate Match scores.'],'global-intelligence':['Global Intelligence','Review the sanitized shared intelligence service.'],settings:['Settings','Application, recruitment, Scout, candidate and privacy configuration.'],data:['Data','Local IndexedDB counts, export and reset controls.'],logs:['Logs','Sanitized Recruitment Agency diagnostic events.']})[page]||['Company Overview','Recruitment Agency'];}")
+          replace(app,"const renderers={overview:renderOverview,discover:renderDiscover,candidates:renderCandidates,pipeline:renderPipeline,scout:renderScout,'smart-match':renderSmartMatch,'global-intelligence':renderGlobal,settings:renderSettings,data:renderData,logs:renderLogs};","const renderCompanyPlaceholder=async()=>panel(pageMeta(state.page)[0],'Company recruitment route shell',`<div class=\"ra-muted\">This dedicated Company workspace is wired and will be populated by the next Company implementation task.</div>`);\n  const renderers={'company-overview':renderOverview,'company-discover':renderDiscover,'company-candidates':renderCandidates,'company-pipeline':renderPipeline,'company-today':renderCompanyPlaceholder,'company-vacancies':renderCompanyPlaceholder,'company-campaigns':renderCompanyPlaceholder,'company-followups':renderCompanyPlaceholder,'company-timeline':renderCompanyPlaceholder,'company-stage-aging':renderCompanyPlaceholder,'company-contact-outcomes':renderCompanyPlaceholder,'company-recruitment-sessions':renderCompanyPlaceholder,'company-talent-pool':renderCompanyPlaceholder,'company-reactivation':renderCompanyPlaceholder,'company-opportunity':renderCompanyPlaceholder,'company-compare':renderCompanyPlaceholder,scout:renderScout,'smart-match':renderSmartMatch,'global-intelligence':renderGlobal,settings:renderSettings,data:renderData,logs:renderLogs};")
+
+          replacements={
+            "if(state.page==='scout'||state.page==='candidates'||state.page==='pipeline')await route(state.page,false);":"if(state.page==='scout'||state.page==='company-candidates'||state.page==='company-pipeline')await route(state.page,false);",
+            "if(state.page==='discover'||state.page==='candidates'||state.page==='overview')await route(state.page,false);":"if(state.page==='company-discover'||state.page==='company-candidates'||state.page==='company-overview')await route(state.page,false);",
+            "if(state.page==='discover'||state.page==='candidates')await route(state.page,false);":"if(state.page==='company-discover'||state.page==='company-candidates')await route(state.page,false);",
+            "await route('discover',false);":"await route('company-discover',false);",
+            "()=>route('discover',false)":"()=>route('company-discover',false)",
+            "await route('candidates',false);":"await route('company-candidates',false);",
+            "await route('pipeline',false);":"await route('company-pipeline',false);",
+            "state.page='overview';":"state.page='company-overview';",
+            "await route('overview',false);":"await route('company-overview',false);"
+          }
+          text=Path(app).read_text()
+          for old,new in replacements.items():
+              if old not in text:
+                  raise SystemExit(f'{app}: missing guarded token {old!r}')
+              text=text.replace(old,new)
+          Path(app).write_text(text)
+
+          browser_files=[
+            'tests/v45-browser-event-interference.test.js',
+            'tests/v45-browser-hit-test.test.js',
+            'tests/v45-browser-isolated-world.test.js',
+            'tests/v45-browser-mobile.test.js',
+            'tests/v45-browser-torn-host.test.js',
+            'tests/v45-browser-upgrade.test.js',
+            'tests/v45-ui-runtime.test.js',
+            'tests/v46-browser-navigation.test.js'
+          ]
+          route_map={'discover':'company-discover','candidates':'company-candidates','pipeline':'company-pipeline','overview':'company-overview'}
+          for filename in browser_files:
+              p=Path(filename)
+              text=p.read_text()
+              for old,new in route_map.items():
+                  text=text.replace(f'data-page=\"{old}\"',f'data-page=\"{new}\"')
+                  text=text.replace(f"data-page='{old}'",f"data-page='{new}'")
+                  text=text.replace(f"data-page=\\\"{old}\\\"",f"data-page=\\\"{new}\\\"")
+                  text=text.replace(f"data-page=\\'{old}\\'",f"data-page=\\'{new}\\'")
+                  text=text.replace(f"route('{old}'",f"route('{new}'")
+              text=text.replace('data-nav-group=\"recruitment\"','data-nav-group=\"company-recruitment\"')
+              text=text.replace('data-nav-toggle=\"recruitment\"','data-nav-toggle=\"company-recruitment\"')
+              text=text.replace("['recruitment']","['company-recruitment']")
+              p.write_text(text)
+      - name: Commit guarded migration
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add src/v45-app.js tests
+          git diff --cached --check
+          git commit -m "feat: wire dedicated Company routes through app shell"
+          git push
