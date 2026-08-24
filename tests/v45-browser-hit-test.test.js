@@ -9,7 +9,7 @@ const puppeteer = require('puppeteer-core');
 const ROOT = path.join(__dirname, '..');
 const MODULES = [
   'scout-core.js', 'results-core.js', 'global-core.js', 'match-core.js', 'forum-core.js',
-  'v45-runtime.js', 'v45-candidates.js', 'v45-discovery.js', 'v45-messaging.js','v46-domain-core.js','v46-storage-core.js','v46-navigation.js','v45-app.js'
+  'v45-runtime.js', 'v45-candidates.js', 'v45-discovery.js', 'v45-messaging.js','v46-domain-core.js','v46-storage-core.js','v46-navigation.js','v46-company-core.js','v45-app.js'
 ];
 
 function chromePath() {
@@ -76,7 +76,7 @@ async function physicalClick(page, selector) {
   await page.mouse.click(info.x, info.y);
 }
 
-test('real Chrome hit-testing and physical clicks can navigate the v4.5 UI', { timeout: 60000 }, async () => {
+test('real Chrome hit-testing and physical clicks can navigate the Company Core UI', { timeout: 60000 }, async () => {
   const server = await serve();
   const port = server.address().port;
   const browser = await puppeteer.launch({
@@ -108,9 +108,9 @@ test('real Chrome hit-testing and physical clicks can navigate the v4.5 UI', { t
     await page.waitForFunction(() => document.querySelector('[data-nav-toggle="intelligence"]')?.getAttribute('aria-expanded') === 'true');
 
     const routes = [
-      ['discover', 'Discover'],
-      ['candidates', 'Candidates'],
-      ['pipeline', 'Pipeline'],
+      ['company-discover', 'Company Discover'],
+      ['company-candidates', 'Company Candidates'],
+      ['company-pipeline', 'Company Pipeline'],
       ['scout', 'Scout'],
       ['smart-match', 'Smart Match'],
       ['global-intelligence', 'Global Intelligence']

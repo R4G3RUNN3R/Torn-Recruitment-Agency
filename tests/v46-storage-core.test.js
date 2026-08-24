@@ -45,9 +45,9 @@ async function seedLegacy(db) {
   await new Promise((resolve,reject)=>{tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});
 }
 
-test('DB13 declares only additive foundation stores and indexable keys',()=>{
-  assert.equal(S.DB_VERSION,13);
-  assert.deepEqual(Object.keys(S.STORE_DEFINITIONS),['playerIntelligence','companyRecruitment','factionRecruitment']);
+test('DB14 retains additive foundation stores and adds Company configuration stores',()=>{
+  assert.equal(S.DB_VERSION,14);
+  assert.deepEqual(Object.keys(S.STORE_DEFINITIONS),['playerIntelligence','companyRecruitment','factionRecruitment','companyBaselines','companyVacancies']);
   assert.deepEqual(S.STORE_DEFINITIONS.playerIntelligence.indexes.map(x=>x.name),['nameLower','updatedAt']);
   assert.deepEqual(S.STORE_DEFINITIONS.companyRecruitment.indexes.map(x=>x.name),['pipelineStage','updatedAt']);
   assert.deepEqual(S.STORE_DEFINITIONS.factionRecruitment.indexes.map(x=>x.name),['pipelineStage','updatedAt']);
@@ -55,7 +55,7 @@ test('DB13 declares only additive foundation stores and indexable keys',()=>{
 
 test('domain repositories never copy recruitment-private patch fields into playerIntelligence',async()=>{
   const name=`ra-storage-privacy-${Date.now()}-${Math.random()}`;
-  const db=await openDb(name,13,db=>{createLegacyStores(db);S.applyUpgrade(db);});
+  const db=await openDb(name,14,db=>{createLegacyStores(db);S.applyUpgrade(db);});
   const idb=adapter(db);
   const repos=S.createRepositories(idb);
   await repos.company.ensure('111',{pipelineStage:'Replied',recruiterNote:'PRIVATE',expectedSalary:5000000},{
@@ -77,7 +77,7 @@ test('DB12 backfill separates provenance, preserves ambiguity and is idempotent'
   let db=await openDb(name,12,db=>createLegacyStores(db));
   await seedLegacy(db);
   db.close();
-  db=await openDb(name,13,db=>S.applyUpgrade(db));
+  db=await openDb(name,14,db=>S.applyUpgrade(db));
   const idb=adapter(db);
   const repos=S.createRepositories(idb);
   const first=await repos.backfillLegacy(1773000000000);

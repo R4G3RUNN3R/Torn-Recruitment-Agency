@@ -8,7 +8,7 @@
   'use strict';
   if (!Domain) throw new Error('RA_V46DomainCore is required.');
 
-  const DB_VERSION = 13;
+  const DB_VERSION = 14;
   const BACKFILL_MARKER = 'v46-foundation-backfill-v1';
   const STORE_DEFINITIONS = Object.freeze({
     playerIntelligence:Object.freeze({keyPath:'userId',indexes:Object.freeze([
@@ -21,6 +21,14 @@
     ])}),
     factionRecruitment:Object.freeze({keyPath:'userId',indexes:Object.freeze([
       Object.freeze({name:'pipelineStage',keyPath:'pipelineStage'}),
+      Object.freeze({name:'updatedAt',keyPath:'updatedAt'})
+    ])}),
+    companyBaselines:Object.freeze({keyPath:'baselineId',indexes:Object.freeze([
+      Object.freeze({name:'updatedAt',keyPath:'updatedAt'})
+    ])}),
+    companyVacancies:Object.freeze({keyPath:'vacancyId',indexes:Object.freeze([
+      Object.freeze({name:'status',keyPath:'status'}),
+      Object.freeze({name:'roleLower',keyPath:'roleLower'}),
       Object.freeze({name:'updatedAt',keyPath:'updatedAt'})
     ])})
   });
