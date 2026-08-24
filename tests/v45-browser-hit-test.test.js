@@ -9,7 +9,7 @@ const puppeteer = require('puppeteer-core');
 const ROOT = path.join(__dirname, '..');
 const MODULES = [
   'scout-core.js', 'results-core.js', 'global-core.js', 'match-core.js', 'forum-core.js',
-  'v45-runtime.js', 'v45-candidates.js', 'v45-discovery.js', 'v45-messaging.js', 'v45-app.js'
+  'v45-runtime.js', 'v45-candidates.js', 'v45-discovery.js', 'v45-messaging.js','v46-domain-core.js','v46-storage-core.js','v46-navigation.js','v45-app.js'
 ];
 
 function chromePath() {
@@ -103,6 +103,9 @@ test('real Chrome hit-testing and physical clicks can navigate the v4.5 UI', { t
     assert.ok(launcher, 'a visible Recruitment Agency launcher should exist');
     await physicalClick(page, launcher);
     assert.equal(await page.$eval('#ra-app', el => getComputedStyle(el).display), 'block');
+
+    await physicalClick(page, '[data-nav-toggle="intelligence"]');
+    await page.waitForFunction(() => document.querySelector('[data-nav-toggle="intelligence"]')?.getAttribute('aria-expanded') === 'true');
 
     const routes = [
       ['discover', 'Discover'],

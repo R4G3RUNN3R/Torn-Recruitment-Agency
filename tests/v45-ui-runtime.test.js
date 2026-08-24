@@ -69,6 +69,13 @@ test('v4.5 application mounts and primary navigation responds to real clicks', a
   await openPage('discover', 'Discover', 'ra-sync');
   await openPage('candidates', 'Candidates', 'ra-toggle-view');
   await openPage('pipeline', 'Pipeline', 'ra-mobile-stage-select');
+
+  const intelligenceToggle = document.querySelector('[data-nav-toggle="intelligence"]');
+  assert.ok(intelligenceToggle, 'Intelligence navigation group toggle should exist');
+  intelligenceToggle.click();
+  await tick();
+  assert.equal(document.querySelector('[data-nav-toggle="intelligence"]').getAttribute('aria-expanded'), 'true');
+
   await openPage('scout', 'Scout', 'ra-run-scout');
   await openPage('smart-match', 'Smart Match', 'ra-match-save');
   await openPage('global-intelligence', 'Global Intelligence', 'ra-global-test');

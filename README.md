@@ -4,6 +4,19 @@ R4G3RUNN3R's Recruitment Agency **v4.5.4** is a modular Torn recruitment workspa
 
 The Scout, Results, Global Intelligence, Smart Match, Forum Discovery, and v4.5 application modules are clean-room implementations. They do not call, authenticate against, or depend on `rs.dnonetwork.com` or another proprietary Recruit Scout grading backend.
 
+## v4.6 development foundation
+
+The repository now contains an internal **v4.6 Foundation** behind the still-public v4.5.4 installer. This is infrastructure for the approved Company/Faction recruitment architecture, not a claim that the later v4.6 user-facing workflow tabs have shipped.
+
+- Source-level IndexedDB moves additively to **DB13** and adds `playerIntelligence`, `companyRecruitment`, and `factionRecruitment` without deleting the DB12 stores.
+- One Torn ID maps to one shared Player Intelligence identity while Company Recruitment and Faction Recruitment remain separate records and workflows.
+- Legacy recruitment data is classified from discovery provenance. Company-only and Faction-only records migrate to their own domains; ambiguous cross-domain workflow state is preserved for review rather than guessed.
+- New Faction discoveries write Faction recruitment state and shared player facts only. They no longer create Company recruitment records or legacy Company-candidate rows.
+- Scout and company observations update shared Player Intelligence through an explicit fact-field whitelist. Recruitment-private fields such as pipeline state, recruiter notes, salary, waivers, campaigns, and messaging state cannot enter that shared record through the generic merge path.
+- Sidebar groups can be independently expanded or collapsed, multiple groups may remain open, and expansion state is remembered locally. Settings remains accessible from the title bar rather than returning as a duplicate sidebar item.
+- Dedicated Company/Faction pages plus Vacancies, Requirements, Today, Follow-ups, Workforce, Analytics, and the other approved v4.6 workflow slices remain follow-on deliveries.
+- The public userscript remains **v4.5.4** with its existing immutable `@require` pins until a separate reviewed release explicitly advances the installer and module pins.
+
 ## What's new in v4.5
 
 v4.5 replaces the older multi-window recruitment workflow with one managed, movable, resizable application shell and routed workspace.

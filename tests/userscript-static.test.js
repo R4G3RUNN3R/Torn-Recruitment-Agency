@@ -74,7 +74,7 @@ test('maximize marks its guarded state before the first persistence await',()=>{
   assert.ok(classIndex<awaitIndex,'maximized class must be applied before yielding to persistence');
 });
 
-test('v4.5 app targets additive DB12 and shared scheduler',()=>{assert.match(app,/DB_VERSION\s*=\s*12/);assert.doesNotMatch(app,/deleteObjectStore\s*\(/);assert.match(app,/HARD_API_RATE\s*=\s*75/);assert.match(app,/MIN_API_GAP_MS\s*=\s*800/);assert.match(app,/Math\.max\(MIN_API_GAP_MS,60000\/clampRate/);});
+test('source app targets additive DB13 and shared scheduler',()=>{assert.match(app,/DB_VERSION\s*=\s*V46Storage\.DB_VERSION/);assert.doesNotMatch(app,/deleteObjectStore\s*\(/);assert.match(app,/HARD_API_RATE\s*=\s*75/);assert.match(app,/MIN_API_GAP_MS\s*=\s*800/);assert.match(app,/Math\.max\(MIN_API_GAP_MS,60000\/clampRate/);});
 
 test('v4.5 keeps Smart Match local and messaging manual',()=>{assert.match(app,/Smart Match.*zero Torn API calls/i);assert.match(app,/you still click Send/);assert.doesNotMatch(app,/autoSubmit\s*:\s*true/);assert.doesNotMatch(app,/pipelineStage\s*=\s*['"]Contacted['"]s*;.*message/s);});
 

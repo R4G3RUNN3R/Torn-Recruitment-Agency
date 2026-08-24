@@ -6,7 +6,7 @@ const root=path.join(__dirname,'..');
 const app=fs.readFileSync(path.join(root,'src','v45-app.js'),'utf8');
 const boot=fs.readFileSync(path.join(root,'R4G3RUNN3R-Recruitment-Agency.user.js'),'utf8');
 
-test('v4.5 shell is movable, resizable, routed and responsive',()=>{assert.match(app,/resize:both/);assert.match(app,/bindWindow/);assert.match(app,/saveGeometry/);assert.match(app,/restoreGeometry/);assert.match(app,/@media\(max-width:640px\)/);assert.match(app,/Runtime\.visiblePages/);});
+test('v4.5 shell is movable, resizable, routed and responsive',()=>{assert.match(app,/resize:both/);assert.match(app,/bindWindow/);assert.match(app,/saveGeometry/);assert.match(app,/restoreGeometry/);assert.match(app,/@media\(max-width:640px\)/);assert.match(app,/V46Navigation\.visibleGroups/);});
 
 test('v4.5.4 shell layer owns scroll constraints, settings cleanup and maximize restore',()=>{
   assert.match(boot,/#ra-app \.ra-shell\{min-height:0!important\}/);
@@ -24,7 +24,9 @@ test('v4.5.4 shell layer owns scroll constraints, settings cleanup and maximize 
   assert.match(boot,/function installMaximizedDragGuard\(\)/);
 });
 
-test('Simple mode hides Logs through the runtime navigation contract',()=>{const R=require('../src/v45-runtime');assert.equal(R.visiblePages('simple').flatMap(g=>g.pages).some(p=>p.id==='logs'),false);assert.equal(R.visiblePages('advanced').flatMap(g=>g.pages).some(p=>p.id==='logs'),true);});
+test('Simple mode hides Logs through the v4.6 navigation contract',()=>{const N=require('../src/v46-navigation');assert.equal(N.visibleGroups({complexity:'simple'}).flatMap(g=>g.pages).some(p=>p.id==='logs'),false);assert.equal(N.visibleGroups({complexity:'advanced'}).flatMap(g=>g.pages).some(p=>p.id==='logs'),true);});
+
+test('collapsible navigation is button-based and keeps Settings outside the sidebar',()=>{assert.match(app,/data-nav-toggle/);assert.match(app,/aria-expanded/);assert.match(app,/data-nav-group/);assert.match(app,/V46Navigation\.toggleExpandedGroup/);assert.match(app,/document\.getElementById\('ra-settings-button'\)\.onclick=\(\)=>route\('settings'\)/);});
 
 test('contextual help is header-anchored and viewport clamped',()=>{assert.match(app,/function helpButton/);assert.match(app,/function positionHelp/);assert.match(app,/getBoundingClientRect/);assert.match(app,/innerWidth-width-margin/);assert.match(app,/innerHeight-height-margin/);});
 

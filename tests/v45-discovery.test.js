@@ -22,6 +22,7 @@ test('forum post converts to normalized source with conservative parsed intent',
 test('page processing persists source and candidate before counters and sanitized checkpoint last', async () => {
   const events=[];
   const candidates=new Map();
+  let persistedSource=null;
   const result=await D.processDiscoveryPage({
     feed:{feedId:'company',sourceType:'COMPANY FORUM',threadId:'77'},
     posts:[{id:9,author:{id:123,username:'Alice'},created_time:1000,content:'Looking for AN, available now'}],
@@ -29,10 +30,11 @@ test('page processing persists source and candidate before counters and sanitize
     observedAt:2000000,
     persistSource:async source=>events.push(['source',source.sourceId]),
     getCandidate:async userId=>candidates.get(String(userId))||null,
-    persistCandidate:async candidate=>{events.push(['candidate',candidate.userId]);candidates.set(String(candidate.userId),candidate);},
+    persistCandidate:async (candidate,source)=>{persistedSource=source;events.push(['candidate',candidate.userId]);candidates.set(String(candidate.userId),candidate);},
     persistCounters:async counters=>events.push(['counters',counters.postsExamined]),
     persistCheckpoint:async checkpoint=>events.push(['checkpoint',checkpoint.next])
   });
+  assert.equal(persistedSource?.sourceType,'COMPANY FORUM');
   assert.deepEqual(events.map(event=>event[0]),['source','candidate','counters','checkpoint']);
   assert.equal(events[3][1],'https://api.torn.com/v2/forum/77/posts?offset=20');
   assert.equal(result.counters.candidatesCreated,1);
