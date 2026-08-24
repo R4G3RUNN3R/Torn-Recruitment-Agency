@@ -38,10 +38,10 @@ async function seedLegacy(db) {
   c.put({userId:'222',name:'Faction Two',pipelineStage:'Shortlisted',recruiterNote:'faction note',discoverySources:['FACTION FORUM'],createdAt:'2026-01-02T00:00:00.000Z',updatedAt:'2026-02-02T00:00:00.000Z'});
   c.put({userId:'333',name:'Both Three',pipelineStage:'Replied',recruiterNote:'ambiguous note',discoverySources:['COMPANY FORUM','FACTION FORUM'],createdAt:'2026-01-03T00:00:00.000Z',updatedAt:'2026-02-03T00:00:00.000Z'});
   c.put({userId:'444',name:'Unknown Four',pipelineStage:'Not Contacted',recruiterNote:'unknown note',discoverySources:[],createdAt:'2026-01-04T00:00:00.000Z',updatedAt:'2026-02-04T00:00:00.000Z'});
-  tx.objectStore('forumSources').put({sourceId:'FACTION:222:1',userId:222,sourceType:'FACTION FORUM',postedAt:1760000000000});
-  tx.objectStore('scoutLatest').put({userId:111,capturedAt:1761000000000,profile:{name:'Company One Renamed',level:50,factionId:7,factionName:'Seven',lastActionTs:1760999000},currentFit:87,official:true,extra:{networth:123456}});
-  tx.objectStore('globalLatest').put({userId:222,name:'Faction Two',observedAt:1762000000000,level:60,activity30:20,xanax30:3,refills30:4,attacks30:50,rwHits30:6,fit:91,fitType:'official',lastActive:1761999000000,scoutStatus:'fresh'});
-  tx.objectStore('users').put({recordId:'company:111',userId:111,name:'Company One',sourceMode:'company',lastSeenPost:1750000000000});
+  tx.objectStore('forumSources').put({sourceId:'FACTION:222:1',userId:222,sourceType:'FACTION FORUM',postedAt:1769000000000});
+  tx.objectStore('scoutLatest').put({userId:111,capturedAt:1771000000000,profile:{name:'Company One Renamed',level:50,factionId:7,factionName:'Seven',lastActionTs:1770999000},currentFit:87,official:true,extra:{networth:123456}});
+  tx.objectStore('globalLatest').put({userId:222,name:'Faction Two',observedAt:1772000000000,level:60,activity30:20,xanax30:3,refills30:4,attacks30:50,rwHits30:6,fit:91,fitType:'official',lastActive:1771999000000,scoutStatus:'fresh'});
+  tx.objectStore('users').put({recordId:'company:111',userId:111,name:'Company One',sourceMode:'company',lastSeenPost:1768000000000});
   await new Promise((resolve,reject)=>{tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});
 }
 
@@ -80,7 +80,7 @@ test('DB12 backfill separates provenance, preserves ambiguity and is idempotent'
   db=await openDb(name,13,db=>S.applyUpgrade(db));
   const idb=adapter(db);
   const repos=S.createRepositories(idb);
-  const first=await repos.backfillLegacy(1763000000000);
+  const first=await repos.backfillLegacy(1773000000000);
   assert.deepEqual(first,{players:4,company:3,faction:2,ambiguous:1});
 
   assert.ok(await idb.get('companyRecruitment','111'));
@@ -101,7 +101,7 @@ test('DB12 backfill separates provenance, preserves ambiguity and is idempotent'
 
   const beforeCompany=await idb.get('companyRecruitment','111');
   const beforePlayer=await idb.get('playerIntelligence','111');
-  const second=await repos.backfillLegacy(1764000000000);
+  const second=await repos.backfillLegacy(1774000000000);
   assert.deepEqual(second,first);
   const afterCompany=await idb.get('companyRecruitment','111');
   const afterPlayer=await idb.get('playerIntelligence','111');
