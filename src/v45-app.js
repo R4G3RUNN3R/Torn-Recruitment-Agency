@@ -11,7 +11,9 @@
     Messaging: root && root.RA_V45Messaging,
     V46Domain: root && root.RA_V46DomainCore,
     V46Storage: root && root.RA_V46StorageCore,
-    V46Navigation: root && root.RA_V46Navigation
+    V46Navigation: root && root.RA_V46Navigation,
+    V46CompanyCore: root && root.RA_V46CompanyCore,
+    V46CompanyStorage: root && root.RA_V46CompanyStorage
   };
   if (typeof module === 'object' && module.exports) {
     deps.ScoutCore = require('./scout-core');
@@ -26,6 +28,8 @@
     deps.V46Domain = require('./v46-domain-core');
     deps.V46Storage = require('./v46-storage-core');
     deps.V46Navigation = require('./v46-navigation');
+    deps.V46CompanyCore = require('./v46-company-core');
+    deps.V46CompanyStorage = require('./v46-company-storage');
   }
   const api = factory(deps);
   if (typeof module === 'object' && module.exports) module.exports = api;
@@ -33,21 +37,21 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function (D) {
   'use strict';
 
-  const {ScoutCore,ResultsCore,GlobalCore,MatchCore,ForumCore,Runtime,Candidates,Discovery,Messaging,V46Domain,V46Storage,V46Navigation} = D;
-  if (![ScoutCore,ResultsCore,GlobalCore,MatchCore,ForumCore,Runtime,Candidates,Discovery,Messaging,V46Domain,V46Storage,V46Navigation].every(Boolean)) {
+  const {ScoutCore,ResultsCore,GlobalCore,MatchCore,ForumCore,Runtime,Candidates,Discovery,Messaging,V46Domain,V46Storage,V46Navigation,V46CompanyCore,V46CompanyStorage} = D;
+  if (![ScoutCore,ResultsCore,GlobalCore,MatchCore,ForumCore,Runtime,Candidates,Discovery,Messaging,V46Domain,V46Storage,V46Navigation,V46CompanyCore,V46CompanyStorage].every(Boolean)) {
     throw new Error('Recruitment Agency v4.5 core modules are required.');
   }
 
   const SCRIPT_VERSION = '4.5.0';
   const DB_NAME = 'tornWorkerDB';
-  const DB_VERSION = V46Storage.DB_VERSION;
+  const DB_VERSION = V46CompanyStorage.DB_VERSION;
   const API_BASE = 'https://api.torn.com/v2';
   const API_COMMENT = 'R4G3RUNN3R Recruitment Agency';
   const HARD_API_RATE = 75;
   const MIN_API_GAP_MS = 800;
   const PAGE_SIZE = 20;
   const SCOUT_STAT_LIST = 'xantaken,useractivity,refills,statenhancersused,attackswon,attackslost,rankedwarhits,networth,activestreak,bestactivestreak';
-  const STORE_NAMES = Object.freeze(['users','meta','scoutLatest','scoutHistory','globalLatest','globalHistory','globalSyncQueue','candidateLocal','matchProfiles','forumSources','forumSyncState','appLogs','playerIntelligence','companyRecruitment','factionRecruitment']);
+  const STORE_NAMES = Object.freeze(['users','meta','scoutLatest','scoutHistory','globalLatest','globalHistory','globalSyncQueue','candidateLocal','matchProfiles','forumSources','forumSyncState','appLogs','playerIntelligence','companyRecruitment','factionRecruitment','companyVacancies','companyCampaigns','companyRecruitmentConfig','companyRecruitmentSessions']);
   const DEFAULT_VISIBLE_COLUMNS = Object.freeze(['player','stage','match','fit','lookingFor','source','lastActive']);
   const OPTIONAL_COLUMNS = Object.freeze(['currentCompany','man','int','end','total','availability','postedAt','ee','activity30','scoutStatus']);
   const COLUMN_LABELS = Object.freeze({player:'Player',stage:'Stage',match:'Match',fit:'Fit',lookingFor:'Looking For',source:'Source',lastActive:'Last Active',currentCompany:'Current Company',man:'MAN',int:'INT',end:'END',total:'TOTAL',availability:'Availability',postedAt:'Posted',ee:'EE',activity30:'Activity 30d',scoutStatus:'Scout Status'});
@@ -103,6 +107,7 @@
         if(!db.objectStoreNames.contains('forumSyncState')) db.createObjectStore('forumSyncState',{keyPath:'feedId'});
         if(!db.objectStoreNames.contains('appLogs')) db.createObjectStore('appLogs',{keyPath:'logId'});
         V46Storage.applyUpgrade(db);
+        V46CompanyStorage.applyUpgrade(db);
       };
       req.onsuccess=()=>resolve(req.result);
       req.onerror=()=>reject(req.error||new Error('IndexedDB open failed.'));
@@ -118,6 +123,7 @@
     clear(store){return new Promise(resolve=>{try{const q=state.db.transaction(store,'readwrite').objectStore(store).clear();q.onsuccess=()=>resolve(true);q.onerror=()=>resolve(false);}catch{resolve(false);}});}
   };
   const repositories=V46Storage.createRepositories(idb);
+  const companyRepositories=V46CompanyStorage.createRepositories(idb,V46CompanyCore);
 
   function mergeSettings(raw={}) {
     const base=defaultSettings();
@@ -365,5 +371,5 @@
 
   async function start(options={}){if(state.mounted)return;state.db=options.db||await openDB(options.indexedDB);state.settings=mergeSettings((await getMeta()).settings||{});state.page=V46Navigation.normalizeRoute(state.settings.activePage,state.settings.complexity);const meta=await getMeta();meta.settings=state.settings;meta.ui=meta.ui||{windowGeometry:{}};await idb.put('meta',meta);await migrateLegacyUsers();await repositories.backfillLegacy(Date.now());await ensureDefaultMatchProfile();if(document.readyState==='loading')await new Promise(resolve=>document.addEventListener('DOMContentLoaded',resolve,{once:true}));applyTheme();mount();state.mounted=true;await route(state.page,false);ensureTornLauncher();syncLauncherVisibility();const observer=new MutationObserver(()=>{if(!document.getElementById('ra-sidebar-launcher'))ensureTornLauncher();});observer.observe(document.documentElement,{childList:true,subtree:true});await logEvent('startup','Recruitment Agency v4.5 started',{version:SCRIPT_VERSION,dbVersion:DB_VERSION});if(state.settings.global.enabled&&globalEndpoint())void flushGlobalQueue(false);return true;}
 
-  return Object.freeze({SCRIPT_VERSION,DB_VERSION,HARD_API_RATE,MIN_API_GAP_MS,DEFAULT_VISIBLE_COLUMNS,OPTIONAL_COLUMNS,openDB,mergeSettings,start,_test:{state,repositories,recruitmentDomainForFeed,persistDiscoveredCandidate,deleteCompanyCandidateData,clearRecruitmentData,applyCandidateFilters,candidateCsvRow,matchAvailability,forumThreadUrl}});
+  return Object.freeze({SCRIPT_VERSION,DB_VERSION,HARD_API_RATE,MIN_API_GAP_MS,DEFAULT_VISIBLE_COLUMNS,OPTIONAL_COLUMNS,openDB,mergeSettings,start,_test:{state,repositories,companyRepositories,recruitmentDomainForFeed,persistDiscoveredCandidate,deleteCompanyCandidateData,clearRecruitmentData,applyCandidateFilters,candidateCsvRow,matchAvailability,forumThreadUrl}});
 });

@@ -7,7 +7,7 @@ const { execFileSync } = require('node:child_process');
 const puppeteer = require('puppeteer-core');
 
 const ROOT = path.join(__dirname, '..');
-const MODULES = ['scout-core.js','results-core.js','global-core.js','match-core.js','forum-core.js','v45-runtime.js','v45-candidates.js','v45-discovery.js','v45-messaging.js','v46-domain-core.js','v46-storage-core.js','v46-navigation.js','v45-app.js'];
+const MODULES = ['scout-core.js','results-core.js','global-core.js','match-core.js','forum-core.js','v45-runtime.js','v45-candidates.js','v45-discovery.js','v45-messaging.js','v46-domain-core.js','v46-storage-core.js','v46-navigation.js','v46-company-core.js','v46-company-storage.js','v45-app.js'];
 const BOOT = fs.readFileSync(path.join(ROOT,'R4G3RUNN3R-Recruitment-Agency.user.js'),'utf8');
 
 function chromePath(){for(const cmd of ['google-chrome-stable','google-chrome','chromium-browser','chromium']){try{return execFileSync('which',[cmd],{encoding:'utf8'}).trim();}catch{}}throw new Error('No Chrome/Chromium executable found.');}
