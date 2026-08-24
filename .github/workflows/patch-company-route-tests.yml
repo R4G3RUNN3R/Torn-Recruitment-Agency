@@ -1,0 +1,77 @@
+name: patch-company-route-tests
+on:
+  push:
+    branches: [feature/v4.6-company-recruitment]
+    paths: ['.github/workflows/patch-company-route-tests.yml']
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/v4.6-company-recruitment
+      - name: Apply guarded test expectation migration
+        shell: python
+        run: |
+          from pathlib import Path
+
+          changes = {
+            'tests/v45-browser-event-interference.test.js': [
+              ("textContent==='Discover'", "textContent==='Company Discover'"),
+              ("textContent),'Discover'", "textContent),'Company Discover'"),
+              ("textContent==='Candidates'", "textContent==='Company Candidates'"),
+              ("textContent),'Candidates'", "textContent),'Company Candidates'"),
+              ("[['pipeline','Pipeline'],['scout','Scout']", "[['company-pipeline','Company Pipeline'],['scout','Scout']"),
+            ],
+            'tests/v45-browser-hit-test.test.js': [
+              ("['discover', 'Discover']", "['company-discover', 'Company Discover']"),
+              ("['candidates', 'Candidates']", "['company-candidates', 'Company Candidates']"),
+              ("['pipeline', 'Pipeline']", "['company-pipeline', 'Company Pipeline']"),
+            ],
+            'tests/v45-browser-isolated-world.test.js': [
+              ("['discover','Discover']", "['company-discover','Company Discover']"),
+              ("['candidates','Candidates']", "['company-candidates','Company Candidates']"),
+              ("['pipeline','Pipeline']", "['company-pipeline','Company Pipeline']"),
+            ],
+            'tests/v45-browser-mobile.test.js': [
+              ("textContent==='Discover'", "textContent==='Company Discover'"),
+            ],
+            'tests/v45-browser-torn-host.test.js': [
+              ("['discover','Discover']", "['company-discover','Company Discover']"),
+              ("['candidates','Candidates']", "['company-candidates','Company Candidates']"),
+              ("['pipeline','Pipeline']", "['company-pipeline','Company Pipeline']"),
+            ],
+            'tests/v45-browser-upgrade.test.js': [
+              ("textContent==='Candidates'", "textContent==='Company Candidates'"),
+            ],
+            'tests/v45-ui-runtime.test.js': [
+              ("await openPage('discover', 'Discover', 'ra-sync');", "await openPage('company-discover', 'Company Discover', 'ra-sync');"),
+              ("await openPage('candidates', 'Candidates', 'ra-toggle-view');", "await openPage('company-candidates', 'Company Candidates', 'ra-toggle-view');"),
+              ("await openPage('pipeline', 'Pipeline', 'ra-mobile-stage-select');", "await openPage('company-pipeline', 'Company Pipeline', 'ra-mobile-stage-select');"),
+            ],
+            'tests/v46-browser-navigation.test.js': [
+              ("assert.deepEqual(meta.settings.navigation.expandedGroups,['recruitment','intelligence']);", "assert.deepEqual(meta.settings.navigation.expandedGroups,['company-recruitment','intelligence']);"),
+              ("assert.equal(meta.settings.activePage,'candidates');", "assert.equal(meta.settings.activePage,'company-candidates');"),
+              ("textContent,'Candidates'", "textContent,'Company Candidates'"),
+            ],
+          }
+
+          for filename, replacements in changes.items():
+              path=Path(filename)
+              text=path.read_text()
+              for old,new in replacements:
+                  count=text.count(old)
+                  if count != 1:
+                      raise SystemExit(f'{filename}: expected exactly 1 occurrence of {old!r}, found {count}')
+                  text=text.replace(old,new,1)
+              path.write_text(text)
+      - name: Commit migrated expectations
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add tests
+          git diff --cached --check
+          git commit -m "test: migrate remaining Company route expectations"
+          git push
