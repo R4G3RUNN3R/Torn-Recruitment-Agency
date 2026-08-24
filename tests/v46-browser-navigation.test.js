@@ -28,51 +28,51 @@ function freshApp(){
   return require('../src/v45-app');
 }
 
-test('navigation groups independently collapse, persist empty/all states and restore last route',async()=>{
+test('Company navigation groups independently collapse, persist empty/all states and restore last Company route',async()=>{
   const dom1=installDom();
   const App1=freshApp();
   assert.equal(await App1.start({indexedDB}),true);
 
-  assert.ok(document.querySelector('[data-nav-group="recruitment"]'));
-  assert.ok(document.querySelector('[data-nav-toggle="recruitment"]'));
+  assert.ok(document.querySelector('[data-nav-group="company-recruitment"]'));
+  assert.ok(document.querySelector('[data-nav-toggle="company-recruitment"]'));
   assert.equal(document.querySelector('[data-page="settings"]'),null);
   assert.ok(document.getElementById('ra-settings-button'));
 
-  const recruitment=document.querySelector('[data-nav-toggle="recruitment"]');
+  const company=document.querySelector('[data-nav-toggle="company-recruitment"]');
   const intelligence=document.querySelector('[data-nav-toggle="intelligence"]');
-  assert.equal(recruitment.getAttribute('aria-expanded'),'true');
+  assert.equal(company.getAttribute('aria-expanded'),'true');
   assert.equal(intelligence.getAttribute('aria-expanded'),'false');
 
   intelligence.click();
   await tick();
   let meta=await readMeta(App1._test.state.db);
-  assert.deepEqual(meta.settings.navigation.expandedGroups,['recruitment','intelligence']);
+  assert.deepEqual(meta.settings.navigation.expandedGroups,['company-recruitment','intelligence']);
   assert.equal(document.querySelector('[data-nav-group="intelligence"]').hidden,false);
 
-  document.querySelector('[data-nav-toggle="recruitment"]').click();
+  document.querySelector('[data-nav-toggle="company-recruitment"]').click();
   await tick();
   document.querySelector('[data-nav-toggle="intelligence"]').click();
   await tick();
   meta=await readMeta(App1._test.state.db);
   assert.deepEqual(meta.settings.navigation.expandedGroups,[]);
-  assert.equal(document.querySelector('[data-nav-group="recruitment"]').hidden,true);
+  assert.equal(document.querySelector('[data-nav-group="company-recruitment"]').hidden,true);
   assert.equal(document.querySelector('[data-nav-group="intelligence"]').hidden,true);
 
-  document.querySelector('[data-nav-toggle="recruitment"]').click();
+  document.querySelector('[data-nav-toggle="company-recruitment"]').click();
   await tick();
-  document.querySelector('[data-page="candidates"]').click();
+  document.querySelector('[data-page="company-candidates"]').click();
   await tick();
   meta=await readMeta(App1._test.state.db);
-  assert.equal(meta.settings.activePage,'candidates');
+  assert.equal(meta.settings.activePage,'company-candidates');
   App1._test.state.db.close();
   dom1.window.close();
 
   const dom2=installDom();
   const App2=freshApp();
   assert.equal(await App2.start({indexedDB}),true);
-  assert.equal(document.getElementById('ra-page-title').textContent,'Candidates');
-  assert.deepEqual((await readMeta(App2._test.state.db)).settings.navigation.expandedGroups,['recruitment']);
-  assert.equal(document.querySelector('[data-nav-toggle="recruitment"]').getAttribute('aria-expanded'),'true');
+  assert.equal(document.getElementById('ra-page-title').textContent,'Company Candidates');
+  assert.deepEqual((await readMeta(App2._test.state.db)).settings.navigation.expandedGroups,['company-recruitment']);
+  assert.equal(document.querySelector('[data-nav-toggle="company-recruitment"]').getAttribute('aria-expanded'),'true');
   assert.equal(document.querySelector('[data-nav-group="intelligence"]').hidden,true);
   App2._test.state.db.close();
   dom2.window.close();
