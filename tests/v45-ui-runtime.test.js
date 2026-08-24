@@ -7,6 +7,14 @@ function tick(ms = 10) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+async function waitFor(predicate, timeoutMs = 1000) {
+  const started = Date.now();
+  while (!predicate()) {
+    if (Date.now() - started >= timeoutMs) throw new Error('Timed out waiting for condition');
+    await tick();
+  }
+}
+
 test('v4.5 application mounts and primary navigation responds to real clicks', async () => {
   const dom = new JSDOM(`<!doctype html><html><head></head><body>
     <section><h2>Information</h2><div><button>One</button><button>Two</button></div></section>
@@ -73,7 +81,7 @@ test('v4.5 application mounts and primary navigation responds to real clicks', a
   const intelligenceToggle = document.querySelector('[data-nav-toggle="intelligence"]');
   assert.ok(intelligenceToggle, 'Intelligence navigation group toggle should exist');
   intelligenceToggle.click();
-  await tick();
+  await waitFor(() => document.querySelector('[data-nav-toggle="intelligence"]')?.getAttribute('aria-expanded') === 'true');
   assert.equal(document.querySelector('[data-nav-toggle="intelligence"]').getAttribute('aria-expanded'), 'true');
 
   await openPage('scout', 'Scout', 'ra-run-scout');
