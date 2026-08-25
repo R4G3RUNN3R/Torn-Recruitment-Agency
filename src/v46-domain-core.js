@@ -24,6 +24,11 @@
   function timestamp(value, fallback = Date.now()) { const out = Number(value); return Number.isFinite(out) ? out : Number(fallback); }
   function uniqueStrings(values) { return [...new Set((Array.isArray(values) ? values : []).map(value => text(value)).filter(Boolean))]; }
   function normalizeUserId(value) { const userId = text(value); if (!/^\d+$/.test(userId) || Number(userId) <= 0) throw new Error('A valid Torn player ID is required.'); return userId; }
+  function cloneValue(value) {
+    if (Array.isArray(value)) return value.map(cloneValue);
+    if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, nested]) => [key, cloneValue(nested)]));
+    return value;
+  }
 
   function mergePlayerIntelligence(existing, patch = {}, source = 'unknown', observedAt = Date.now()) {
     const at = timestamp(observedAt);const userId = normalizeUserId(patch.userId ?? existing?.userId);const next = {...(existing || {}), userId};
@@ -53,8 +58,17 @@
 
   function normalizeFactionRecruitment(record = {}, observedAt = Date.now(), options = {}) {
     const at = timestamp(observedAt);const userId = normalizeUserId(record.userId ?? record.id);const ambiguous = options.ambiguous === true;const createdAt = record.createdAt == null ? at : record.createdAt;
-    const base = {userId,domain:'faction',pipelineStage:ambiguous ? 'Prospect' : normalizeFactionStage(record.pipelineStage),availability:ambiguous ? 'Unknown' : normalizeAvailability(record.availability),recruiterNote:ambiguous ? '' : text(record.recruiterNote),discoverySources:uniqueStrings(record.discoverySources),latestForumSourceId:text(record.latestForumSourceId),tags:uniqueStrings(record.tags),followUps:Array.isArray(record.followUps) ? record.followUps.map(item => ({...item})) : [],campaigns:uniqueStrings(record.campaigns),outcomes:Array.isArray(record.outcomes) ? record.outcomes.map(item => ({...item})) : [],waivers:Array.isArray(record.waivers) ? record.waivers.map(item => ({...item})) : [],specialistProfileId:text(record.specialistProfileId),pinnedSpecialistProfileId:text(record.pinnedSpecialistProfileId),doNotContact:record.doNotContact === true,archived:record.archived === true,cycles:Array.isArray(record.cycles) ? record.cycles.map(item => ({...item})) : [],createdAt,updatedAt:record.updatedAt ?? at};
-    if (ambiguous) { base.migrationReviewRequired = true;base.legacySharedState = legacySharedState(record); }return base;
+    const base = {
+      userId,domain:'faction',pipelineStage:ambiguous ? 'Prospect' : normalizeFactionStage(record.pipelineStage),availability:ambiguous ? 'Unknown' : normalizeAvailability(record.availability),recruiterNote:ambiguous ? '' : text(record.recruiterNote),
+      discoverySources:uniqueStrings(record.discoverySources),latestForumSourceId:text(record.latestForumSourceId),tags:uniqueStrings(record.tags),
+      followUps:Array.isArray(record.followUps) ? cloneValue(record.followUps) : [],campaigns:uniqueStrings(record.campaigns),outcomes:Array.isArray(record.outcomes) ? cloneValue(record.outcomes) : [],waivers:Array.isArray(record.waivers) ? cloneValue(record.waivers) : [],
+      specialistProfileId:text(record.specialistProfileId),pinnedSpecialistProfileId:text(record.pinnedSpecialistProfileId),stageChangedAt:record.stageChangedAt ?? null,
+      timelineEvents:Array.isArray(record.timelineEvents) ? cloneValue(record.timelineEvents) : [],timelineNotes:Array.isArray(record.timelineNotes) ? cloneValue(record.timelineNotes) : [],
+      doNotContact:record.doNotContact === true,doNotContactReason:text(record.doNotContactReason),doNotContactChangedAt:record.doNotContactChangedAt ?? null,
+      archived:record.archived === true,cycles:Array.isArray(record.cycles) ? cloneValue(record.cycles) : [],createdAt,updatedAt:record.updatedAt ?? at
+    };
+    if (ambiguous) { base.migrationReviewRequired = true;base.legacySharedState = legacySharedState(record); }
+    return base;
   }
 
   function evidenceForCandidate(candidate = {}, forumSources = []) { const userId = normalizeUserId(candidate.userId ?? candidate.id);const labels = uniqueStrings(candidate.discoverySources).map(value => value.toUpperCase());for (const source of Array.isArray(forumSources) ? forumSources : []) {if (text(source?.userId) !== userId) continue;const label = text(source?.sourceType).toUpperCase();if (label) labels.push(label);}return uniqueStrings(labels); }
