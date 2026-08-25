@@ -28,7 +28,7 @@ function freshApp(){
   return require('../src/v45-app');
 }
 
-test('navigation groups independently collapse, persist empty/all states and restore last route',async()=>{
+test('navigation groups independently collapse and persist separately from the currently integrated route',async()=>{
   const dom1=installDom();
   const App1=freshApp();
   assert.equal(await App1.start({indexedDB}),true);
@@ -72,17 +72,18 @@ test('navigation groups independently collapse, persist empty/all states and res
 
   document.querySelector('[data-nav-toggle="faction-recruitment"]').click();
   await tick();
-  document.querySelector('[data-page="faction-candidates"]').click();
+  document.querySelector('[data-page="company-candidates"]').click();
   await tick();
   meta=await readMeta(App1._test.state.db);
-  assert.equal(meta.settings.activePage,'faction-candidates');
+  assert.equal(meta.settings.activePage,'company-candidates');
+  assert.deepEqual(meta.settings.navigation.expandedGroups,['faction-recruitment']);
   App1._test.state.db.close();
   dom1.window.close();
 
   const dom2=installDom();
   const App2=freshApp();
   assert.equal(await App2.start({indexedDB}),true);
-  assert.equal(document.getElementById('ra-page-title').textContent,'Faction Candidates');
+  assert.equal(document.getElementById('ra-page-title').textContent,'Company Candidates');
   assert.deepEqual((await readMeta(App2._test.state.db)).settings.navigation.expandedGroups,['faction-recruitment']);
   assert.equal(document.querySelector('[data-nav-toggle="company-recruitment"]').getAttribute('aria-expanded'),'false');
   assert.equal(document.querySelector('[data-nav-toggle="faction-recruitment"]').getAttribute('aria-expanded'),'true');
