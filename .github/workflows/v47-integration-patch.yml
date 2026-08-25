@@ -22,8 +22,23 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Apply integration patch
-        run: node scripts/patch-v47-integration.js
+      - name: Correct helper anchor and apply integration patch
+        run: |
+          node <<'NODE'
+          const fs=require('node:fs');
+          const file='scripts/patch-v47-integration.js';
+          let source=fs.readFileSync(file,'utf8');
+          source=source.replace(
+            '`    V46CompanyPlatform:root&&root.RA_V46CompanyPlatform,`',
+            '`    V46CompanyPlatform:root&&root.RA_V46CompanyPlatform`'
+          );
+          source=source.replace(
+            '`    V46CompanyPlatform:root&&root.RA_V46CompanyPlatform,\\n    V47FactionCore:root&&root.RA_V47FactionCore,\\n    V47FactionStorage:root&&root.RA_V47FactionStorage,\\n    V47FactionUI:root&&root.RA_V47FactionUI,\\n    V47FactionOperations:root&&root.RA_V47FactionOperations,\\n    V47FactionWorkflow:root&&root.RA_V47FactionWorkflow,\\n    V47FactionWorkflowUI:root&&root.RA_V47FactionWorkflowUI,\\n    V47FactionOpportunityUI:root&&root.RA_V47FactionOpportunityUI,\\n    V47FactionPlatform:root&&root.RA_V47FactionPlatform,`',
+            '`    V46CompanyPlatform:root&&root.RA_V46CompanyPlatform,\\n    V47FactionCore:root&&root.RA_V47FactionCore,\\n    V47FactionStorage:root&&root.RA_V47FactionStorage,\\n    V47FactionUI:root&&root.RA_V47FactionUI,\\n    V47FactionOperations:root&&root.RA_V47FactionOperations,\\n    V47FactionWorkflow:root&&root.RA_V47FactionWorkflow,\\n    V47FactionWorkflowUI:root&&root.RA_V47FactionWorkflowUI,\\n    V47FactionOpportunityUI:root&&root.RA_V47FactionOpportunityUI,\\n    V47FactionPlatform:root&&root.RA_V47FactionPlatform`'
+          );
+          fs.writeFileSync(file,source);
+          NODE
+          node scripts/patch-v47-integration.js
       - name: Commit integration changes
         run: |
           git config user.name "github-actions[bot]"
