@@ -14,7 +14,15 @@
     V46Navigation: root && root.RA_V46Navigation,
     V46CompanyCore: root && root.RA_V46CompanyCore,
     V46CompanyStorage: root && root.RA_V46CompanyStorage,
-    V46CompanyPlatform: root && root.RA_V46CompanyPlatform
+    V46CompanyPlatform: root && root.RA_V46CompanyPlatform,
+    V47FactionCore: root && root.RA_V47FactionCore,
+    V47FactionStorage: root && root.RA_V47FactionStorage,
+    V47FactionUI: root && root.RA_V47FactionUI,
+    V47FactionOperations: root && root.RA_V47FactionOperations,
+    V47FactionWorkflow: root && root.RA_V47FactionWorkflow,
+    V47FactionWorkflowUI: root && root.RA_V47FactionWorkflowUI,
+    V47FactionOpportunityUI: root && root.RA_V47FactionOpportunityUI,
+    V47FactionPlatform: root && root.RA_V47FactionPlatform
   };
   if (typeof module === 'object' && module.exports) {
     deps.ScoutCore = require('./scout-core');
@@ -32,6 +40,14 @@
     deps.V46CompanyCore = require('./v46-company-core');
     deps.V46CompanyStorage = require('./v46-company-storage');
     deps.V46CompanyPlatform = require('./v46-company-platform');
+    deps.V47FactionCore = require('./v47-faction-core');
+    deps.V47FactionStorage = require('./v47-faction-storage');
+    deps.V47FactionUI = require('./v47-faction-ui');
+    deps.V47FactionOperations = require('./v47-faction-operations');
+    deps.V47FactionWorkflow = require('./v47-faction-workflow');
+    deps.V47FactionWorkflowUI = require('./v47-faction-workflow-ui');
+    deps.V47FactionOpportunityUI = require('./v47-faction-opportunity-ui');
+    deps.V47FactionPlatform = require('./v47-faction-platform');
   }
   const api = factory(deps);
   if (typeof module === 'object' && module.exports) module.exports = api;
@@ -39,21 +55,21 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function (D) {
   'use strict';
 
-  const {ScoutCore,ResultsCore,GlobalCore,MatchCore,ForumCore,Runtime,Candidates,Discovery,Messaging,V46Domain,V46Storage,V46Navigation,V46CompanyCore,V46CompanyStorage,V46CompanyPlatform} = D;
-  if (![ScoutCore,ResultsCore,GlobalCore,MatchCore,ForumCore,Runtime,Candidates,Discovery,Messaging,V46Domain,V46Storage,V46Navigation,V46CompanyCore,V46CompanyStorage,V46CompanyPlatform].every(Boolean)) {
+  const {ScoutCore,ResultsCore,GlobalCore,MatchCore,ForumCore,Runtime,Candidates,Discovery,Messaging,V46Domain,V46Storage,V46Navigation,V46CompanyCore,V46CompanyStorage,V46CompanyPlatform,V47FactionCore,V47FactionStorage,V47FactionUI,V47FactionOperations,V47FactionWorkflow,V47FactionWorkflowUI,V47FactionOpportunityUI,V47FactionPlatform} = D;
+  if (![ScoutCore,ResultsCore,GlobalCore,MatchCore,ForumCore,Runtime,Candidates,Discovery,Messaging,V46Domain,V46Storage,V46Navigation,V46CompanyCore,V46CompanyStorage,V46CompanyPlatform,V47FactionCore,V47FactionStorage,V47FactionUI,V47FactionOperations,V47FactionWorkflow,V47FactionWorkflowUI,V47FactionOpportunityUI,V47FactionPlatform].every(Boolean)) {
     throw new Error('Recruitment Agency v4.5 core modules are required.');
   }
 
   const SCRIPT_VERSION = '4.6.0';
   const DB_NAME = 'tornWorkerDB';
-  const DB_VERSION = V46CompanyStorage.DB_VERSION;
+  const DB_VERSION = V47FactionStorage.DB_VERSION;
   const API_BASE = 'https://api.torn.com/v2';
   const API_COMMENT = 'R4G3RUNN3R Recruitment Agency';
   const HARD_API_RATE = 75;
   const MIN_API_GAP_MS = 800;
   const PAGE_SIZE = 20;
   const SCOUT_STAT_LIST = 'xantaken,useractivity,refills,statenhancersused,attackswon,attackslost,rankedwarhits,networth,activestreak,bestactivestreak';
-  const STORE_NAMES = Object.freeze(['users','meta','scoutLatest','scoutHistory','globalLatest','globalHistory','globalSyncQueue','candidateLocal','matchProfiles','forumSources','forumSyncState','appLogs','playerIntelligence','companyRecruitment','factionRecruitment','companyVacancies','companyCampaigns','companyRecruitmentConfig','companyRecruitmentSessions']);
+  const STORE_NAMES = Object.freeze(['users','meta','scoutLatest','scoutHistory','globalLatest','globalHistory','globalSyncQueue','candidateLocal','matchProfiles','forumSources','forumSyncState','appLogs','playerIntelligence','companyRecruitment','factionRecruitment','companyVacancies','companyCampaigns','companyRecruitmentConfig','companyRecruitmentSessions','factionSpecialistProfiles','factionCampaigns','factionRecruitmentConfig','factionRecruitmentSessions']);
   const DEFAULT_VISIBLE_COLUMNS = Object.freeze(['player','stage','match','fit','lookingFor','source','lastActive']);
   const OPTIONAL_COLUMNS = Object.freeze(['currentCompany','man','int','end','total','availability','postedAt','ee','activity30','scoutStatus']);
   const COLUMN_LABELS = Object.freeze({player:'Player',stage:'Stage',match:'Match',fit:'Fit',lookingFor:'Looking For',source:'Source',lastActive:'Last Active',currentCompany:'Current Company',man:'MAN',int:'INT',end:'END',total:'TOTAL',availability:'Availability',postedAt:'Posted',ee:'EE',activity30:'Activity 30d',scoutStatus:'Scout Status'});
@@ -110,6 +126,7 @@
         if(!db.objectStoreNames.contains('appLogs')) db.createObjectStore('appLogs',{keyPath:'logId'});
         V46Storage.applyUpgrade(db);
         V46CompanyStorage.applyUpgrade(db);
+        V47FactionStorage.applyUpgrade(db);
       };
       req.onsuccess=()=>resolve(req.result);
       req.onerror=()=>reject(req.error||new Error('IndexedDB open failed.'));
@@ -126,7 +143,8 @@
   };
   const repositories=V46Storage.createRepositories(idb);
   const companyRepositories=V46CompanyStorage.createRepositories(idb,V46CompanyCore);
-  const companyPlatformApp={_test:{state,repositories,companyRepositories}};
+  const factionRepositories=V47FactionStorage.createRepositories(idb,V47FactionCore);
+  const companyPlatformApp={_test:{state,repositories,companyRepositories,factionRepositories}};
 
   function mergeSettings(raw={}) {
     const base=defaultSettings();
@@ -245,7 +263,7 @@
   function applyTheme(){const root=document.documentElement;root.dataset.raTheme=state.settings.theme;root.dataset.raDensity=state.settings.density;root.dataset.raText=state.settings.textSize;}
   function toast(message,bad=false){const box=document.getElementById('ra-toastbox');if(!box)return;const item=document.createElement('div');item.className=`ra-toast${bad?' bad':''}`;item.textContent=message;box.appendChild(item);setTimeout(()=>item.remove(),3800);}
   function navHtml(){const expanded=new Set(state.settings.navigation?.expandedGroups||[]);return V46Navigation.visibleGroups(state.settings).map(group=>{const open=expanded.has(group.id);const hasActive=group.pages.some(page=>page.id===state.page);return `<div class="ra-nav-section"><button type="button" class="ra-group-toggle${hasActive?' has-active':''}" data-nav-toggle="${esc(group.id)}" aria-expanded="${open?'true':'false'}"><span class="ra-group-label">${esc(group.label)}</span><span class="ra-group-chevron" aria-hidden="true">${open?'▾':'▸'}</span></button><div class="ra-nav" data-nav-group="${esc(group.id)}" ${open?'':'hidden'}>${group.pages.map(page=>`<button type="button" data-page="${esc(page.id)}"><span class="ra-nav-icon">${esc(icon(page.id))}</span><span class="ra-nav-text">${esc(page.label)}</span></button>`).join('')}</div></div>`;}).join('');}
-  function rebuildNav(){const target=document.getElementById('ra-nav');if(target)target.innerHTML=navHtml();document.querySelector('.ra-shell')?.classList.toggle('is-collapsed',!!state.settings.sidebarCollapsed);document.querySelectorAll('[data-nav-toggle]').forEach(button=>button.onclick=async()=>{const expanded=V46Navigation.toggleExpandedGroup(state.settings.navigation.expandedGroups,button.dataset.navToggle);await saveSettings({navigation:{...state.settings.navigation,expandedGroups:expanded}});rebuildNav();});document.querySelectorAll('[data-page]').forEach(btn=>btn.onclick=()=>route(btn.dataset.page).catch(e=>toast(e.message,true)));V46CompanyPlatform.syncNavigation?.();document.querySelector(`[data-page="${state.page}"]`)?.classList.add('active');}
+  function rebuildNav(){const target=document.getElementById('ra-nav');if(target)target.innerHTML=navHtml();document.querySelector('.ra-shell')?.classList.toggle('is-collapsed',!!state.settings.sidebarCollapsed);document.querySelectorAll('[data-nav-toggle]').forEach(button=>button.onclick=async()=>{const expanded=V46Navigation.toggleExpandedGroup(state.settings.navigation.expandedGroups,button.dataset.navToggle);await saveSettings({navigation:{...state.settings.navigation,expandedGroups:expanded}});rebuildNav();});document.querySelectorAll('[data-page]').forEach(btn=>btn.onclick=()=>route(btn.dataset.page).catch(e=>toast(e.message,true)));V46CompanyPlatform.syncNavigation?.();V47FactionPlatform.syncNavigation?.();document.querySelector(`[data-page="${state.page}"]`)?.classList.add('active');}
 
   function pageMeta(page){return({'company-overview':['Company Overview','Company recruitment status and work needing attention.'],'company-today':['Company Today','Prioritized Company recruitment work for today.'],'company-discover':['Company Discover','Sync Company recruitment sources and enrich Company candidates.'],'company-candidates':['Company Candidates','Search, filter and manage Company recruitment candidates.'],'company-pipeline':['Company Pipeline','Move Company candidates through explicit recruitment stages.'],'company-vacancies':['Company Vacancies','Define and manage Company hiring needs.'],'company-campaigns':['Company Campaigns','Organize Company recruitment campaigns.'],'company-followups':['Company Follow-ups','Track Company candidate follow-ups.'],'company-timeline':['Company Timeline','Review Company recruitment history.'],'company-stage-aging':['Company Stage Aging','Review candidates aging in their current Company stage.'],'company-contact-outcomes':['Company Contact Outcomes','Track Company recruitment contact outcomes.'],'company-recruitment-sessions':['Company Recruitment Sessions','Work focused Company recruitment queues.'],'company-talent-pool':['Company Talent Pool','Maintain reusable Company talent prospects.'],'company-reactivation':['Company Reactivation','Restart Company recruitment cycles without duplicating identity.'],'company-opportunity':['Company Opportunity Queue','Review explainable Company recruitment opportunities.'],'company-compare':['Company Compare','Compare Company candidates side by side.'],scout:['Scout','Collect official Torn player intelligence through the shared scheduler.'],'smart-match':['Smart Match','Build local vacancy profiles and explain candidate Match scores.'],'global-intelligence':['Global Intelligence','Review the sanitized shared intelligence service.'],settings:['Settings','Application, recruitment, Scout, candidate and privacy configuration.'],data:['Data','Local IndexedDB counts, export and reset controls.'],logs:['Logs','Sanitized Recruitment Agency diagnostic events.']})[page]||['Company Overview','Recruitment Agency'];}
 
@@ -287,6 +305,14 @@
       stopLogRefresh();
       return;
     }
+    if(V47FactionPlatform._test.IMPLEMENTED_ROUTES.has(state.page)){
+      await V47FactionPlatform.renderPage(state.page,{persist:false});
+      rebuildNav();
+      bindHelp();
+      document.querySelector('.ra-shell')?.classList.remove('sidebar-open');
+      stopLogRefresh();
+      return;
+    }
     const [title,description]=pageMeta(state.page);
     document.getElementById('ra-page-title').textContent=title;
     document.getElementById('ra-page-desc').textContent=description;
@@ -321,7 +347,7 @@
   async function exportCsv(){const rows=await candidateViews();const header=['Player ID','Name','Stage','Match','Fit','Looking For','Source','Current Company','Availability','MAN','INT','END','EE'];const quote=v=>`"${String(v??'').replaceAll('"','""')}"`;const csv=[header,...rows.map(candidateCsvRow)].map(row=>row.map(quote).join(',')).join('\n');try{await navigator.clipboard.writeText(csv);toast(`Copied ${rows.length} candidate(s) as CSV.`);}catch{const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='recruitment-candidates.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}}
 
   async function hardReset(){if(!confirm('NUKE IT ALL will permanently delete Recruitment Agency browser-local candidates, forum imports, Scout cache/history, Global cache/queue, Match Profiles, logs, messages/settings and layout. Torn account data and unrelated userscripts are not touched. Continue?'))return;const typed=text(prompt('Type NUKE to confirm the hard local reset:','')).toUpperCase();if(typed!=='NUKE'){toast('Hard reset cancelled.',true);return;}for(const store of STORE_NAMES)await idb.clear(store);state.settings=mergeSettings({});state.page='company-overview';applyTheme();rebuildNav();closeModal();document.getElementById('ra-drawer').hidden=true;await route('company-overview',false);toast('Recruitment Agency local data was reset.');}
-  async function clearRecruitmentData(){for(const store of ['users','candidateLocal','companyRecruitment','factionRecruitment','forumSources','forumSyncState'])await idb.clear(store);return true;}
+  async function clearRecruitmentData(){for(const store of ['users','candidateLocal','companyRecruitment','factionRecruitment','companyVacancies','companyCampaigns','companyRecruitmentConfig','companyRecruitmentSessions','factionSpecialistProfiles','factionCampaigns','factionRecruitmentConfig','factionRecruitmentSessions','forumSources','forumSyncState'])await idb.clear(store);return true;}
   async function clearRecruitment(){if(!confirm('Clear local Company/Faction recruitment and forum discovery data? Shared Scout/Player Intelligence will be kept.'))return;await clearRecruitmentData();toast('Recruitment/forum data cleared.');await logEvent('reset','Recruitment and forum data cleared');await route(state.page,false);}
   async function resetLayout(){const meta=await getMeta();meta.ui={windowGeometry:{}};await idb.put('meta',meta);const app=document.getElementById('ra-app');Object.assign(app.style,{left:'6vw',top:'5vh',width:'88vw',height:'86vh'});toast('Layout reset.');}
 
@@ -402,6 +428,7 @@
     if(document.readyState==='loading')await new Promise(resolve=>document.addEventListener('DOMContentLoaded',resolve,{once:true}));
     applyTheme();mount();state.mounted=true;
     V46CompanyPlatform.install(companyPlatformApp,{renderInitial:false});
+    V47FactionPlatform.install(companyPlatformApp,{renderInitial:false});
     await route(state.page,false);
     ensureTornLauncher();syncLauncherVisibility();
     const observer=new MutationObserver(()=>{if(!document.getElementById('ra-sidebar-launcher'))ensureTornLauncher();});
@@ -411,5 +438,5 @@
     return true;
   }
 
-  return Object.freeze({SCRIPT_VERSION,DB_VERSION,HARD_API_RATE,MIN_API_GAP_MS,DEFAULT_VISIBLE_COLUMNS,OPTIONAL_COLUMNS,openDB,mergeSettings,start,_test:{state,repositories,companyRepositories,recruitmentDomainForFeed,persistDiscoveredCandidate,deleteCompanyCandidateData,clearRecruitmentData,applyCandidateFilters,candidateCsvRow,matchAvailability,forumThreadUrl}});
+  return Object.freeze({SCRIPT_VERSION,DB_VERSION,HARD_API_RATE,MIN_API_GAP_MS,DEFAULT_VISIBLE_COLUMNS,OPTIONAL_COLUMNS,openDB,mergeSettings,start,_test:{state,repositories,companyRepositories,factionRepositories,recruitmentDomainForFeed,persistDiscoveredCandidate,deleteCompanyCandidateData,clearRecruitmentData,applyCandidateFilters,candidateCsvRow,matchAvailability,forumThreadUrl}});
 });
