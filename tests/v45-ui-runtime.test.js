@@ -71,7 +71,10 @@ test('v4.5 application mounts and primary navigation responds to real clicks', a
     button.click();
     await waitFor(() => document.getElementById('ra-page-title')?.textContent === expectedTitle);
     assert.equal(document.getElementById('ra-page-title').textContent, expectedTitle);
-    if (expectedControl) assert.ok(document.querySelector(expectedControl), `${expectedControl} should exist after routing to ${page}`);
+    if (expectedControl) {
+      await waitFor(() => document.querySelector(expectedControl));
+      assert.ok(document.querySelector(expectedControl), `${expectedControl} should exist after routing to ${page}`);
+    }
   }
 
   await openPage('company-discover', 'Company Discover', '#ra-sync');
