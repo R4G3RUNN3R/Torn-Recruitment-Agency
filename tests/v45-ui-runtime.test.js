@@ -71,12 +71,12 @@ test('v4.5 application mounts and primary navigation responds to real clicks', a
     button.click();
     await waitFor(() => document.getElementById('ra-page-title')?.textContent === expectedTitle);
     assert.equal(document.getElementById('ra-page-title').textContent, expectedTitle);
-    if (expectedControl) assert.ok(document.getElementById(expectedControl), `${expectedControl} should exist after routing to ${page}`);
+    if (expectedControl) assert.ok(document.querySelector(expectedControl), `${expectedControl} should exist after routing to ${page}`);
   }
 
-  await openPage('company-discover', 'Company Discover', 'ra-sync');
-  await openPage('company-candidates', 'Company Candidates', 'ra-toggle-view');
-  await openPage('company-pipeline', 'Company Pipeline', 'ra-mobile-stage-select');
+  await openPage('company-discover', 'Company Discover', '#ra-sync');
+  await openPage('company-candidates', 'Company Candidates', '#ra-content .ra-table');
+  await openPage('company-pipeline', 'Company Pipeline', '#ra-content .ra-pipeline');
 
   const intelligenceToggle = document.querySelector('[data-nav-toggle="intelligence"]');
   assert.ok(intelligenceToggle, 'Intelligence navigation group toggle should exist');
@@ -84,9 +84,9 @@ test('v4.5 application mounts and primary navigation responds to real clicks', a
   await waitFor(() => document.querySelector('[data-nav-toggle="intelligence"]')?.getAttribute('aria-expanded') === 'true');
   assert.equal(document.querySelector('[data-nav-toggle="intelligence"]').getAttribute('aria-expanded'), 'true');
 
-  await openPage('scout', 'Scout', 'ra-run-scout');
-  await openPage('smart-match', 'Smart Match', 'ra-match-save');
-  await openPage('global-intelligence', 'Global Intelligence', 'ra-global-test');
+  await openPage('scout', 'Scout', '#ra-run-scout');
+  await openPage('smart-match', 'Smart Match', '#ra-match-save');
+  await openPage('global-intelligence', 'Global Intelligence', '#ra-global-test');
 
   document.getElementById('ra-settings-button').click();
   await waitFor(() => document.getElementById('ra-page-title')?.textContent === 'Settings');

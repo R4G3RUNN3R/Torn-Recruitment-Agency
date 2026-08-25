@@ -9,7 +9,7 @@ const puppeteer = require('puppeteer-core');
 const ROOT = path.join(__dirname, '..');
 const MODULES = [
   'scout-core.js', 'results-core.js', 'global-core.js', 'match-core.js', 'forum-core.js',
-  'v45-runtime.js', 'v45-candidates.js', 'v45-discovery.js', 'v45-messaging.js','v46-domain-core.js','v46-storage-core.js','v46-navigation.js','v46-company-core.js','v46-company-storage.js','v45-app.js'
+  'v45-runtime.js', 'v45-candidates.js', 'v45-discovery.js', 'v45-messaging.js','v46-domain-core.js','v46-storage-core.js','v46-navigation.js','v46-company-core.js','v46-company-storage.js','v46-company-ui.js','v46-company-operations.js','v46-company-workflow.js','v46-company-workflow-ui.js','v46-company-opportunity-ui.js','v46-company-platform.js','v45-app.js'
 ];
 
 function chromePath() {
