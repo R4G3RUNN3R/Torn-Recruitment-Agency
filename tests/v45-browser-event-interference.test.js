@@ -79,14 +79,13 @@ test('primary navigation and in-page controls survive a hostile document-capture
     await page.waitForFunction(()=>document.getElementById('ra-discover-more')?.hidden===false,{timeout:5000});
     assert.equal(await page.$eval('#ra-page-title',e=>e.textContent),'Company Discover','in-page Discover control must not change route');
 
-    await physicalClick(page,'[data-page="company-candidates"]');
+    await physicalClick(page,'[data-page="company-overview"]');
+    await page.waitForFunction(()=>document.getElementById('ra-page-title')?.textContent==='Company Overview',{timeout:5000});
+    await page.waitForSelector('[data-go-page="company-candidates"]',{visible:true});
+    await physicalClick(page,'[data-go-page="company-candidates"]');
     await page.waitForFunction(()=>document.getElementById('ra-page-title')?.textContent==='Company Candidates',{timeout:5000});
-    await page.waitForSelector('#ra-more-filters',{visible:true});
-    await page.waitForSelector('#ra-more-filter-box');
-    assert.equal(await page.$eval('#ra-more-filter-box',e=>e.hidden),true,'Candidate extra filters start closed');
-    await physicalClick(page,'#ra-more-filters');
-    await page.waitForFunction(()=>document.getElementById('ra-more-filter-box')?.hidden===false,{timeout:5000});
-    assert.equal(await page.$eval('#ra-page-title',e=>e.textContent),'Company Candidates','in-page Candidate control must not change route');
+    await page.waitForSelector('#ra-content .ra-table',{visible:true});
+    assert.equal(await page.$eval('#ra-page-title',e=>e.textContent),'Company Candidates','v4.6 Company in-page route control must survive capture blocker');
 
     await physicalClick(page,'[data-nav-toggle="intelligence"]');
     await page.waitForFunction(()=>document.querySelector('[data-nav-toggle="intelligence"]')?.getAttribute('aria-expanded')==='true',{timeout:5000});
