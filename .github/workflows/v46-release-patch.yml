@@ -1,0 +1,31 @@
+name: v46 release patch
+
+on:
+  push:
+    branches:
+      - release/v4.6-company-recruitment
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: contains(github.event.head_commit.message, '[apply-v46-release-patch]')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: release/v4.6-company-recruitment
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Apply guarded v4.6 release patch
+        run: node scripts/patch-v46-release.js
+      - name: Commit release files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add R4G3RUNN3R-Recruitment-Agency.user.js src/v45-app.js package.json README.md
+          git diff --cached --exit-code && exit 1 || true
+          git commit -m "release: publish v4.6.0 Company Recruitment"
+          git push origin HEAD:release/v4.6-company-recruitment
