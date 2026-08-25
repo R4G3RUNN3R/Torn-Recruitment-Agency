@@ -1,0 +1,25 @@
+name: v46 readme patch
+on:
+  push:
+    branches: [feature/v4.6-company-recruitment]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: contains(github.event.head_commit.message, '[apply-v46-readme-patch]')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/v4.6-company-recruitment
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node scripts/patch-v46-company-readme.js
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          git diff --cached --exit-code && exit 1 || true
+          git commit -m "docs(v4.6): document Company Recruitment and DB14"
+          git push origin HEAD:feature/v4.6-company-recruitment
