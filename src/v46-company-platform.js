@@ -5,6 +5,7 @@
     Operations:root&&root.RA_V46CompanyOperations,
     Workflow:root&&root.RA_V46CompanyWorkflow,
     WorkflowUI:root&&root.RA_V46CompanyWorkflowUI,
+    OpportunityUI:root&&root.RA_V46CompanyOpportunityUI,
     Messaging:root&&root.RA_V45Messaging
   };
   if(typeof module==='object'&&module.exports){
@@ -13,6 +14,7 @@
     deps.Operations=require('./v46-company-operations');
     deps.Workflow=require('./v46-company-workflow');
     deps.WorkflowUI=require('./v46-company-workflow-ui');
+    deps.OpportunityUI=require('./v46-company-opportunity-ui');
     deps.Messaging=require('./v45-messaging');
   }
   const api=factory(deps);
@@ -21,8 +23,8 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(D){
   'use strict';
 
-  const {CompanyCore,CompanyUI,Operations,Workflow,WorkflowUI,Messaging}=D;
-  if(!CompanyCore||!CompanyUI||!Operations||!Workflow||!WorkflowUI||!Messaging)throw new Error('CompanyCore, CompanyUI, Operations, Workflow, WorkflowUI and Messaging are required.');
+  const {CompanyCore,CompanyUI,Operations,Workflow,WorkflowUI,OpportunityUI,Messaging}=D;
+  if(!CompanyCore||!CompanyUI||!Operations||!Workflow||!WorkflowUI||!OpportunityUI||!Messaging)throw new Error('CompanyCore, CompanyUI, Operations, Workflow, WorkflowUI, OpportunityUI and Messaging are required.');
 
   const COMPANY_ROUTES=Object.freeze([
     'company-overview','company-today','company-discover','company-candidates','company-pipeline',
@@ -33,7 +35,7 @@
   const IMPLEMENTED_ROUTES=new Set([
     'company-overview','company-today','company-candidates','company-pipeline','company-vacancies',
     'company-campaigns','company-followups','company-timeline','company-stage-aging','company-contact-outcomes',
-    'company-recruitment-sessions','company-talent-pool','company-reactivation'
+    'company-recruitment-sessions','company-talent-pool','company-reactivation','company-opportunity','company-compare'
   ]);
   const META=Object.freeze({
     'company-overview':['Company Overview','Company recruitment status and work needing attention.'],
@@ -53,8 +55,9 @@
     'company-opportunity':['Company Opportunity Queue','Review explainable Company recruitment opportunities.'],
     'company-compare':['Company Compare','Compare Company candidates side by side.']
   });
+  const DEFAULT_OPPORTUNITY_WEIGHTS=Object.freeze({match:30,fit:20,availability:15,activity:15,freshness:10,followUp:10,contactPenalty:10});
 
-  const runtime={app:null,observer:null,originalHandlers:new Map(),installed:false};
+  const runtime={app:null,observer:null,originalHandlers:new Map(),installed:false,compareSelection:new Set()};
   const text=value=>String(value??'').trim();
   const number=(value,fallback=0)=>{const n=Number(value);return Number.isFinite(n)?n:fallback;};
   const makeId=prefix=>`${prefix}-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
@@ -62,6 +65,7 @@
 
   function isCompanyRoute(value){return COMPANY_ROUTES.includes(text(value));}
   function routeMeta(route){const [title,description]=META[text(route)]||META['company-overview'];return{title,description};}
+  function opportunityWeights(config={}){return{...DEFAULT_OPPORTUNITY_WEIGHTS,...(config.opportunityWeights||{})};}
 
   function dbGetAll(db,store){return new Promise(resolve=>{try{const q=db.transaction(store,'readonly').objectStore(store).getAll();q.onsuccess=()=>resolve(q.result||[]);q.onerror=()=>resolve([]);}catch{resolve([]);}});}
   function dbGet(db,store,key){return new Promise(resolve=>{try{const q=db.transaction(store,'readonly').objectStore(store).get(key);q.onsuccess=()=>resolve(q.result||null);q.onerror=()=>resolve(null);}catch{resolve(null);}});}
@@ -104,6 +108,11 @@
       const options=vacancies.filter(v=>text(v.status)==='Open').map(v=>({vacancyId:text(v.vacancyId),name:text(v.name)||text(v.role)||text(v.vacancyId),matchScore:evaluationMap.get(text(v.vacancyId))?.matchScore??null,eligible:evaluationMap.get(text(v.vacancyId))?.eligible===true}));
       return{...row,talentPool:row.companyRecord?.talentPool===true,talentPoolReason:text(row.companyRecord?.talentPoolReason),vacancyEvaluations:result.evaluations,pinnedVacancyId:text(result.selection.pinnedVacancyId),suggestedVacancyId:text(result.selection.suggestedVacancyId),suggestedVacancyName:text(vacancyMap.get(text(result.selection.suggestedVacancyId))?.name),vacancyOptions:options};
     });
+  }
+
+  async function buildOpportunityRows(app,rows,now=Date.now()){
+    const config=await getConfig(app);
+    return OpportunityUI.buildOpportunityRows(rows,{weights:opportunityWeights(config),now});
   }
 
   async function persistRoute(app,page){const state=app?._test?.state;if(!state?.db)return false;state.page=page;state.settings=state.settings||{};state.settings.activePage=page;const meta=await dbGet(state.db,'meta','global')||{key:'global',settings:{}};meta.settings={...(meta.settings||{}),activePage:page};await dbPut(state.db,'meta',meta);return true;}
@@ -150,7 +159,6 @@
     document.getElementById('ra-company-timeline-add')?.addEventListener('click',()=>addTimelineNoteFromUi().then(()=>renderPage('company-timeline',{persist:false})).catch(reportError));
     document.querySelectorAll('#ra-content [data-timeline-note-edit]').forEach(button=>{button.onclick=()=>editTimelineNote(button.dataset.timelineUser,button.dataset.timelineNoteEdit).then(()=>renderPage('company-timeline',{persist:false})).catch(reportError);});
     document.querySelectorAll('#ra-content [data-timeline-note-delete]').forEach(button=>{button.onclick=()=>deleteTimelineNote(button.dataset.timelineUser,button.dataset.timelineNoteDelete).then(()=>renderPage('company-timeline',{persist:false})).catch(reportError);});
-
     document.getElementById('ra-company-campaign-new')?.addEventListener('click',()=>createCampaignFromUi().then(()=>renderPage('company-campaigns',{persist:false})).catch(reportError));
     document.querySelectorAll('#ra-content [data-campaign-save]').forEach(button=>{button.onclick=()=>saveCampaignFromCard(button.dataset.campaignSave,button.closest('[data-campaign-card]')).then(()=>renderPage('company-campaigns',{persist:false})).catch(reportError);});
     document.querySelectorAll('#ra-content [data-campaign-delete]').forEach(button=>{button.onclick=()=>{if(typeof globalThis.confirm==='function'&&!globalThis.confirm('Delete this Company campaign?'))return;removeCampaign(runtime.app,button.dataset.campaignDelete).then(()=>renderPage('company-campaigns',{persist:false})).catch(reportError);};});
@@ -161,6 +169,7 @@
     document.querySelectorAll('#ra-content [data-reactivate-player]').forEach(button=>{button.onclick=()=>reactivateFromUi(button.dataset.reactivatePlayer).then(()=>renderPage('company-reactivation',{persist:false})).catch(reportError);});
     document.getElementById('ra-company-session-new')?.addEventListener('click',()=>createSessionFromUi().then(()=>renderPage('company-recruitment-sessions',{persist:false})).catch(reportError));
     document.querySelectorAll('#ra-content [data-session-action]').forEach(button=>{button.onclick=()=>recordSessionActionFromUi(button.dataset.sessionAction,button.dataset.sessionUser,button.value).then(()=>renderPage('company-recruitment-sessions',{persist:false})).catch(reportError);});
+    document.querySelectorAll('#ra-content [data-company-compare-select]').forEach(input=>{input.onchange=()=>{const id=text(input.dataset.companyCompareSelect);if(input.checked){if(runtime.compareSelection.size>=4){input.checked=false;reportError(new Error('Compare supports up to four players.'));return;}runtime.compareSelection.add(id);}else runtime.compareSelection.delete(id);renderPage('company-compare',{persist:false}).catch(reportError);};});
   }
 
   function syncActiveNav(page){document.querySelectorAll('#ra-nav [data-page]').forEach(button=>button.classList.toggle('active',button.dataset.page===page));}
@@ -174,7 +183,12 @@
     const meta=routeMeta(page);title.textContent=meta.title;desc.textContent=meta.description;
     const rows=await buildRows(app);
     if(page==='company-overview')content.innerHTML=CompanyUI.renderOverview(CompanyUI.buildOverviewModel(rows,await getVacancies(app)));
-    else if(page==='company-today'){const config=await getConfig(app);content.innerHTML=CompanyUI.renderToday(CompanyUI.buildTodayModel(rows,{now:Date.now(),stageThresholds:config.stageThresholds||{},opportunities:{}}));}
+    else if(page==='company-today'){
+      const config=await getConfig(app),now=Date.now();
+      const opportunityRows=OpportunityUI.buildOpportunityRows(rows,{weights:opportunityWeights(config),now});
+      const opportunities=Object.fromEntries(opportunityRows.map(row=>[row.userId,row.opportunity.score]));
+      content.innerHTML=CompanyUI.renderToday(CompanyUI.buildTodayModel(rows,{now,stageThresholds:config.stageThresholds||{},opportunities}));
+    }
     else if(page==='company-candidates')content.innerHTML=CompanyUI.renderCandidates(rows);
     else if(page==='company-pipeline')content.innerHTML=CompanyUI.renderPipeline(CompanyUI.buildPipelineModel(rows));
     else if(page==='company-vacancies')content.innerHTML=CompanyUI.renderVacanciesPage({config:await getConfig(app),vacancies:await getVacancies(app),rows});
@@ -186,12 +200,14 @@
     else if(page==='company-talent-pool')content.innerHTML=WorkflowUI.renderTalentPoolPage(rows);
     else if(page==='company-reactivation')content.innerHTML=WorkflowUI.renderReactivationPage(rows);
     else if(page==='company-recruitment-sessions')content.innerHTML=WorkflowUI.renderRecruitmentSessionsPage({sessions:await getSessions(app),rows});
+    else if(page==='company-opportunity')content.innerHTML=OpportunityUI.renderOpportunityPage(await buildOpportunityRows(app,rows,Date.now()));
+    else if(page==='company-compare')content.innerHTML=OpportunityUI.renderComparePage(rows,[...runtime.compareSelection]);
     syncActiveNav(page);bindContentControls();if(options.persist!==false)await persistRoute(app,page);return true;
   }
 
   function bindNav(){if(!runtime.app)return;document.querySelectorAll('#ra-nav [data-page]').forEach(button=>{const page=text(button.dataset.page);if(!IMPLEMENTED_ROUTES.has(page))return;if(!runtime.originalHandlers.has(button))runtime.originalHandlers.set(button,button.onclick||null);button.onclick=event=>{event?.preventDefault?.();renderPage(page).catch(reportError);};});}
   function install(app,options={}){if(!app?._test?.state?.db)throw new Error('A mounted Recruitment Agency app with DB state is required.');uninstall();runtime.app=app;runtime.installed=true;bindNav();const nav=document.getElementById('ra-nav');if(nav&&typeof MutationObserver==='function'){runtime.observer=new MutationObserver(()=>bindNav());runtime.observer.observe(nav,{childList:true,subtree:true});}const page=text(app._test.state.page||app._test.state.settings?.activePage);if(options.renderInitial!==false&&IMPLEMENTED_ROUTES.has(page))renderPage(page,{persist:false}).catch(reportError);return true;}
-  function uninstall(){runtime.observer?.disconnect?.();runtime.observer=null;for(const[button,handler]of runtime.originalHandlers.entries())if(button?.isConnected)button.onclick=handler;runtime.originalHandlers.clear();runtime.app=null;runtime.installed=false;}
+  function uninstall(){runtime.observer?.disconnect?.();runtime.observer=null;for(const[button,handler]of runtime.originalHandlers.entries())if(button?.isConnected)button.onclick=handler;runtime.originalHandlers.clear();runtime.compareSelection.clear();runtime.app=null;runtime.installed=false;}
 
-  return Object.freeze({COMPANY_ROUTES,isCompanyRoute,routeMeta,install,uninstall,renderPage,_test:{buildRows,persistRoute,dbGetAll,dbGet,dbPut,dbDelete,evaluateCandidateVacancies,canMoveToStage,readCriteria,getCampaigns,getSessions,IMPLEMENTED_ROUTES}});
+  return Object.freeze({COMPANY_ROUTES,isCompanyRoute,routeMeta,install,uninstall,renderPage,_test:{buildRows,buildOpportunityRows,persistRoute,dbGetAll,dbGet,dbPut,dbDelete,evaluateCandidateVacancies,canMoveToStage,readCriteria,getCampaigns,getSessions,opportunityWeights,IMPLEMENTED_ROUTES}});
 });
