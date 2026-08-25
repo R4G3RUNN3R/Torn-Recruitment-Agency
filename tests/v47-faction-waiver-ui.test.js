@@ -10,8 +10,8 @@ const rows=[{
   name:'Alpha',
   baselineEligibility:'NOT CURRENTLY ELIGIBLE',
   waivers:[
-    {waiverId:'w-active',criterionId:'level',scope:'baseline',profileId:null,reason:'Leadership-approved exception',grantedBy:'recruiter',grantedAt:1000,reviewAt:5000,resolvedAt:null},
-    {waiverId:'w-resolved',criterionId:'rw-hits',scope:'specialist',profileId:'rw',reason:'Temporary specialist exception',grantedBy:'recruiter',grantedAt:2000,reviewAt:null,resolvedAt:4000}
+    {waiverId:'w-active',requirementId:'level',context:'baseline',profileId:'',reason:'Leadership-approved exception',state:'Active',grantedAt:1000,reviewAt:5000,resolvedAt:null,resolvedReason:''},
+    {waiverId:'w-resolved',requirementId:'rw-hits',context:'specialist',profileId:'rw',reason:'Temporary specialist exception',state:'Resolved',grantedAt:2000,reviewAt:null,resolvedAt:4000,resolvedReason:'Profile changed'}
   ]
 }];
 
@@ -19,11 +19,11 @@ test('Faction Requirements exposes individual waiver controls without hiding the
   const html=FactionUI.renderRequirementsPage({config:{baseline},profiles,rows});
   assert.match(html,/Waiver Management/);
   assert.match(html,/id="ra-faction-waiver-player"/);
-  assert.match(html,/id="ra-faction-waiver-scope"/);
+  assert.match(html,/id="ra-faction-waiver-context"/);
   assert.match(html,/value="baseline"/);
   assert.match(html,/value="specialist"/);
   assert.match(html,/id="ra-faction-waiver-profile"/);
-  assert.match(html,/id="ra-faction-waiver-criterion"/);
+  assert.match(html,/id="ra-faction-waiver-requirement"/);
   assert.match(html,/id="ra-faction-waiver-reason"/);
   assert.match(html,/id="ra-faction-waiver-review"/);
   assert.match(html,/id="ra-faction-waiver-grant"/);
@@ -36,6 +36,7 @@ test('Faction waiver history keeps resolved entries and only active waivers expo
   assert.match(html,/Active/);
   assert.match(html,/Resolved/);
   assert.match(html,/Temporary specialist exception/);
+  assert.match(html,/Profile changed/);
   assert.match(html,/data-faction-waiver-resolve="w-active"/);
   assert.match(html,/data-faction-waiver-player="101"/);
   assert.doesNotMatch(html,/data-faction-waiver-resolve="w-resolved"/);
