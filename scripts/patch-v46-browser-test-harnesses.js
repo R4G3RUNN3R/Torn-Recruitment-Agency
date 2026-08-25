@@ -50,3 +50,4 @@ const replacements=[
 for(const [search,replacement] of replacements){if(!runtime.includes(search))throw new Error(`Runtime assertion patch guard failed: ${search}`);runtime=runtime.replace(search,replacement);}
 fs.writeFileSync(runtimeFile,runtime);changed.push('v45-ui-runtime.test.js');
 console.log(`Patched ${changed.length} test harness files: ${[...new Set(changed)].join(', ')}`);
+// workflow trigger marker; no functional effect
