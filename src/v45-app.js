@@ -13,7 +13,8 @@
     V46Storage: root && root.RA_V46StorageCore,
     V46Navigation: root && root.RA_V46Navigation,
     V46CompanyCore: root && root.RA_V46CompanyCore,
-    V46CompanyStorage: root && root.RA_V46CompanyStorage
+    V46CompanyStorage: root && root.RA_V46CompanyStorage,
+    V46CompanyPlatform: root && root.RA_V46CompanyPlatform
   };
   if (typeof module === 'object' && module.exports) {
     deps.ScoutCore = require('./scout-core');
@@ -30,6 +31,7 @@
     deps.V46Navigation = require('./v46-navigation');
     deps.V46CompanyCore = require('./v46-company-core');
     deps.V46CompanyStorage = require('./v46-company-storage');
+    deps.V46CompanyPlatform = require('./v46-company-platform');
   }
   const api = factory(deps);
   if (typeof module === 'object' && module.exports) module.exports = api;
@@ -37,8 +39,8 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function (D) {
   'use strict';
 
-  const {ScoutCore,ResultsCore,GlobalCore,MatchCore,ForumCore,Runtime,Candidates,Discovery,Messaging,V46Domain,V46Storage,V46Navigation,V46CompanyCore,V46CompanyStorage} = D;
-  if (![ScoutCore,ResultsCore,GlobalCore,MatchCore,ForumCore,Runtime,Candidates,Discovery,Messaging,V46Domain,V46Storage,V46Navigation,V46CompanyCore,V46CompanyStorage].every(Boolean)) {
+  const {ScoutCore,ResultsCore,GlobalCore,MatchCore,ForumCore,Runtime,Candidates,Discovery,Messaging,V46Domain,V46Storage,V46Navigation,V46CompanyCore,V46CompanyStorage,V46CompanyPlatform} = D;
+  if (![ScoutCore,ResultsCore,GlobalCore,MatchCore,ForumCore,Runtime,Candidates,Discovery,Messaging,V46Domain,V46Storage,V46Navigation,V46CompanyCore,V46CompanyStorage,V46CompanyPlatform].every(Boolean)) {
     throw new Error('Recruitment Agency v4.5 core modules are required.');
   }
 
@@ -124,6 +126,7 @@
   };
   const repositories=V46Storage.createRepositories(idb);
   const companyRepositories=V46CompanyStorage.createRepositories(idb,V46CompanyCore);
+  const companyPlatformApp={_test:{state,repositories,companyRepositories}};
 
   function mergeSettings(raw={}) {
     const base=defaultSettings();
@@ -273,7 +276,26 @@
 
   const renderCompanyPlaceholder=async()=>panel(pageMeta(state.page)[0],'Company recruitment route shell',`<div class="ra-muted">This dedicated Company workspace is wired and will be populated by the next Company implementation task.</div>`);
   const renderers={'company-overview':renderOverview,'company-discover':renderDiscover,'company-candidates':renderCandidates,'company-pipeline':renderPipeline,'company-today':renderCompanyPlaceholder,'company-vacancies':renderCompanyPlaceholder,'company-campaigns':renderCompanyPlaceholder,'company-followups':renderCompanyPlaceholder,'company-timeline':renderCompanyPlaceholder,'company-stage-aging':renderCompanyPlaceholder,'company-contact-outcomes':renderCompanyPlaceholder,'company-recruitment-sessions':renderCompanyPlaceholder,'company-talent-pool':renderCompanyPlaceholder,'company-reactivation':renderCompanyPlaceholder,'company-opportunity':renderCompanyPlaceholder,'company-compare':renderCompanyPlaceholder,scout:renderScout,'smart-match':renderSmartMatch,'global-intelligence':renderGlobal,settings:renderSettings,data:renderData,logs:renderLogs};
-  async function route(page,persist=true){state.page=V46Navigation.normalizeRoute(page,state.settings.complexity);if(persist)await saveSettings({activePage:state.page});const [title,description]=pageMeta(state.page);document.getElementById('ra-page-title').textContent=title;document.getElementById('ra-page-desc').textContent=description;const content=document.getElementById('ra-content');content.innerHTML=await (renderers[state.page]||renderOverview)();rebuildNav();bindPageControls();bindHelp();bindCandidateInteractions();document.querySelector('.ra-shell')?.classList.remove('sidebar-open');if(state.page==='logs')startLogRefresh();else stopLogRefresh();}
+  async function route(page,persist=true){
+    state.page=V46Navigation.normalizeRoute(page,state.settings.complexity);
+    if(persist)await saveSettings({activePage:state.page});
+    if(V46CompanyPlatform._test.IMPLEMENTED_ROUTES.has(state.page)){
+      await V46CompanyPlatform.renderPage(state.page,{persist:false});
+      rebuildNav();
+      bindHelp();
+      document.querySelector('.ra-shell')?.classList.remove('sidebar-open');
+      stopLogRefresh();
+      return;
+    }
+    const [title,description]=pageMeta(state.page);
+    document.getElementById('ra-page-title').textContent=title;
+    document.getElementById('ra-page-desc').textContent=description;
+    const content=document.getElementById('ra-content');
+    content.innerHTML=await (renderers[state.page]||renderOverview)();
+    rebuildNav();bindPageControls();bindHelp();bindCandidateInteractions();
+    document.querySelector('.ra-shell')?.classList.remove('sidebar-open');
+    if(state.page==='logs')startLogRefresh();else stopLogRefresh();
+  }
 
   async function saveCandidate(candidate){candidate.userId=String(candidate.userId);candidate.updatedAt=new Date().toISOString();await idb.put('candidateLocal',candidate);await repositories.company.ensure(candidate.userId,candidate,{sharedPatch:{name:candidate.name},source:'company-workflow',observedAt:Date.now()});return candidate;}
   async function changeCandidateStage(id,stage){const candidate=await idb.get('candidateLocal',String(id))||await idb.get('candidateLocal',Number(id));if(!candidate)return;await saveCandidate(Candidates.changeStage(candidate,stage));await logEvent('candidate','Pipeline stage changed',{playerId:Number(id),stage:ForumCore.normalizeStage(stage)});}
@@ -370,7 +392,24 @@
 
   function mount(){injectStyles();const fallback=document.createElement('button');fallback.id='ra-launch';fallback.textContent='RA';fallback.title='Recruitment Agency';fallback.onclick=openApp;document.body.appendChild(fallback);const app=document.createElement('div');app.id='ra-app';app.innerHTML=`<div class="ra-titlebar" id="ra-titlebar"><b>Recruitment Agency <span class="ra-muted">v${SCRIPT_VERSION}</span></b><div class="ra-title-actions"><button class="ra-btn" id="ra-settings-button" title="Settings">⚙ Settings</button><button class="ra-btn" id="ra-mobile-menu">☰</button><button class="ra-btn" id="ra-close">×</button></div></div><div class="ra-shell"><aside class="ra-sidebar"><div class="ra-sidebar-head"><span class="ra-brand">Recruitment Agency</span><button class="ra-btn" id="ra-collapse">≡</button></div><div id="ra-nav"></div></aside><main class="ra-main"><header class="ra-pagehead"><div><h2 id="ra-page-title">Overview</h2><p id="ra-page-desc"></p></div><div id="ra-page-actions"></div></header><div class="ra-content" id="ra-content"></div><aside id="ra-drawer" class="ra-drawer" hidden></aside><div id="ra-modal" class="ra-modal" hidden></div></main></div>`;document.body.appendChild(app);const hover=document.createElement('div');hover.id='ra-hover';hover.className='ra-hover';hover.hidden=true;hover.setAttribute('role','dialog');hover.setAttribute('aria-label','Candidate intelligence');document.body.appendChild(hover);const context=document.createElement('div');context.id='ra-context';context.hidden=true;context.setAttribute('role','menu');document.body.appendChild(context);const help=document.createElement('div');help.id='ra-help-popover';help.className='ra-help-popover';help.hidden=true;help.setAttribute('role','dialog');document.body.appendChild(help);const toasts=document.createElement('div');toasts.id='ra-toastbox';toasts.className='ra-toastbox';document.body.appendChild(toasts);document.getElementById('ra-close').onclick=()=>app.style.display='none';document.getElementById('ra-settings-button').onclick=()=>route('settings');document.getElementById('ra-collapse').onclick=async()=>{await saveSettings({sidebarCollapsed:!state.settings.sidebarCollapsed});rebuildNav();};document.getElementById('ra-mobile-menu').onclick=()=>document.querySelector('.ra-shell')?.classList.toggle('sidebar-open');document.addEventListener('click',e=>{if(!e.target.closest('#ra-context'))closeContextMenu();});document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeContextMenu();closeCandidateHover();closeHelp(true);closeModal();document.querySelector('.ra-shell')?.classList.remove('sidebar-open');const drawer=document.getElementById('ra-drawer');if(drawer&&!drawer.hidden){drawer.hidden=true;state.drawerCandidateId='';}}});bindWindow();rebuildNav();restoreGeometry().catch(()=>{});}
 
-  async function start(options={}){if(state.mounted)return;state.db=options.db||await openDB(options.indexedDB);state.settings=mergeSettings((await getMeta()).settings||{});state.page=V46Navigation.normalizeRoute(state.settings.activePage,state.settings.complexity);const meta=await getMeta();meta.settings=state.settings;meta.ui=meta.ui||{windowGeometry:{}};await idb.put('meta',meta);await migrateLegacyUsers();await repositories.backfillLegacy(Date.now());await ensureDefaultMatchProfile();if(document.readyState==='loading')await new Promise(resolve=>document.addEventListener('DOMContentLoaded',resolve,{once:true}));applyTheme();mount();state.mounted=true;await route(state.page,false);ensureTornLauncher();syncLauncherVisibility();const observer=new MutationObserver(()=>{if(!document.getElementById('ra-sidebar-launcher'))ensureTornLauncher();});observer.observe(document.documentElement,{childList:true,subtree:true});await logEvent('startup','Recruitment Agency v4.5 started',{version:SCRIPT_VERSION,dbVersion:DB_VERSION});if(state.settings.global.enabled&&globalEndpoint())void flushGlobalQueue(false);return true;}
+  async function start(options={}){
+    if(state.mounted)return;
+    state.db=options.db||await openDB(options.indexedDB);
+    state.settings=mergeSettings((await getMeta()).settings||{});
+    state.page=V46Navigation.normalizeRoute(state.settings.activePage,state.settings.complexity);
+    const meta=await getMeta();meta.settings=state.settings;meta.ui=meta.ui||{windowGeometry:{}};await idb.put('meta',meta);
+    await migrateLegacyUsers();await repositories.backfillLegacy(Date.now());await ensureDefaultMatchProfile();
+    if(document.readyState==='loading')await new Promise(resolve=>document.addEventListener('DOMContentLoaded',resolve,{once:true}));
+    applyTheme();mount();state.mounted=true;
+    V46CompanyPlatform.install(companyPlatformApp,{renderInitial:false});
+    await route(state.page,false);
+    ensureTornLauncher();syncLauncherVisibility();
+    const observer=new MutationObserver(()=>{if(!document.getElementById('ra-sidebar-launcher'))ensureTornLauncher();});
+    observer.observe(document.documentElement,{childList:true,subtree:true});
+    await logEvent('startup','Recruitment Agency v4.6 source started',{version:SCRIPT_VERSION,dbVersion:DB_VERSION});
+    if(state.settings.global.enabled&&globalEndpoint())void flushGlobalQueue(false);
+    return true;
+  }
 
   return Object.freeze({SCRIPT_VERSION,DB_VERSION,HARD_API_RATE,MIN_API_GAP_MS,DEFAULT_VISIBLE_COLUMNS,OPTIONAL_COLUMNS,openDB,mergeSettings,start,_test:{state,repositories,companyRepositories,recruitmentDomainForFeed,persistDiscoveredCandidate,deleteCompanyCandidateData,clearRecruitmentData,applyCandidateFilters,candidateCsvRow,matchAvailability,forumThreadUrl}});
 });
