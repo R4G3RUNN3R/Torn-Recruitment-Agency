@@ -58,10 +58,10 @@ fs.writeFileSync(appPath,app);
 
 const factionFiles=['v47-faction-core.js','v47-faction-storage.js','v47-faction-ui.js','v47-faction-operations.js','v47-faction-workflow.js','v47-faction-workflow-ui.js','v47-faction-opportunity-ui.js','v47-faction-platform.js'];
 const pkg=JSON.parse(fs.readFileSync(pkgPath,'utf8'));
-const syntaxAnchor='node -c src/v46-company-platform.js && node -c src/v45-app.js';
+const syntaxAnchor='node --check src/v46-company-platform.js && node --check src/v45-app.js';
 if(!pkg.scripts?.syntax?.includes(syntaxAnchor))fail('package.json syntax anchor missing');
-const factionSyntax=factionFiles.map(file=>`node -c src/${file}`).join(' && ');
-pkg.scripts.syntax=pkg.scripts.syntax.replace(syntaxAnchor,`node -c src/v46-company-platform.js && ${factionSyntax} && node -c src/v45-app.js`);
+const factionSyntax=factionFiles.map(file=>`node --check src/${file}`).join(' && ');
+pkg.scripts.syntax=pkg.scripts.syntax.replace(syntaxAnchor,`node --check src/v46-company-platform.js && ${factionSyntax} && node --check src/v45-app.js`);
 fs.writeFileSync(pkgPath,JSON.stringify(pkg,null,2)+'\n');
 
 const testsDir=path.join(ROOT,'tests');
