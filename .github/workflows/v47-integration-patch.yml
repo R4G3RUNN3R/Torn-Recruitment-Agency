@@ -22,18 +22,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Normalize dependency anchor and apply integration patch
-        run: |
-          node <<'NODE'
-          const fs=require('node:fs');
-          const file='src/v45-app.js';
-          let source=fs.readFileSync(file,'utf8');
-          const pattern=/(\s+V46CompanyPlatform:root&&root\.RA_V46CompanyPlatform),?(\r?\n\s*};)/;
-          if(!pattern.test(source)) throw new Error('Expected final Company dependency anchor was not found.');
-          source=source.replace(pattern,'$1,$2');
-          fs.writeFileSync(file,source);
-          NODE
-          node scripts/patch-v47-integration.js
+      - name: Apply integration patch
+        run: node scripts/patch-v47-integration.js
       - name: Commit integration changes
         run: |
           git config user.name "github-actions[bot]"
