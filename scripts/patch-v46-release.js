@@ -36,3 +36,4 @@ readme=replaceOnce(readme,'- The public userscript remains **v4.5.4** with its e
 write('README.md',readme);
 
 console.log('Applied guarded v4.6.0 release patch.');
+// trigger marker only; no functional effect
