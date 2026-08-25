@@ -115,6 +115,8 @@
       followUps:Array.isArray(record.followUps) ? record.followUps.map(item => ({...item})) : [],
       campaigns:uniqueStrings(record.campaigns),
       outcomes:Array.isArray(record.outcomes) ? record.outcomes.map(item => ({...item})) : [],
+      waivers:Array.isArray(record.waivers) ? record.waivers.map(item => ({...item})) : [],
+      pinnedVacancyId:text(record.pinnedVacancyId),
       doNotContact:record.doNotContact === true,
       archived:record.archived === true,
       cycles:Array.isArray(record.cycles) ? record.cycles.map(item => ({...item})) : [],
