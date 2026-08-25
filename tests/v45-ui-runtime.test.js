@@ -7,6 +7,14 @@ function tick(ms = 10) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+async function waitFor(predicate, timeoutMs = 1000) {
+  const started = Date.now();
+  while (!predicate()) {
+    if (Date.now() - started >= timeoutMs) throw new Error('Timed out waiting for condition');
+    await tick();
+  }
+}
+
 test('v4.5 application mounts and primary navigation responds to real clicks', async () => {
   const dom = new JSDOM(`<!doctype html><html><head></head><body>
     <section><h2>Information</h2><div><button>One</button><button>Two</button></div></section>
@@ -61,27 +69,30 @@ test('v4.5 application mounts and primary navigation responds to real clicks', a
     const button = document.querySelector(`[data-page="${page}"]`);
     assert.ok(button, `navigation button for ${page} should exist`);
     button.click();
-    await tick();
+    await waitFor(() => document.getElementById('ra-page-title')?.textContent === expectedTitle);
     assert.equal(document.getElementById('ra-page-title').textContent, expectedTitle);
-    if (expectedControl) assert.ok(document.getElementById(expectedControl), `${expectedControl} should exist after routing to ${page}`);
+    if (expectedControl) {
+      await waitFor(() => document.querySelector(expectedControl));
+      assert.ok(document.querySelector(expectedControl), `${expectedControl} should exist after routing to ${page}`);
+    }
   }
 
-  await openPage('discover', 'Discover', 'ra-sync');
-  await openPage('candidates', 'Candidates', 'ra-toggle-view');
-  await openPage('pipeline', 'Pipeline', 'ra-mobile-stage-select');
+  await openPage('company-discover', 'Company Discover', '#ra-sync');
+  await openPage('company-candidates', 'Company Candidates', '#ra-content .ra-table');
+  await openPage('company-pipeline', 'Company Pipeline', '#ra-content .ra-pipeline');
 
   const intelligenceToggle = document.querySelector('[data-nav-toggle="intelligence"]');
   assert.ok(intelligenceToggle, 'Intelligence navigation group toggle should exist');
   intelligenceToggle.click();
-  await tick();
+  await waitFor(() => document.querySelector('[data-nav-toggle="intelligence"]')?.getAttribute('aria-expanded') === 'true');
   assert.equal(document.querySelector('[data-nav-toggle="intelligence"]').getAttribute('aria-expanded'), 'true');
 
-  await openPage('scout', 'Scout', 'ra-run-scout');
-  await openPage('smart-match', 'Smart Match', 'ra-match-save');
-  await openPage('global-intelligence', 'Global Intelligence', 'ra-global-test');
+  await openPage('scout', 'Scout', '#ra-run-scout');
+  await openPage('smart-match', 'Smart Match', '#ra-match-save');
+  await openPage('global-intelligence', 'Global Intelligence', '#ra-global-test');
 
   document.getElementById('ra-settings-button').click();
-  await tick();
+  await waitFor(() => document.getElementById('ra-page-title')?.textContent === 'Settings');
   assert.equal(document.getElementById('ra-page-title').textContent, 'Settings');
   assert.ok(document.getElementById('ra-save-settings'), 'Settings controls should be live after clicking the titlebar Settings button');
 

@@ -7,7 +7,7 @@ const { execFileSync } = require('node:child_process');
 const puppeteer = require('puppeteer-core');
 
 const ROOT = path.join(__dirname, '..');
-const MODULES = ['scout-core.js','results-core.js','global-core.js','match-core.js','forum-core.js','v45-runtime.js','v45-candidates.js','v45-discovery.js','v45-messaging.js','v46-domain-core.js','v46-storage-core.js','v46-navigation.js','v45-app.js'];
+const MODULES = ['scout-core.js','results-core.js','global-core.js','match-core.js','forum-core.js','v45-runtime.js','v45-candidates.js','v45-discovery.js','v45-messaging.js','v46-domain-core.js','v46-storage-core.js','v46-navigation.js','v46-company-core.js','v46-company-storage.js','v46-company-ui.js','v46-company-operations.js','v46-company-workflow.js','v46-company-workflow-ui.js','v46-company-opportunity-ui.js','v46-company-platform.js','v45-app.js'];
 
 function chromePath(){
   for(const cmd of ['google-chrome-stable','google-chrome','chromium-browser','chromium']){
@@ -70,28 +70,27 @@ test('primary navigation and in-page controls survive a hostile document-capture
     await physicalClick(page,launcher);
     assert.equal(await page.$eval('#ra-app',e=>getComputedStyle(e).display),'block');
 
-    await physicalClick(page,'[data-page="discover"]');
-    await page.waitForFunction(()=>document.getElementById('ra-page-title')?.textContent==='Discover',{timeout:5000});
+    await physicalClick(page,'[data-page="company-discover"]');
+    await page.waitForFunction(()=>document.getElementById('ra-page-title')?.textContent==='Company Discover',{timeout:5000});
     await page.waitForSelector('#ra-discover-menu',{visible:true});
     await page.waitForSelector('#ra-discover-more');
     assert.equal(await page.$eval('#ra-discover-more',e=>e.hidden),true,'Discover More starts closed');
     await physicalClick(page,'#ra-discover-menu');
     await page.waitForFunction(()=>document.getElementById('ra-discover-more')?.hidden===false,{timeout:5000});
-    assert.equal(await page.$eval('#ra-page-title',e=>e.textContent),'Discover','in-page Discover control must not change route');
+    assert.equal(await page.$eval('#ra-page-title',e=>e.textContent),'Company Discover','in-page Discover control must not change route');
 
-    await physicalClick(page,'[data-page="candidates"]');
-    await page.waitForFunction(()=>document.getElementById('ra-page-title')?.textContent==='Candidates',{timeout:5000});
-    await page.waitForSelector('#ra-more-filters',{visible:true});
-    await page.waitForSelector('#ra-more-filter-box');
-    assert.equal(await page.$eval('#ra-more-filter-box',e=>e.hidden),true,'Candidate extra filters start closed');
-    await physicalClick(page,'#ra-more-filters');
-    await page.waitForFunction(()=>document.getElementById('ra-more-filter-box')?.hidden===false,{timeout:5000});
-    assert.equal(await page.$eval('#ra-page-title',e=>e.textContent),'Candidates','in-page Candidate control must not change route');
+    await physicalClick(page,'[data-page="company-overview"]');
+    await page.waitForFunction(()=>document.getElementById('ra-page-title')?.textContent==='Company Overview',{timeout:5000});
+    await page.waitForSelector('[data-go-page="company-candidates"]',{visible:true});
+    await physicalClick(page,'[data-go-page="company-candidates"]');
+    await page.waitForFunction(()=>document.getElementById('ra-page-title')?.textContent==='Company Candidates',{timeout:5000});
+    await page.waitForSelector('#ra-content .ra-table',{visible:true});
+    assert.equal(await page.$eval('#ra-page-title',e=>e.textContent),'Company Candidates','v4.6 Company in-page route control must survive capture blocker');
 
     await physicalClick(page,'[data-nav-toggle="intelligence"]');
     await page.waitForFunction(()=>document.querySelector('[data-nav-toggle="intelligence"]')?.getAttribute('aria-expanded')==='true',{timeout:5000});
 
-    for(const [route,title] of [['pipeline','Pipeline'],['scout','Scout'],['smart-match','Smart Match'],['global-intelligence','Global Intelligence']]){
+    for(const [route,title] of [['company-pipeline','Company Pipeline'],['scout','Scout'],['smart-match','Smart Match'],['global-intelligence','Global Intelligence']]){
       await physicalClick(page,`[data-page="${route}"]`);
       await page.waitForFunction(t=>document.getElementById('ra-page-title')?.textContent===t,{timeout:5000},title);
     }

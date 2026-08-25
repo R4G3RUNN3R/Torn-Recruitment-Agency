@@ -7,7 +7,7 @@ const { execFileSync } = require('node:child_process');
 const puppeteer = require('puppeteer-core');
 
 const ROOT = path.join(__dirname, '..');
-const MODULES = ['scout-core.js','results-core.js','global-core.js','match-core.js','forum-core.js','v45-runtime.js','v45-candidates.js','v45-discovery.js','v45-messaging.js','v46-domain-core.js','v46-storage-core.js','v46-navigation.js','v45-app.js'];
+const MODULES = ['scout-core.js','results-core.js','global-core.js','match-core.js','forum-core.js','v45-runtime.js','v45-candidates.js','v45-discovery.js','v45-messaging.js','v46-domain-core.js','v46-storage-core.js','v46-navigation.js','v46-company-core.js','v46-company-storage.js','v46-company-ui.js','v46-company-operations.js','v46-company-workflow.js','v46-company-workflow-ui.js','v46-company-opportunity-ui.js','v46-company-platform.js','v45-app.js'];
 
 function chromePath(){
   for(const cmd of ['google-chrome-stable','google-chrome','chromium-browser','chromium']){
@@ -70,19 +70,19 @@ test('421px mobile shell keeps hamburger sidebar open and routes Discover by phy
     await physicalClick(page,launcher);
     assert.equal(await page.$eval('#ra-app',e=>getComputedStyle(e).display),'block');
 
-    const before=await page.$eval('[data-page="discover"]',e=>{const r=e.getBoundingClientRect();return{x:r.x,right:r.right,width:r.width}});
+    const before=await page.$eval('[data-page="company-discover"]',e=>{const r=e.getBoundingClientRect();return{x:r.x,right:r.right,width:r.width}});
     assert.ok(before.right<=60,`mobile nav should begin off-canvas before hamburger: ${JSON.stringify(before)}`);
 
     await physicalClick(page,'#ra-mobile-menu');
     await new Promise(resolve=>setTimeout(resolve,350));
     assert.equal(await page.$eval('.ra-shell',e=>e.classList.contains('sidebar-open')),true,'hamburger sidebar class must persist after transition');
 
-    const after=await page.$eval('[data-page="discover"]',e=>{const r=e.getBoundingClientRect();const x=r.left+r.width/2,y=r.top+r.height/2,hit=document.elementFromPoint(x,y);return{x:r.x,right:r.right,width:r.width,hit:hit&&(hit.id||hit.className||hit.tagName),clickable:hit===e||!!(hit&&e.contains(hit))}});
+    const after=await page.$eval('[data-page="company-discover"]',e=>{const r=e.getBoundingClientRect();const x=r.left+r.width/2,y=r.top+r.height/2,hit=document.elementFromPoint(x,y);return{x:r.x,right:r.right,width:r.width,hit:hit&&(hit.id||hit.className||hit.tagName),clickable:hit===e||!!(hit&&e.contains(hit))}});
     assert.ok(after.x>=0,`Discover should be on-screen after hamburger: ${JSON.stringify(after)}`);
     assert.equal(after.clickable,true,`Discover must receive the physical click after hamburger: ${JSON.stringify(after)}`);
 
-    await physicalClick(page,'[data-page="discover"]');
-    await page.waitForFunction(()=>document.getElementById('ra-page-title')?.textContent==='Discover',{timeout:5000});
+    await physicalClick(page,'[data-page="company-discover"]');
+    await page.waitForFunction(()=>document.getElementById('ra-page-title')?.textContent==='Company Discover',{timeout:5000});
     assert.equal(await page.$eval('.ra-shell',e=>e.classList.contains('sidebar-open')),false,'routing should close the mobile sidebar only after navigation');
   }finally{
     await browser.close();
