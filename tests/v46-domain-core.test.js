@@ -54,6 +54,16 @@ test('company and faction records remain independently shaped', () => {
   assert.equal(faction.recruiterNote,'faction note');
 });
 
+test('Company workflow normalization preserves vacancy pinning and per-requirement waivers locally', () => {
+  const row=D.normalizeCompanyRecruitment({
+    userId:1,
+    pinnedVacancyId:'vacancy-7',
+    waivers:[{requirementId:'ee-min',state:'active',reason:'Approved exception'}]
+  },1000,{});
+  assert.equal(row.pinnedVacancyId,'vacancy-7');
+  assert.deepEqual(row.waivers,[{requirementId:'ee-min',state:'active',reason:'Approved exception'}]);
+});
+
 test('legacy provenance classifies company-only faction-only both and unknown records', () => {
   assert.deepEqual(D.classifyLegacyDomains({userId:1,discoverySources:['COMPANY FORUM']},[]),['company']);
   assert.deepEqual(D.classifyLegacyDomains({userId:2,discoverySources:['FACTION FORUM']},[]),['faction']);
