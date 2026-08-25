@@ -56,6 +56,7 @@ function serve() {
 async function physicalClick(page, selector) {
   await page.waitForSelector(selector, { visible: true });
   const info = await page.$eval(selector, el => {
+    el.scrollIntoView({block:'center',inline:'nearest'});
     const r = el.getBoundingClientRect();
     const x = r.left + r.width / 2;
     const y = r.top + r.height / 2;
