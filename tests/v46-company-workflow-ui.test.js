@@ -1,6 +1,6 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
-const UI=require('../src/v46-company-ui');
+const WorkflowUI=require('../src/v46-company-workflow-ui');
 const Platform=require('../src/v46-company-platform');
 
 const rows=[
@@ -11,7 +11,7 @@ const campaigns=[{campaignId:'c1',title:'Trainer Hunt',target:'High EE trainers'
 const sessions=[{sessionId:'s1',title:'Morning review',candidateIds:['101','202'],cursor:0,status:'Active',outcomes:[]}];
 
 test('Campaigns page creates campaigns and manages many-to-many candidate membership',()=>{
-  const html=UI.renderCampaignsPage({campaigns,rows,vacancies:[{vacancyId:'v1',name:'Trainer'}]});
+  const html=WorkflowUI.renderCampaignsPage({campaigns,rows,vacancies:[{vacancyId:'v1',name:'Trainer'}]});
   assert.match(html,/id="ra-company-campaign-new"/);
   assert.match(html,/Trainer Hunt/);
   assert.match(html,/data-campaign-add-member="c1"/);
@@ -20,7 +20,7 @@ test('Campaigns page creates campaigns and manages many-to-many candidate member
 });
 
 test('Talent Pool page shows explicit pool state and supports add remove with reason',()=>{
-  const html=UI.renderTalentPoolPage(rows);
+  const html=WorkflowUI.renderTalentPoolPage(rows);
   assert.match(html,/Future trainer/);
   assert.match(html,/id="ra-company-talent-add"/);
   assert.match(html,/data-talent-remove="101"/);
@@ -28,7 +28,7 @@ test('Talent Pool page shows explicit pool state and supports add remove with re
 });
 
 test('Reactivation page preserves same player identity and requires an explicit reason action',()=>{
-  const html=UI.renderReactivationPage(rows);
+  const html=WorkflowUI.renderReactivationPage(rows);
   assert.match(html,/data-reactivate-player="101"/);
   assert.match(html,/data-reactivate-reason="101"/);
   assert.match(html,/Alpha/);
@@ -36,7 +36,7 @@ test('Reactivation page preserves same player identity and requires an explicit 
 });
 
 test('Recruitment Sessions page shows exactly the current candidate and explicit actions',()=>{
-  const html=UI.renderRecruitmentSessionsPage({sessions,rows});
+  const html=WorkflowUI.renderRecruitmentSessionsPage({sessions,rows});
   assert.match(html,/Morning review/);
   assert.match(html,/Current candidate/);
   assert.match(html,/Alpha/);
