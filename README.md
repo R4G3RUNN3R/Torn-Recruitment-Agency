@@ -1,12 +1,12 @@
 # Torn Recruitment Agency
 
-R4G3RUNN3R's Recruitment Agency **v4.5.4** is a modular Torn recruitment workspace combining official forum discovery, a local candidate CRM and six-stage pipeline, Scout intelligence, local-only Smart Match scoring, optional Global Intelligence, contextual help, and safe browser-local persistence.
+R4G3RUNN3R's Recruitment Agency **v4.6.0** is a modular Torn recruitment workspace combining official forum discovery, a local candidate CRM and six-stage pipeline, Scout intelligence, local-only Smart Match scoring, optional Global Intelligence, contextual help, and safe browser-local persistence.
 
 The Scout, Results, Global Intelligence, Smart Match, Forum Discovery, and v4.5 application modules are clean-room implementations. They do not call, authenticate against, or depend on `rs.dnonetwork.com` or another proprietary Recruit Scout grading backend.
 
-## v4.6 source development
+## v4.6 Company Recruitment release
 
-The repository now contains the internal **v4.6 Foundation plus the complete source-level Company Recruitment slice** behind the still-public v4.5.4 installer. Company Recruitment is implemented and verified in source, while the public installer remains intentionally release-isolated until the separate v4.6 pin/version hardening step is complete.
+The repository now contains the **v4.6 Foundation and complete Company Recruitment slice**, released through the public **v4.6.0** userscript. Runtime modules are loaded through immutable `@require` pins to the reviewed source commit used for this release.
 
 - Source-level IndexedDB upgrades additively through **DB14**. DB13 adds `playerIntelligence`, `companyRecruitment`, and `factionRecruitment`; DB14 adds `companyVacancies`, `companyCampaigns`, `companyRecruitmentConfig`, and `companyRecruitmentSessions`. No prior object store is deleted.
 - One Torn ID maps to one shared Player Intelligence identity while Company Recruitment and Faction Recruitment remain separate records and workflows.
@@ -15,7 +15,7 @@ The repository now contains the internal **v4.6 Foundation plus the complete sou
 - Scout and company observations update shared Player Intelligence through an explicit fact-field whitelist. Recruitment-private fields such as pipeline state, recruiter notes, salary, waivers, campaigns, and messaging state cannot enter that shared record through the generic merge path.
 - Sidebar groups can be independently expanded or collapsed, multiple groups may remain open, and expansion state is remembered locally. Settings remains accessible from the title bar rather than returning as a duplicate sidebar item.
 - The Company slice now provides dedicated Overview, Today, Discover, Candidates, Pipeline, Vacancies, Campaigns, Follow-ups, Timeline, Stage Aging, Contact Outcomes, Recruitment Sessions, Talent Pool, Reactivation, Opportunity Queue, and Compare routes. Baseline Hard/Preferred requirements, per-requirement waivers, vacancy matching/pinning, DNC, explicit session advancement, cycle-preserving reactivation, and explainable Opportunity scoring remain Company-only. Faction workflow state is not read or mutated by these Company operations.
-- The public userscript remains **v4.5.4** with its existing immutable `@require` pins until a separate reviewed release explicitly advances the installer and module pins.
+- The public userscript is **v4.6.0** and pins its runtime modules immutably to reviewed source commit `520da615d418d42524761e774f10f3ab26c28572`. Faction recruitment remains a separate domain and is not merged into the Company workflows.
 
 ## What's new in v4.5
 

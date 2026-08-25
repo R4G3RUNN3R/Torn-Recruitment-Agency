@@ -15,7 +15,7 @@ function serve(){const server=http.createServer((req,res)=>{res.writeHead(200,{'
 async function isolatedEval(client,contextId,expression,awaitPromise=false){const out=await client.send('Runtime.evaluate',{contextId,expression,awaitPromise,returnByValue:true});if(out.exceptionDetails)throw new Error(out.exceptionDetails.exception?.description||out.exceptionDetails.text);return out.result.value;}
 async function prepareWorld(client,contextId){await isolatedEval(client,contextId,`globalThis.alert=()=>{};globalThis.confirm=()=>true;globalThis.prompt=()=>'';globalThis.open=()=>null;globalThis.__errors=[];globalThis.addEventListener('error',e=>__errors.push(String(e.error||e.message)));globalThis.addEventListener('unhandledrejection',e=>__errors.push(String(e.reason||'rejection')));`);for(const file of MODULES){await isolatedEval(client,contextId,fs.readFileSync(path.join(ROOT,'src',file),'utf8'));}assert.equal(await isolatedEval(client,contextId,`typeof RA_V45App`),'object');}
 
-test('DOM singleton prevents duplicate v4.5 mounts across isolated userscript worlds and clears legacy UI',{timeout:60000},async()=>{
+test('DOM singleton prevents duplicate v4.6 mounts across isolated userscript worlds and clears legacy UI',{timeout:60000},async()=>{
   const server=await serve();const port=server.address().port;
   const browser=await puppeteer.launch({executablePath:chromePath(),headless:true,args:['--no-sandbox','--disable-setuid-sandbox','--disable-dev-shm-usage']});
   try{
@@ -30,7 +30,7 @@ test('DOM singleton prevents duplicate v4.5 mounts across isolated userscript wo
     await page.waitForFunction(()=>document.querySelectorAll('#ra-app').length===1,{timeout:10000});
 
     assert.equal(await page.evaluate(()=>document.querySelectorAll('#ra-app').length),1,'only one app shell may mount');
-    assert.equal(await page.evaluate(()=>document.documentElement.getAttribute('data-r4g3-ra-v45-owner')),'4.5.4');
+    assert.equal(await page.evaluate(()=>document.documentElement.getAttribute('data-r4g3-ra-v45-owner')),'4.6.0');
     for(const id of ['ra-styles','ra-panel','ra-results-panel','ra-config-modal','ra-dock-fallback','ra-launcher']) assert.equal(await page.$(`#${id}`),null,`legacy ${id} should be removed`);
     assert.equal(await page.evaluate(()=>document.querySelectorAll('.ra-dock-icon').length),0,'legacy dock icons should be removed');
     assert.deepEqual(await isolatedEval(client,a,`__errors`),[]);

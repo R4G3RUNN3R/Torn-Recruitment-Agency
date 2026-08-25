@@ -5,22 +5,33 @@ const path=require('node:path');
 const root=path.join(__dirname,'..');
 const boot=fs.readFileSync(path.join(root,'R4G3RUNN3R-Recruitment-Agency.user.js'),'utf8');
 const app=fs.readFileSync(path.join(root,'src/v45-app.js'),'utf8');
-const PINNED_RUNTIME='9b22dc3478d7d57dba6ff3354681767b35cf0ba6';
+const PINNED_RUNTIME='520da615d418d42524761e774f10f3ab26c28572';
+const RELEASE_FILES=['scout-core.js','results-core.js','global-core.js','match-core.js','forum-core.js','v45-runtime.js','v45-candidates.js','v45-discovery.js','v45-messaging.js','v46-domain-core.js','v46-storage-core.js','v46-navigation.js','v46-company-core.js','v46-company-storage.js','v46-company-ui.js','v46-company-operations.js','v46-company-workflow.js','v46-company-workflow-ui.js','v46-company-opportunity-ui.js','v46-company-platform.js','v45-app.js'];
 
-test('public userscript is the v4.5.4 modular bootstrap with immutable runtime requires',()=>{
-  assert.match(boot,/@version\s+4\.5\.4/);
+test('public userscript is the v4.6.0 modular bootstrap with immutable reviewed runtime requires',()=>{
+  assert.match(boot,/@version\s+4\.6\.0/);
   assert.match(boot,/@noframes/);
-  for(const file of ['scout-core.js','results-core.js','global-core.js','match-core.js','forum-core.js','v45-runtime.js','v45-candidates.js','v45-discovery.js','v45-messaging.js','v45-app.js']){
+  for(const file of RELEASE_FILES){
     assert.ok(boot.includes(`/${PINNED_RUNTIME}/src/${file}`),`pinned ${file}`);
   }
   assert.doesNotMatch(boot,/@require\s+https:\/\/raw\.githubusercontent\.com\/R4G3RUNN3R\/Torn-Recruitment-Agency\/main\/src\//);
-  assert.match(boot,/INSTALLER_VERSION\s*=\s*'4\.5\.4'/);
-  assert.match(boot,/EXPECTED_APP_VERSION\s*=\s*'4\.5\.0'/);
+  assert.match(boot,/INSTALLER_VERSION\s*=\s*'4\.6\.0'/);
+  assert.match(boot,/EXPECTED_APP_VERSION\s*=\s*'4\.6\.0'/);
   assert.match(boot,/app\.SCRIPT_VERSION/);
   assert.match(boot,/app\.start\(\)/);
 });
 
-test('v4.5.4 preserves the direct and addEventListener click bridge',()=>{
+test('v4.6.0 loads v4.6 dependencies before the source application',()=>{
+  const appIndex=boot.indexOf(`/src/v45-app.js`);
+  assert.ok(appIndex>0);
+  for(const file of ['v46-domain-core.js','v46-storage-core.js','v46-navigation.js','v46-company-core.js','v46-company-storage.js','v46-company-ui.js','v46-company-operations.js','v46-company-workflow.js','v46-company-workflow-ui.js','v46-company-opportunity-ui.js','v46-company-platform.js']){
+    const index=boot.indexOf(`/src/${file}`);
+    assert.ok(index>=0&&index<appIndex,`${file} must load before v45-app.js`);
+  }
+  assert.ok(boot.indexOf('/src/v45-messaging.js')<boot.indexOf('/src/v46-company-platform.js'),'Messaging must load before CompanyPlatform');
+});
+
+test('v4.6.0 preserves the direct and addEventListener click bridge',()=>{
   assert.match(boot,/function installClickListenerBridge\(\)/);
   assert.match(boot,/registry = new WeakMap\(\)/);
   assert.match(boot,/EventTarget\.prototype\.addEventListener/);
@@ -36,7 +47,7 @@ test('v4.5.4 preserves the direct and addEventListener click bridge',()=>{
   assert.match(boot,/clickBridge\.invoke\(action, event\)/);
 });
 
-test('v4.5.4 guards the shared DOM against duplicate worlds and legacy RA UI',()=>{
+test('v4.6.0 guards the shared DOM against duplicate worlds and legacy RA UI',()=>{
   assert.match(boot,/DOM_GUARD\s*=\s*'data-r4g3-ra-v45-owner'/);
   assert.match(boot,/root\.getAttribute\(DOM_GUARD\)/);
   assert.match(boot,/root\.setAttribute\(DOM_GUARD, INSTALLER_VERSION\)/);
@@ -45,7 +56,7 @@ test('v4.5.4 guards the shared DOM against duplicate worlds and legacy RA UI',()
   for(const id of ['ra-styles','ra-panel','ra-results-panel','ra-config-modal','ra-dock-fallback','ra-launcher']) assert.ok(boot.includes(`'${id}'`),`legacy cleanup ${id}`);
 });
 
-test('v4.5.4 adds scrollable content, title-bar-only Settings and safe maximize restore',()=>{
+test('v4.6.0 keeps scrollable content, title-bar-only Settings and safe maximize restore',()=>{
   assert.match(boot,/SHELL_STYLE_ID\s*=\s*'ra-v454-shell-css'/);
   assert.match(boot,/function stripSidebarSettings\(\)/);
   assert.match(boot,/#ra-nav \[data-page=\"settings\"\]/);
@@ -76,7 +87,7 @@ test('maximize marks its guarded state before the first persistence await',()=>{
 
 test('source app targets additive DB14 over DB13 foundation and shared scheduler',()=>{assert.match(app,/DB_VERSION\s*=\s*V46CompanyStorage\.DB_VERSION/);assert.match(app,/V46Storage\.applyUpgrade\(db\)[\s\S]*V46CompanyStorage\.applyUpgrade\(db\)/);assert.doesNotMatch(app,/deleteObjectStore\s*\(/);assert.match(app,/HARD_API_RATE\s*=\s*75/);assert.match(app,/MIN_API_GAP_MS\s*=\s*800/);assert.match(app,/Math\.max\(MIN_API_GAP_MS,60000\/clampRate/);});
 
-test('v4.5 keeps Smart Match local and messaging manual',()=>{assert.match(app,/Smart Match.*zero Torn API calls/i);assert.match(app,/you still click Send/);assert.doesNotMatch(app,/autoSubmit\s*:\s*true/);assert.doesNotMatch(app,/pipelineStage\s*=\s*['"]Contacted['"]s*;.*message/s);});
+test('v4.6 keeps Smart Match local and messaging manual',()=>{assert.match(app,/Smart Match.*zero Torn API calls/i);assert.match(app,/you still click Send/);assert.doesNotMatch(app,/autoSubmit\s*:\s*true/);assert.doesNotMatch(app,/pipelineStage\s*=\s*['"]Contacted['"]s*;.*message/s);});
 
 test('Settings is a real routed page and Danger Zone uses inline biohazard SVG',()=>{assert.match(app,/id=\"ra-settings-button\"/);assert.match(app,/document\.getElementById\('ra-settings-button'\)\.onclick=\(\)=>route\('settings'\)/);for(const section of ['General','Recruitment','Scout','Candidates','Smart Match','Global Intelligence','Data & Reset','Danger Zone'])assert.ok(app.includes(section));assert.match(app,/function biohazardSvg/);assert.match(app,/NUKE IT ALL!/);assert.match(app,/Type NUKE to confirm/);});
 
