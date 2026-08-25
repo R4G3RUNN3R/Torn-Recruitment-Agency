@@ -1,0 +1,31 @@
+name: v46 app patch
+
+on:
+  push:
+    branches:
+      - feature/v4.6-company-recruitment
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: contains(github.event.head_commit.message, '[apply-v46-app-patch]')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/v4.6-company-recruitment
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Apply guarded patch
+        run: node scripts/patch-v46-company-platform-app.js
+      - name: Commit source integration
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/v45-app.js
+          git diff --cached --exit-code && exit 1 || true
+          git commit -m "feat(v4.6): delegate Company routes to Company platform"
+          git push origin HEAD:feature/v4.6-company-recruitment
