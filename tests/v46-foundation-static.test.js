@@ -18,8 +18,8 @@ test('source foundation remains wired beneath additive DB14 Company storage',()=
   assert.doesNotMatch(app,/deleteObjectStore\s*\(/);
 });
 
-test('source foundation preserves API pacing and public app version contract',()=>{
-  assert.match(app,/SCRIPT_VERSION\s*=\s*'4\.5\.0'/);
+test('source foundation preserves API pacing and v4.6 public app version contract',()=>{
+  assert.match(app,/SCRIPT_VERSION\s*=\s*'4\.6\.0'/);
   assert.match(app,/HARD_API_RATE\s*=\s*75/);
   assert.match(app,/MIN_API_GAP_MS\s*=\s*800/);
 });
