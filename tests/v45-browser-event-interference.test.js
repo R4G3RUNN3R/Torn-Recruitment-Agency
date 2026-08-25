@@ -40,7 +40,7 @@ function serve(){
 
 async function physicalClick(page,selector){
   await page.waitForSelector(selector,{visible:true});
-  const point=await page.$eval(selector,el=>{const r=el.getBoundingClientRect();return{x:r.left+r.width/2,y:r.top+r.height/2};});
+  const point=await page.$eval(selector,el=>{el.scrollIntoView({block:'center',inline:'nearest'});const r=el.getBoundingClientRect();return{x:r.left+r.width/2,y:r.top+r.height/2};});
   await page.mouse.click(point.x,point.y);
 }
 
