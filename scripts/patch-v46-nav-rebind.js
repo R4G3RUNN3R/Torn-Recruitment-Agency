@@ -31,3 +31,4 @@ patch(
 );
 
 console.log('Patched synchronous v4.6 Company navigation rebind.');
+// trigger marker only; no functional effect
