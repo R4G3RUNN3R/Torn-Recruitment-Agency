@@ -22,7 +22,7 @@ let app=fs.readFileSync(appPath,'utf8');
 if(app.includes('RA_V47FactionPlatform'))fail('v45-app.js already appears integrated.');
 
 app=replaceRegexOnce(app,
-  /(\s+V46CompanyPlatform:\s*root\s*&&\s*root\.RA_V46CompanyPlatform)(\r?\n\s*}\s*\);)/,
+  /(\s+V46CompanyPlatform:\s*root\s*&&\s*root\.RA_V46CompanyPlatform)(\r?\n\s*};)/,
   `$1,\n    V47FactionCore: root && root.RA_V47FactionCore,\n    V47FactionStorage: root && root.RA_V47FactionStorage,\n    V47FactionUI: root && root.RA_V47FactionUI,\n    V47FactionOperations: root && root.RA_V47FactionOperations,\n    V47FactionWorkflow: root && root.RA_V47FactionWorkflow,\n    V47FactionWorkflowUI: root && root.RA_V47FactionWorkflowUI,\n    V47FactionOpportunityUI: root && root.RA_V47FactionOpportunityUI,\n    V47FactionPlatform: root && root.RA_V47FactionPlatform$2`,
   'browser dependency map');
 
