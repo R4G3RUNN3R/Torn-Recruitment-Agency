@@ -26,7 +26,14 @@ test('Company repositories are created from the existing IndexedDB adapter',()=>
   assert.match(app,/const companyRepositories=V46CompanyStorage\.createRepositories\(idb,V46CompanyCore\);/);
 });
 
-test('syntax script includes both Company source modules',()=>{
-  assert.match(pkg.scripts.syntax,/src\/v46-company-core\.js/);
-  assert.match(pkg.scripts.syntax,/src\/v46-company-storage\.js/);
+test('source app installs and delegates owned Company routes to the v4.6 Company platform',()=>{
+  assert.match(app,/RA_V46CompanyPlatform/);
+  assert.match(app,/require\('\.\/v46-company-platform'\)/);
+  assert.match(app,/V46CompanyPlatform\.install\(/);
+  assert.match(app,/V46CompanyPlatform\.renderPage\(/);
+  assert.match(app,/V46CompanyPlatform\._test\.IMPLEMENTED_ROUTES\.has\(state\.page\)/);
+});
+
+test('syntax script includes Company storage, workflow, Opportunity and platform source modules',()=>{
+  for(const file of ['v46-company-core','v46-company-storage','v46-company-ui','v46-company-operations','v46-company-workflow','v46-company-workflow-ui','v46-company-opportunity-ui','v46-company-platform'])assert.match(pkg.scripts.syntax,new RegExp(`src/${file}\\.js`));
 });
