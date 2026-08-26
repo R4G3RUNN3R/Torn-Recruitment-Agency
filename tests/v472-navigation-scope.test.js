@@ -43,9 +43,9 @@ test('Recruitment Agency navigation never hijacks foreign Torn data-page control
     tornButton.click();
     await settle(180);
 
-    assert.equal(tornClicks,1,'the Torn control must keep its own click handler');
     assert.equal(App._test.state.page,'faction-candidates','foreign data-page values must never enter the Recruitment Agency router');
     assert.equal(document.getElementById('ra-page-title').textContent,'Faction Candidates');
+    assert.equal(tornClicks,1,'the Torn control must keep its own click handler');
   }finally{
     await settle(100);
     App._test.state.db?.close?.();
