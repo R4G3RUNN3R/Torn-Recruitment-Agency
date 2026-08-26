@@ -1,0 +1,50 @@
+name: v4.7.1 browser isolation diagnostics
+
+on:
+  push:
+    branches:
+      - diag/v4.7.1-browser-isolation
+
+permissions:
+  contents: read
+
+jobs:
+  hit-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm install --no-audit --no-fund
+      - run: node --test tests/v45-browser-hit-test.test.js
+
+  isolated-world:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm install --no-audit --no-fund
+      - run: node --test tests/v45-browser-isolated-world.test.js
+
+  torn-host:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm install --no-audit --no-fund
+      - run: node --test tests/v45-browser-torn-host.test.js
+
+  upgrade:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm install --no-audit --no-fund
+      - run: node --test tests/v45-browser-upgrade.test.js
