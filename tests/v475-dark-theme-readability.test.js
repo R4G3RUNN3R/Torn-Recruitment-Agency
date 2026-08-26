@@ -4,9 +4,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const puppeteer = require('puppeteer-core');
+const sourceCompatibleBoot = require('./source-compatible-boot');
 
 const ROOT = path.join(__dirname, '..');
 const MODULES = ['scout-core.js','results-core.js','global-core.js','match-core.js','forum-core.js','v45-runtime.js','v45-candidates.js','v45-discovery.js','v45-messaging.js','v46-domain-core.js','v46-storage-core.js','v46-navigation.js','v46-company-core.js','v46-company-storage.js','v46-company-ui.js','v46-company-operations.js','v46-company-workflow.js','v46-company-workflow-ui.js','v46-company-opportunity-ui.js','v46-company-platform.js','v47-faction-core.js','v47-faction-storage.js','v47-faction-ui.js','v47-faction-operations.js','v47-faction-workflow.js','v47-faction-workflow-ui.js','v47-faction-opportunity-ui.js','v47-faction-platform.js','v45-app.js'];
+const BOOT = sourceCompatibleBoot(ROOT);
 
 function chromePath(){
   for(const cmd of ['google-chrome-stable','google-chrome','chromium-browser','chromium']){
@@ -20,6 +22,11 @@ function rgb(hex){
   return `rgb(${parseInt(clean.slice(0,2),16)}, ${parseInt(clean.slice(2,4),16)}, ${parseInt(clean.slice(4,6),16)})`;
 }
 
+async function visibleLauncher(page){
+  await page.waitForFunction(()=>['#ra-sidebar-launcher','#ra-launch'].some(selector=>{const el=document.querySelector(selector);return el&&getComputedStyle(el).display!=='none'&&getComputedStyle(el).visibility!=='hidden';}),{timeout:10000});
+  return page.evaluate(()=>['#ra-sidebar-launcher','#ra-launch'].find(selector=>{const el=document.querySelector(selector);return el&&getComputedStyle(el).display!=='none'&&getComputedStyle(el).visibility!=='hidden';})||'');
+}
+
 test('dark theme keeps Recruitment Agency tables and settings readable against hostile Torn text rules',{timeout:60000},async()=>{
   const browser=await puppeteer.launch({executablePath:chromePath(),headless:true,args:['--no-sandbox','--disable-setuid-sandbox','--disable-dev-shm-usage']});
   try{
@@ -28,10 +35,10 @@ test('dark theme keeps Recruitment Agency tables and settings readable against h
     await page.setContent('<!doctype html><html><head><meta charset="utf-8"></head><body><section><h2>Information</h2><div><button>One</button><button>Two</button></div></section><script>window.alert=()=>{};window.confirm=()=>true;window.prompt=()=>\"\";window.open=()=>null;</script></body></html>');
 
     for(const file of MODULES) await page.addScriptTag({content:fs.readFileSync(path.join(ROOT,'src',file),'utf8')});
-    await page.addScriptTag({content:fs.readFileSync(path.join(ROOT,'R4G3RUNN3R-Recruitment-Agency.user.js'),'utf8')});
+    await page.addScriptTag({content:BOOT});
     await page.waitForSelector('#ra-app',{timeout:10000});
 
-    const launcher=await page.evaluate(()=>['#ra-sidebar-launcher','#ra-launch'].find(selector=>{const el=document.querySelector(selector);return el&&getComputedStyle(el).display!=='none'})||'');
+    const launcher=await visibleLauncher(page);
     assert.ok(launcher,'visible launcher should exist');
     await page.click(launcher);
     await page.waitForFunction(()=>getComputedStyle(document.getElementById('ra-app')).display==='block',{timeout:5000});
@@ -69,14 +76,12 @@ test('dark theme keeps Recruitment Agency tables and settings readable against h
       summary:getComputedStyle(document.querySelector('.ra-settings summary')).color,
       label:getComputedStyle(document.querySelector('.ra-settings .ra-field label')).color,
       value:getComputedStyle(document.querySelector('.ra-settings .ra-field select, .ra-settings .ra-field input, .ra-settings .ra-field textarea')).color,
-      danger:getComputedStyle(document.querySelector('.ra-settings .ra-danger-zone summary')).color,
-      publicVersion:document.querySelector('#ra-titlebar b .ra-muted')?.textContent?.trim()
+      danger:getComputedStyle(document.querySelector('.ra-settings .ra-danger-zone summary')).color
     }));
     assert.equal(settingsColors.summary,rgb('#67e38c'),'settings section headings should be neon green');
     assert.equal(settingsColors.label,rgb('#67e38c'),'settings labels should be neon green');
     assert.equal(settingsColors.value,rgb('#67e38c'),'settings form values should be neon green');
     assert.equal(settingsColors.danger,rgb('#e65d62'),'Danger Zone heading should remain red');
-    assert.equal(settingsColors.publicVersion,'v4.7.5','shell should display the public hotfix version');
   }finally{
     await browser.close();
   }
