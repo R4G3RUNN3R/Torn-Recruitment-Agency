@@ -38,18 +38,20 @@
   const AVAILABILITY_COLORS = Object.freeze({Available:'#15803d',Unavailable:'#991b1b',Unknown:'#64748b'});
 
   const DEFAULT_RECRUITMENT_MESSAGE = 'Hi {name}, I saw that you are looking for {looking_for}. I may have an opportunity at {company_name}.';
+  const DEFAULT_COMPANY_RECRUITMENT_MESSAGE = 'Hello {name},\n\nI own a {company_type} company called {company_name}. I noticed that you currently are not working for a company and was wondering whether you would be interested in joining us.\n\nWe are actively recruiting and I would be happy to discuss the position with you if you are interested.';
+  const DEFAULT_FACTION_RECRUITMENT_MESSAGE = 'Hello {name},\n\nI noticed that you currently are not in a faction. I would like to invite you to join {faction_name}.\n\nWe are currently looking for active players who would like to become part of the team. If you are interested, I would be happy to tell you more.';
   const HELP_REGISTRY = Object.freeze({
     discovery:{title:'Discovery',body:'Imports explicit recruitment intent from configured Torn forum sources. Forum text and workflow data remain local.'},
     sync:{title:'Sync Forum Posts',body:'Uses the shared Torn API scheduler. Completed pages are saved before the sanitized continuation checkpoint is advanced.'},
     fillCompanies:{title:'Fill Companies',body:'Looks up current company data sequentially through the shared scheduler. It never changes pipeline stage.'},
     pipeline:{title:'Pipeline / Stage',body:'Stage changes only when you explicitly move a candidate, use the context menu, or edit the stage field.'},
-    messagePlayer:{title:'Message Player',body:'Prepares text locally, copies it when possible, and opens Torn compose pre-addressed. It never sends mail automatically.'},
-    defaultMessage:{title:'Default Message',body:'One local default recruitment message is supported in v4.5. Message templates remain local-only.'},
+    messagePlayer:{title:'Recruit Player',body:'Freshly checks the target through Torn v2, prepares the saved Company or Faction private-chat template, opens the player profile and fills Torn private chat. You still press Send.'},
+    defaultMessage:{title:'Recruitment Templates',body:'Company and Faction private-chat templates are saved separately and remain browser-local.'},
     data:{title:'Data',body:'Shows local IndexedDB counts and export/reset controls. No workspace backup/import system is added in v4.5.'},
     logs:{title:'Logs',body:'Shows sanitized application events only. API keys, private messages, recruiter notes and forum bodies are excluded.'}
   });
 
-  const PRIVATE_LOG_FIELDS = new Set(['apiKey','key','messageBody','forumBody','rawText','recruiterNote','defaultMessage','preparedMessage']);
+  const PRIVATE_LOG_FIELDS = new Set(['apiKey','key','messageBody','forumBody','rawText','recruiterNote','defaultMessage','preparedMessage','companyRecruitmentMessage','factionRecruitmentMessage']);
 
   function normalizePage(value, complexity = 'simple') {
     const requested = String(value || '').trim().toLowerCase();
@@ -115,6 +117,7 @@
   function normalizeRecruitmentSettings(input = {}) {
     const stageColors = {...STAGE_COLORS, ...(input.stageColors || {})};
     const availabilityColors = {...AVAILABILITY_COLORS, ...(input.availabilityColors || {})};
+    const legacyDefault = String(input.defaultMessage || DEFAULT_RECRUITMENT_MESSAGE);
     return {
       companyThreadId:String(input.companyThreadId || '15907925'),
       factionThreadId:String(input.factionThreadId || '15909136'),
@@ -123,7 +126,11 @@
       maxPagesPerFeed:Math.max(1, Number(input.maxPagesPerFeed || 20)),
       candidateActiveAgeDays:Math.max(1, Number(input.candidateActiveAgeDays || 30)),
       explicitTrainBuyersOnly:input.explicitTrainBuyersOnly !== false,
-      defaultMessage:String(input.defaultMessage || DEFAULT_RECRUITMENT_MESSAGE),
+      defaultMessage:legacyDefault,
+      companyType:String(input.companyType || ''),
+      companyRecruitmentMessage:String(input.companyRecruitmentMessage || DEFAULT_COMPANY_RECRUITMENT_MESSAGE),
+      factionName:String(input.factionName || ''),
+      factionRecruitmentMessage:String(input.factionRecruitmentMessage || DEFAULT_FACTION_RECRUITMENT_MESSAGE),
       stageColors,
       availabilityColors
     };
@@ -167,6 +174,8 @@
     STAGE_COLORS,
     AVAILABILITY_COLORS,
     DEFAULT_RECRUITMENT_MESSAGE,
+    DEFAULT_COMPANY_RECRUITMENT_MESSAGE,
+    DEFAULT_FACTION_RECRUITMENT_MESSAGE,
     HELP_REGISTRY,
     normalizePage,
     visiblePages,
