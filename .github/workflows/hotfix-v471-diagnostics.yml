@@ -19,26 +19,9 @@ jobs:
       - run: npm install --no-audit --no-fund
       - name: Apply runtime version in diagnostic workspace
         run: node -e "const fs=require('fs');const p='src/v45-app.js';let s=fs.readFileSync(p,'utf8');s=s.replace(\"const SCRIPT_VERSION = '4.7.0';\",\"const SCRIPT_VERSION = '4.7.1';\");fs.writeFileSync(p,s);"
-      - name: Route stickiness regression
-        run: node --test tests/v47-faction-route-stickiness.test.js
-      - name: Runtime version contract
-        run: node --test tests/v47-runtime-version.test.js
-      - name: Foundation version contract
-        run: node --test tests/v46-foundation-static.test.js
-      - name: Core and legacy tests
-        continue-on-error: true
-        run: node --test tests/forum-core.test.js tests/global-*.test.js tests/match-core.test.js tests/results-core.test.js tests/scout-core.test.js tests/v44-*.test.js
-      - name: v4.5 tests
-        continue-on-error: true
-        run: node --test tests/v45-*.test.js
-      - name: v4.6 tests excluding version contract
-        continue-on-error: true
-        run: node --test $(find tests -maxdepth 1 -name 'v46-*.test.js' ! -name 'v46-foundation-static.test.js' -print)
-      - name: v4.7 tests excluding focused contracts
-        continue-on-error: true
-        run: node --test $(find tests -maxdepth 1 -name 'v47-*.test.js' ! -name 'v47-faction-route-stickiness.test.js' ! -name 'v47-runtime-version.test.js' -print)
-      - name: Userscript tests
-        continue-on-error: true
-        run: node --test tests/userscript-*.test.js
+      - name: Focused hotfix contracts
+        run: node --test tests/v47-faction-route-stickiness.test.js tests/v47-runtime-version.test.js tests/v46-foundation-static.test.js
+      - name: Full suite serial
+        run: node --test --test-concurrency=1 tests/*.test.js
       - name: Syntax
         run: npm run syntax
