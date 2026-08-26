@@ -53,3 +53,28 @@ test('Recruitment Agency navigation never hijacks foreign Torn data-page control
     await deleteDb();
   }
 });
+
+test('invalid live navigation is rejected instead of falling back to Company Overview',async()=>{
+  await deleteDb();
+  const dom=installDom();
+  const App=freshApp();
+  try{
+    assert.equal(await App.start({indexedDB}),true);
+    document.querySelector('[data-page="faction-candidates"]').click();
+    await settle(180);
+    assert.equal(App._test.state.page,'faction-candidates');
+    assert.equal(document.getElementById('ra-page-title').textContent,'Faction Candidates');
+
+    assert.equal(typeof App._test.navigate,'function','the live router must expose its test seam');
+    assert.equal(await App._test.navigate('2'),false,'an invalid live route should be rejected');
+    await settle(80);
+
+    assert.equal(App._test.state.page,'faction-candidates');
+    assert.equal(document.getElementById('ra-page-title').textContent,'Faction Candidates');
+  }finally{
+    await settle(100);
+    App._test.state.db?.close?.();
+    dom.window.close();
+    await deleteDb();
+  }
+});
