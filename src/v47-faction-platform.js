@@ -168,6 +168,44 @@
   async function createProfile(){return saveProfile(runtime.app,{profileId:makeId('profile'),name:'New Specialist Profile',status:'Draft',criteria:[],notes:''});}
   async function saveProfileFromCard(profileId){const card=document.querySelector(`[data-faction-profile-card="${profileId}"]`);if(!card)throw new Error('Specialist profile was not found.');const profiles=await getProfiles(runtime.app);const existing=profiles.find(profile=>text(profile.profileId)===text(profileId));if(!existing)throw new Error('Specialist profile was not found.');const criteriaHost=card.querySelector('[data-faction-profile-criteria]');return saveProfile(runtime.app,{...existing,name:text(card.querySelector('[data-faction-profile-field="name"]')?.value),status:text(card.querySelector('[data-faction-profile-field="status"]')?.value)||'Draft',notes:text(card.querySelector('[data-faction-profile-field="notes"]')?.value),criteria:readCriteria(criteriaHost)});}
 
+
+  async function grantWaiverFromUi(){
+    const userId=text(document.getElementById('ra-faction-waiver-player')?.value);
+    if(!userId)throw new Error('Choose a Faction candidate.');
+    const row=await rowFor(userId);
+    const context=text(document.getElementById('ra-faction-waiver-context')?.value).toLowerCase()==='specialist'?'specialist':'baseline';
+    const profileId=context==='specialist'?text(document.getElementById('ra-faction-waiver-profile')?.value):'';
+    if(context==='specialist'&&!profileId)throw new Error('Choose a specialist profile for this waiver.');
+    const requirementId=text(document.getElementById('ra-faction-waiver-requirement')?.value);
+    if(!requirementId)throw new Error('Choose a requirement to waive.');
+    const reason=text(document.getElementById('ra-faction-waiver-reason')?.value);
+    if(!reason)throw new Error('A waiver reason is required.');
+    const[config,profiles]=await Promise.all([getConfig(runtime.app),getProfiles(runtime.app)]);
+    const baseline=FactionCore.normalizeBaseline(config.baseline||{});
+    const profile=context==='specialist'?profiles.map(FactionCore.normalizeSpecialistProfile).find(item=>text(item.profileId)===profileId):null;
+    if(context==='specialist'&&!profile)throw new Error('Specialist profile was not found.');
+    const criteria=context==='specialist'?(profile.criteria||[]):baseline.criteria;
+    if(!criteria.some(item=>text(item.id)===requirementId))throw new Error('The selected requirement does not belong to the selected waiver context.');
+    const duplicate=(row.factionRecord.waivers||[]).some(item=>text(item.state)==='Active'&&text(item.requirementId)===requirementId&&text(item.context)===context&&text(item.profileId)===profileId);
+    if(duplicate)throw new Error('This requirement already has an active waiver for the candidate.');
+    const reviewRaw=text(document.getElementById('ra-faction-waiver-review')?.value);
+    let reviewAt=null;
+    if(reviewRaw){reviewAt=Date.parse(reviewRaw);if(!Number.isFinite(reviewAt))throw new Error('Choose a valid waiver review date and time.');}
+    const next=Operations.grantWaiver(row.factionRecord,{requirementId,context,profileId,reason,reviewAt},Date.now());
+    return saveOperationalRecord(userId,next);
+  }
+
+  async function resolveWaiverFromUi(userId,waiverId){
+    const row=await rowFor(userId);
+    const waiver=(row.factionRecord.waivers||[]).find(item=>text(item.waiverId)===text(waiverId));
+    if(!waiver)throw new Error('Waiver not found.');
+    if(text(waiver.state)!=='Active')throw new Error('Only an active waiver can be resolved.');
+    const answer=globalThis.prompt?globalThis.prompt('Resolution reason (optional)',''):'';
+    if(answer==null)return false;
+    const next=Operations.resolveWaiver(row.factionRecord,waiverId,text(answer),Date.now());
+    return saveOperationalRecord(userId,next);
+  }
+
   function openManualMessage(row,override=false){
     if(row.doNotContact&&!override)throw new Error('This player is marked Do Not Contact. Use the deliberate override control if contact is still required.');
     const url=Messaging.composeUrl(row.userId);if(!url)throw new Error('Could not prepare Torn messaging for this player.');
@@ -183,6 +221,28 @@
   function reportError(error){console.error('[RA v4.7 Faction]',error);try{globalThis.alert?.(`Faction Recruitment failed: ${error?.message||error}`);}catch{}}
 
   function addCriterionRow(host,scope){if(!host)return;host.insertAdjacentHTML('beforeend',FactionUI.renderCriterionRow({id:makeId('criterion'),field:'level',operator:'gte',kind:'Preferred',weight:1},scope));bindContentControls();}
+
+
+  function syncWaiverControls(){
+    const contextSelect=document.getElementById('ra-faction-waiver-context');
+    const profileSelect=document.getElementById('ra-faction-waiver-profile');
+    const requirementSelect=document.getElementById('ra-faction-waiver-requirement');
+    if(!contextSelect||!profileSelect||!requirementSelect)return;
+    const context=text(contextSelect.value).toLowerCase()==='specialist'?'specialist':'baseline';
+    const profileId=text(profileSelect.value);
+    profileSelect.disabled=context!=='specialist';
+    let first='';let currentAllowed=false;
+    [...requirementSelect.options].forEach(option=>{
+      if(!option.value)return;
+      const optionContext=text(option.dataset.waiverContext)||'baseline';
+      const optionProfile=text(option.dataset.waiverProfile);
+      const allowed=optionContext===context&&(context!=='specialist'||!profileId||optionProfile===profileId);
+      option.hidden=!allowed;option.disabled=!allowed;
+      if(allowed&&!first)first=option.value;
+      if(allowed&&option.value===requirementSelect.value)currentAllowed=true;
+    });
+    if(!currentAllowed)requirementSelect.value=first;
+  }
 
   function bindContentControls(){
     const page=text(runtime.app?._test?.state?.page);
@@ -201,6 +261,12 @@
     document.querySelectorAll('[data-faction-profile-delete]').forEach(button=>button.onclick=async()=>{try{if(globalThis.confirm&&!globalThis.confirm('Delete this specialist profile?'))return;await removeProfile(runtime.app,button.dataset.factionProfileDelete);await renderPage('faction-requirements',{persist:false});}catch(error){reportError(error);}});
     document.querySelectorAll('[data-faction-profile-add-criterion]').forEach(button=>button.onclick=()=>{const card=document.querySelector(`[data-faction-profile-card="${button.dataset.factionProfileAddCriterion}"]`);addCriterionRow(card?.querySelector('[data-faction-profile-criteria]'),`profile:${button.dataset.factionProfileAddCriterion}`);});
     document.querySelectorAll('[data-faction-remove-criterion]').forEach(button=>button.onclick=()=>button.closest('[data-faction-criterion-row]')?.remove());
+
+    const waiverContext=document.getElementById('ra-faction-waiver-context');if(waiverContext)waiverContext.onchange=syncWaiverControls;
+    const waiverProfile=document.getElementById('ra-faction-waiver-profile');if(waiverProfile)waiverProfile.onchange=syncWaiverControls;
+    syncWaiverControls();
+    const waiverGrant=document.getElementById('ra-faction-waiver-grant');if(waiverGrant)waiverGrant.onclick=async()=>{try{await grantWaiverFromUi();await renderPage('faction-requirements',{persist:false});}catch(error){reportError(error);}};
+    document.querySelectorAll('[data-faction-waiver-resolve]').forEach(button=>button.onclick=async()=>{try{const changed=await resolveWaiverFromUi(button.dataset.factionWaiverPlayer,button.dataset.factionWaiverResolve);if(changed!==false)await renderPage('faction-requirements',{persist:false});}catch(error){reportError(error);}});
 
     const campaignNew=document.getElementById('ra-faction-campaign-new');if(campaignNew)campaignNew.onclick=async()=>{try{await createCampaignFromUi();await renderPage('faction-campaigns',{persist:false});}catch(error){reportError(error);}};
     document.querySelectorAll('[data-faction-campaign-save]').forEach(button=>button.onclick=async()=>{try{await saveCampaignFromCard(button.dataset.factionCampaignSave);await renderPage('faction-campaigns',{persist:false});}catch(error){reportError(error);}});
@@ -242,7 +308,7 @@
     else if(page==='faction-discover')content.innerHTML=renderDiscover(rows);
     else if(page==='faction-candidates')content.innerHTML=FactionUI.renderCandidates(rows);
     else if(page==='faction-pipeline')content.innerHTML=FactionUI.renderPipeline(FactionUI.buildPipelineModel(rows));
-    else if(page==='faction-requirements')content.innerHTML=FactionUI.renderRequirementsPage({config,profiles});
+    else if(page==='faction-requirements')content.innerHTML=FactionUI.renderRequirementsPage({config,profiles,rows});
     else if(page==='faction-campaigns')content.innerHTML=WorkflowUI.renderCampaignsPage({campaigns,rows,profiles});
     else if(page==='faction-followups')content.innerHTML=WorkflowUI.renderFollowUpsPage(rows);
     else if(page==='faction-timeline')content.innerHTML=WorkflowUI.renderTimelinePage(rows);
