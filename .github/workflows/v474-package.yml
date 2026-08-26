@@ -1,0 +1,100 @@
+name: package v4.7.4 bootstrap ownership hotfix
+
+on:
+  push:
+    branches: [hotfix/v4.7.4-bootstrap-takeover]
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    if: ${{ !contains(github.event.head_commit.message, '[v474-packaged]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: hotfix/v4.7.4-bootstrap-takeover
+          fetch-depth: 0
+      - name: Prepare v4.7.4 source identity
+        run: |
+          rm -f .github/workflows/v474-verify.yml .github/workflows/v474-package.yml
+          python3 - <<'PY'
+          from pathlib import Path
+          app = Path('src/v45-app.js')
+          s = app.read_text()
+          old = "const SCRIPT_VERSION = '4.7.3';"
+          if old not in s:
+              raise SystemExit('v45 app 4.7.3 identity not found')
+          app.write_text(s.replace(old, "const SCRIPT_VERSION = '4.7.4';", 1))
+
+          package = Path('package.json')
+          s = package.read_text()
+          if '"version": "4.7.3"' not in s:
+              raise SystemExit('package 4.7.3 identity not found')
+          package.write_text(s.replace('"version": "4.7.3"', '"version": "4.7.4"', 1))
+
+          for p in Path('tests').glob('*.test.js'):
+              text = p.read_text()
+              if '4.7.3' in text:
+                  p.write_text(text.replace('4.7.3', '4.7.4'))
+
+          readme = Path('README.md')
+          text = readme.read_text()
+          text = text.replace("R4G3RUNN3R's Recruitment Agency **v4.7.3**", "R4G3RUNN3R's Recruitment Agency **v4.7.4**", 1)
+          marker = '## v4.7.3 navigation ownership hotfix\n'
+          section = "## v4.7.4 bootstrap ownership hotfix\n\n**v4.7.4 hotfix:** the public bootstrap no longer silently yields when the shared Torn document is already owned by an older Recruitment Agency version. A mismatched owner now gets one clean reload to flush stale in-memory code. If the older owner returns after that reload, the current build reports the exact conflicting version instead of allowing two script versions to run together or pretending the update succeeded. This addresses the failure mode where newer route fixes could be installed yet never become the active runtime in the current Torn page.\n\n"
+          if marker not in text:
+              raise SystemExit('README v4.7.3 section marker missing')
+          text = text.replace(marker, section + marker, 1)
+          text = text.replace('The public userscript metadata is version **4.7.3**.', 'The public userscript metadata is version **4.7.4**.', 1)
+          text = text.replace('The public userscript pins all **29** runtime modules immutably to reviewed v4.7.3 source commit `6da014279063cca945aad399af8dadc28ce0e859`.', 'The public userscript pins all **29** runtime modules immutably to the reviewed v4.7.4 source commit recorded below.', 1)
+          text = text.replace('- **v4.7.3** - scopes Recruitment Agency navigation ownership', '- **v4.7.4** - detects stale/duplicate bootstrap ownership, performs one clean recovery reload, and reports persistent older-owner conflicts instead of silently yielding\n- **v4.7.3** - scopes Recruitment Agency navigation ownership', 1)
+          readme.write_text(text)
+
+          release = Path('docs/releases/v4.7.4-bootstrap-ownership-hotfix.md')
+          release.write_text("""# Recruitment Agency v4.7.4 - Bootstrap Ownership Hotfix\n\n## Problem\n\nUser testing showed that navigation behaviour could remain unchanged across newer releases even while repository/browser tests passed. The public bootstrap used a shared DOM owner marker but returned immediately whenever that marker existed, regardless of which Recruitment Agency version owned it. An older in-memory or duplicate instance could therefore remain authoritative while a newer build silently did nothing.\n\n## Fix\n\n- Compare the existing shared DOM owner with the current installer version.\n- Same-version duplicate worlds still return immediately.\n- An older/different owner triggers one clean page reload to flush stale in-memory code.\n- If the different owner persists after that reload, report the exact conflicting version and do not run two versions concurrently.\n- Preserve all existing route-state, navigation scoping, privacy, DB15 and Company/Faction isolation protections.\n\n## Regression coverage\n\nThe regression suite proves that stale-owner recovery exists and that a persistent older owner is surfaced explicitly rather than silently winning forever. Existing routing, real Chrome, Torn-host, isolated userscript world and database-upgrade coverage remains enabled.\n""")
+          PY
+      - name: Commit immutable v4.7.4 source
+        run: |
+          git config user.name 'R4G3RUNN3R'
+          git config user.email 'ragerunner__gr@hotmail.com'
+          git add -A
+          git commit -m 'fix: prepare v4.7.4 source identity'
+          git push origin HEAD:hotfix/v4.7.4-bootstrap-takeover
+          echo "SOURCE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+      - name: Package public v4.7.4 userscript
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import os, re
+          sha = os.environ['SOURCE_SHA']
+          p = Path('R4G3RUNN3R-Recruitment-Agency.user.js')
+          s = p.read_text()
+          s, n1 = re.subn(r'(?m)^// @version\s+4\.7\.3$', '// @version      4.7.4', s, count=1)
+          if n1 != 1:
+              raise SystemExit('userscript @version 4.7.3 not found exactly once')
+          s = s.replace("const INSTALLER_VERSION = '4.7.3';", "const INSTALLER_VERSION = '4.7.4';", 1)
+          s = s.replace("const EXPECTED_APP_VERSION = '4.7.3';", "const EXPECTED_APP_VERSION = '4.7.4';", 1)
+          s, count = re.subn(r'(raw\.githubusercontent\.com/R4G3RUNN3R/Torn-Recruitment-Agency/)[0-9a-f]{40}(/src/)', rf'\g<1>{sha}\2', s)
+          if count != 29:
+              raise SystemExit(f'expected 29 immutable @require rewrites, got {count}')
+          p.write_text(s)
+
+          readme = Path('README.md')
+          text = readme.read_text()
+          text = text.replace('The public userscript pins all **29** runtime modules immutably to the reviewed v4.7.4 source commit recorded below.', f'The public userscript pins all **29** runtime modules immutably to reviewed v4.7.4 source commit `{sha}`.', 1)
+          text = text.replace('All **29** application modules are loaded through immutable commit-pinned `@require` URLs pointing to reviewed source commit `6da014279063cca945aad399af8dadc28ce0e859`', f'All **29** application modules are loaded through immutable commit-pinned `@require` URLs pointing to reviewed source commit `{sha}`', 1)
+          readme.write_text(text)
+          PY
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm install --no-audit --no-fund
+      - run: npm test
+      - run: npm run syntax
+      - name: Commit verified v4.7.4 public release
+        run: |
+          git add -A
+          git commit -m 'release: publish v4.7.4 bootstrap ownership hotfix [v474-packaged]'
+          git push origin HEAD:hotfix/v4.7.4-bootstrap-takeover
