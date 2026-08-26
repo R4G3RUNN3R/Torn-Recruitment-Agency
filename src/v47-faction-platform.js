@@ -209,10 +209,11 @@
     return saveOperationalRecord(userId,next);
   }
 
-  function openManualMessage(row,override=false){
+  function recruitPlayer(row,override=false){
     if(row.doNotContact&&!override)throw new Error('This player is marked Do Not Contact. Use the deliberate override control if contact is still required.');
-    const url=Messaging.composeUrl(row.userId);if(!url)throw new Error('Could not prepare Torn messaging for this player.');
-    globalThis.open?.(url,'_blank','noopener');return true;
+    if(override&&typeof globalThis.confirm==='function'&&!globalThis.confirm('This player is marked Do Not Contact. Override it for this recruitment chat only?'))return false;
+    if(typeof runtime.app?.recruitCandidate!=='function')throw new Error('Recruit workflow is unavailable.');
+    return runtime.app.recruitCandidate?.('faction',row.userId,row.name);
   }
 
   function renderDiscover(rows=[]){
@@ -252,8 +253,8 @@
     document.querySelectorAll('[data-go-page]').forEach(button=>{const route=text(button.dataset.goPage);if(isFactionRoute(route))button.onclick=event=>{event?.preventDefault?.();navigate(route,true).catch(reportError);};});
     document.querySelectorAll('[data-faction-stage-select]').forEach(select=>select.onchange=async()=>{try{await changeFactionStage(select.dataset.factionStageSelect,select.value);await renderPage(page,{persist:false});}catch(error){reportError(error);await renderPage(page,{persist:false});}});
     document.querySelectorAll('[data-faction-profile-pin]').forEach(select=>select.onchange=async()=>{try{await setProfilePin(select.dataset.factionProfilePin,select.value);await renderPage(page,{persist:false});}catch(error){reportError(error);}});
-    document.querySelectorAll('[data-faction-message]').forEach(button=>button.onclick=()=>rowFor(button.dataset.factionMessage).then(row=>openManualMessage(row,false)).catch(reportError));
-    document.querySelectorAll('[data-faction-message-override]').forEach(button=>button.onclick=()=>rowFor(button.dataset.factionMessageOverride).then(row=>openManualMessage(row,true)).catch(reportError));
+    document.querySelectorAll('[data-faction-recruit]').forEach(button=>button.onclick=()=>rowFor(button.dataset.factionRecruit).then(row=>recruitPlayer(row,false)).catch(reportError));
+    document.querySelectorAll('[data-faction-recruit-override]').forEach(button=>button.onclick=()=>rowFor(button.dataset.factionRecruitOverride).then(row=>recruitPlayer(row,true)).catch(reportError));
 
     const discover=document.getElementById('ra-faction-discover-add');if(discover)discover.onclick=async()=>{try{await ensureFactionCandidate(runtime.app,document.getElementById('ra-faction-discover-id')?.value);await renderPage('faction-discover',{persist:false});}catch(error){reportError(error);}};
 
