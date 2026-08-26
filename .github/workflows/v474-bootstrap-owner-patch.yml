@@ -1,0 +1,40 @@
+name: v4.7.4 bootstrap owner patch
+
+on:
+  push:
+    branches: [hotfix/v4.7.4-bootstrap-takeover]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, '[v474-owner-patched]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: hotfix/v4.7.4-bootstrap-takeover
+      - name: Patch bootstrap ownership recovery
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('R4G3RUNN3R-Recruitment-Agency.user.js')
+          s = p.read_text()
+          old = """  const root = document.documentElement;\n  if (root.hasAttribute(DOM_GUARD)) return;\n  root.setAttribute(DOM_GUARD, INSTALLER_VERSION);\n"""
+          new = """  const root = document.documentElement;\n  const OWNER_RELOAD_KEY = 'r4g3-ra-owner-conflict-reload';\n  const existingOwner = root.getAttribute(DOM_GUARD);\n  if (existingOwner) {\n    if (existingOwner === INSTALLER_VERSION) return;\n    const conflict = `${existingOwner}->${INSTALLER_VERSION}`;\n    let previousConflict = '';\n    try { previousConflict = sessionStorage.getItem(OWNER_RELOAD_KEY) || ''; } catch {}\n    if (previousConflict !== conflict) {\n      try { sessionStorage.setItem(OWNER_RELOAD_KEY, conflict); } catch {}\n      location.reload();\n      return;\n    }\n    try { sessionStorage.removeItem(OWNER_RELOAD_KEY); } catch {}\n    const message = `Recruitment Agency ${INSTALLER_VERSION} detected another active Recruitment Agency instance (${existingOwner}). Disable or remove the older duplicate userscript, then reload Torn.`;\n    console.error('[RA]', message);\n    try { alert(message); } catch {}\n    return;\n  }\n  root.setAttribute(DOM_GUARD, INSTALLER_VERSION);\n  try { sessionStorage.removeItem(OWNER_RELOAD_KEY); } catch {}\n"""
+          if old not in s:
+              raise SystemExit('bootstrap owner guard not found exactly once')
+          if s.count(old) != 1:
+              raise SystemExit('bootstrap owner guard matched more than once')
+          p.write_text(s.replace(old, new, 1))
+          PY
+      - name: Remove one-shot patch workflow
+        run: rm .github/workflows/v474-bootstrap-owner-patch.yml
+      - name: Commit patch
+        run: |
+          git config user.name 'R4G3RUNN3R'
+          git config user.email 'ragerunner__gr@hotmail.com'
+          git add R4G3RUNN3R-Recruitment-Agency.user.js .github/workflows/v474-bootstrap-owner-patch.yml
+          git commit -m 'fix: recover from stale bootstrap ownership [v474-owner-patched]'
+          git push origin HEAD:hotfix/v4.7.4-bootstrap-takeover
