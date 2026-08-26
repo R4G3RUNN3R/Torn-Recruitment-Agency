@@ -24,6 +24,7 @@ function makeDom() {
   });
 }
 
+// A stale in-memory owner gets one clean reload; a persistent duplicate is surfaced instead of being silently accepted.
 test('public bootstrap contains a one-reload stale-owner recovery path', () => {
   assert.match(BOOT, /r4g3-ra-owner-conflict-reload/, 'bootstrap must track one stale-owner recovery reload');
   assert.match(BOOT, /location\.reload\(\)/, 'bootstrap must hard reload once when an older owner is detected');
