@@ -1,8 +1,12 @@
 # Torn Recruitment Agency
 
-R4G3RUNN3R's Recruitment Agency **v4.7.3** is a modular Torn recruitment workspace with separate Company and Faction recruitment workflows over one shared Player Intelligence identity, plus official forum discovery, Scout intelligence, local-only Smart Match scoring, optional Global Intelligence, contextual help, and safe browser-local persistence.
+R4G3RUNN3R's Recruitment Agency **v4.7.4** is a modular Torn recruitment workspace with separate Company and Faction recruitment workflows over one shared Player Intelligence identity, plus official forum discovery, Scout intelligence, local-only Smart Match scoring, optional Global Intelligence, contextual help, and safe browser-local persistence.
 
 The Scout, Results, Global Intelligence, Smart Match, Forum Discovery, Company Recruitment, and Faction Recruitment modules are clean-room implementations. They do not call, authenticate against, or depend on `rs.dnonetwork.com` or another proprietary Recruit Scout grading backend.
+
+## v4.7.4 bootstrap ownership hotfix
+
+**v4.7.4 hotfix:** the public bootstrap no longer silently yields when the shared Torn document is already owned by an older Recruitment Agency version. A mismatched owner now gets one clean reload to flush stale in-memory code. If the older owner returns after that reload, the current build reports the exact conflicting version instead of allowing two script versions to run together or pretending the update succeeded. This addresses the failure mode where newer route fixes could be installed yet never become the active runtime in the current Torn page.
 
 ## v4.7.3 navigation ownership hotfix
 
@@ -27,7 +31,7 @@ The v4.7 release family adds the complete Faction Recruitment slice alongside th
 - Faction Baseline Hard failures block only **Invite Ready** unless individually waived. Specialist Hard failures affect only that specialist profile and never block Invite Ready when the baseline is eligible. Manual specialist pins are never silently overwritten.
 - Faction waiver management records baseline or specialist scope, reason, review date, Active/Resolved state, and resolution history while keeping the failed underlying requirement visible. DNC remains a separate explicit flag and recruitment messaging remains manual-send only.
 - Scout and recruitment observations update shared Player Intelligence only through the approved fact-field boundary; recruitment-private fields never enter Global Intelligence through the generic merge path.
-- The public userscript pins all **29** runtime modules immutably to reviewed v4.7.3 source commit `6da014279063cca945aad399af8dadc28ce0e859`. Its release regression suite fetches the exact pinned `v45-app.js` and verifies that its `SCRIPT_VERSION` equals the installer's expected runtime version before publication.
+- The public userscript pins all **29** runtime modules immutably to the reviewed v4.7.4 source commit recorded below. Its release regression suite fetches the exact pinned `v45-app.js` and verifies that its `SCRIPT_VERSION` equals the installer's expected runtime version before publication.
 
 ## What's new in v4.5
 
@@ -267,7 +271,7 @@ Simple mode keeps the normal recruitment workflow visible while hiding technical
 
 Install [`R4G3RUNN3R-Recruitment-Agency.user.js`](R4G3RUNN3R-Recruitment-Agency.user.js) in Tampermonkey or another compatible userscript manager.
 
-The public userscript metadata is version **4.7.3**. All **29** application modules are loaded through immutable commit-pinned `@require` URLs pointing to reviewed source commit `6da014279063cca945aad399af8dadc28ce0e859`, while `@updateURL` and `@downloadURL` remain on `main` for normal userscript-manager updates.
+The public userscript metadata is version **4.7.4**. All **29** application modules are loaded through immutable commit-pinned `@require` URLs pointing to reviewed source commit `6da014279063cca945aad399af8dadc28ce0e859`, while `@updateURL` and `@downloadURL` remain on `main` for normal userscript-manager updates.
 
 A Torn API key is stored only in the browser database used by Recruitment Agency. Torn API requests are made directly from the browser through the application scheduler.
 
@@ -284,6 +288,7 @@ The v4.7 release regression suite covers Company/Faction workflow isolation, the
 
 ## Version history
 
+- **v4.7.4** - detects stale/duplicate bootstrap ownership, performs one clean recovery reload, and reports persistent older-owner conflicts instead of silently yielding
 - **v4.7.3** - scopes Recruitment Agency navigation ownership to its own sidebar, preserves Torn-owned controls, rejects invalid live routes instead of falling back to Company Overview, and adds public-bootstrap/isolated-world in-page regressions
 - **v4.7.2** - central state-first route authority and stale asynchronous-render protection; valid but incomplete for the live Company Overview snapback, which still had a separate document-global navigation ownership cause
 - **v4.7.1** - Faction route-control hotfix and complete Faction Recruitment workflow; later found incomplete for the broader live route-authority race fixed in v4.7.2
