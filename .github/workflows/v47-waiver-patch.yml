@@ -34,15 +34,15 @@ jobs:
         run: |
           set -o pipefail
           npm test 2>&1 | tee /tmp/v47-waiver-tests.log
-      - name: Persist focused failure diagnostics
+      - name: Persist complete failure diagnostics
         if: steps.tests.outcome == 'failure'
         shell: bash
         run: |
-          tail -n 220 /tmp/v47-waiver-tests.log > scripts/v47-waiver-test-failure.txt
+          cp /tmp/v47-waiver-tests.log scripts/v47-waiver-test-failure.txt
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add scripts/v47-waiver-test-failure.txt
-          git commit -m "chore: capture v4.7 waiver test failure"
+          git commit -m "chore: capture complete v4.7 waiver test failure"
           git push origin HEAD:feature/v4.7-faction-recruitment
       - name: Fail if tests failed
         if: steps.tests.outcome == 'failure'
