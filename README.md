@@ -1,8 +1,14 @@
 # Torn Recruitment Agency
 
-R4G3RUNN3R's Recruitment Agency **v4.7.4** is a modular Torn recruitment workspace with separate Company and Faction recruitment workflows over one shared Player Intelligence identity, plus official forum discovery, Scout intelligence, local-only Smart Match scoring, optional Global Intelligence, contextual help, and safe browser-local persistence.
+R4G3RUNN3R's Recruitment Agency **v4.7.5** is a modular Torn recruitment workspace with separate Company and Faction recruitment workflows over one shared Player Intelligence identity, plus official forum discovery, Scout intelligence, local-only Smart Match scoring, optional Global Intelligence, contextual help, and safe browser-local persistence.
 
 The Scout, Results, Global Intelligence, Smart Match, Forum Discovery, Company Recruitment, and Faction Recruitment modules are clean-room implementations. They do not call, authenticate against, or depend on `rs.dnonetwork.com` or another proprietary Recruit Scout grading backend.
+
+## v4.7.5 dark-theme readability hotfix
+
+**v4.7.5 hotfix:** the public shell now protects Recruitment Agency text contrast from Torn-host CSS rules that can otherwise turn table and Settings text black on the application's near-black dark panels. Company and Faction table body text uses the bright green accent, secondary IDs/details remain muted but readable, table controls retain bright text, Settings section headings/labels/form values use the bright green accent, and the Danger Zone remains red.
+
+The contrast rules are scoped beneath `#ra-app` and use explicit high-priority shell overrides only where the host page can win the cascade. This is a shell-only release: all **29** application modules remain immutably pinned to reviewed source commit `999a2f9eafd28891dc5de461f08b1d29bbd41eea`, and the core runtime remains **v4.7.4**. The v4.7.5 public wrapper reports its own shell version in the title bar while still requiring the reviewed v4.7.4 application runtime.
 
 ## v4.7.4 bootstrap ownership hotfix
 
@@ -70,7 +76,7 @@ v4.5 replaces the older multi-window recruitment workflow with one managed, mova
 - Routed content scrolls inside the managed window with a visible scrollbar while the title bar, page header, and sidebar remain in place
 - **Maximize / Restore** fills the browser viewport without using browser fullscreen and restores the previous normal window geometry
 - Centralized contextual help anchored to the relevant panel or section
-- Dark theme with off-white text and restrained green accents, plus a light theme with black/dark text
+- Dark theme with protected high-contrast green/off-white text, plus a light theme with black/dark text
 - Proper **NUKE IT ALL!** Danger Zone reset scoped only to Recruitment Agency browser-local data
 
 ## Candidate workspace
@@ -271,7 +277,7 @@ Simple mode keeps the normal recruitment workflow visible while hiding technical
 
 Install [`R4G3RUNN3R-Recruitment-Agency.user.js`](R4G3RUNN3R-Recruitment-Agency.user.js) in Tampermonkey or another compatible userscript manager.
 
-The public userscript metadata is version **4.7.4**. All **29** application modules are loaded through immutable commit-pinned `@require` URLs pointing to reviewed source commit `6da014279063cca945aad399af8dadc28ce0e859`, while `@updateURL` and `@downloadURL` remain on `main` for normal userscript-manager updates.
+The public userscript metadata and shell version are **4.7.5**. All **29** application modules are loaded through immutable commit-pinned `@require` URLs pointing to reviewed source commit `999a2f9eafd28891dc5de461f08b1d29bbd41eea`. The pinned application core runtime remains **v4.7.4**, so the wrapper's `EXPECTED_APP_VERSION` deliberately remains `4.7.4`. `@updateURL` and `@downloadURL` remain on `main` for normal userscript-manager updates.
 
 A Torn API key is stored only in the browser database used by Recruitment Agency. Torn API requests are made directly from the browser through the application scheduler.
 
@@ -284,10 +290,11 @@ npm test
 npm run syntax
 ```
 
-The v4.7 release regression suite covers Company/Faction workflow isolation, the exact domain stage contracts, additive DB11→DB15 upgrades, Faction waivers and specialist matching, shared Player Intelligence boundaries, the Global Intelligence whitelist, API pacing, manual messaging, routed UI/browser interaction, immutable userscript dependency order, exact pinned-runtime version integrity, state-first Company/Faction route ownership, stale asynchronous render rejection, and JavaScript syntax.
+The v4.7 release regression suite covers Company/Faction workflow isolation, the exact domain stage contracts, additive DB11→DB15 upgrades, Faction waivers and specialist matching, shared Player Intelligence boundaries, the Global Intelligence whitelist, API pacing, manual messaging, routed UI/browser interaction, immutable userscript dependency order, exact pinned-runtime version integrity, state-first Company/Faction route ownership, stale asynchronous render rejection, dark-theme computed-style protection against hostile Torn CSS, and JavaScript syntax.
 
 ## Version history
 
+- **v4.7.5** - protects dark-theme Company/Faction tables and Settings text from Torn host CSS, using neon-green primary text, readable muted/bright controls, and preserved red Danger Zone styling while retaining the immutable v4.7.4 core
 - **v4.7.4** - detects stale/duplicate bootstrap ownership, performs one clean recovery reload, and reports persistent older-owner conflicts instead of silently yielding
 - **v4.7.3** - scopes Recruitment Agency navigation ownership to its own sidebar, preserves Torn-owned controls, rejects invalid live routes instead of falling back to Company Overview, and adds public-bootstrap/isolated-world in-page regressions
 - **v4.7.2** - central state-first route authority and stale asynchronous-render protection; valid but incomplete for the live Company Overview snapback, which still had a separate document-global navigation ownership cause
