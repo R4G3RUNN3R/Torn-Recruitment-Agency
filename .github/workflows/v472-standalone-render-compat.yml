@@ -1,0 +1,49 @@
+name: Refine v4.7.2 routed stale-render guard
+
+on:
+  push:
+    branches:
+      - diag/v4.7.1-live-route-snapback
+    paths:
+      - .github/workflows/v472-standalone-render-compat.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: diag/v4.7.1-live-route-snapback
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Limit stale-render protection to centrally routed app instances
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          for(const file of ['src/v46-company-platform.js','src/v47-faction-platform.js']){
+            let source=fs.readFileSync(file,'utf8');
+            const from="if(text(app._test.state.page)!==page)return false;";
+            const to="if(typeof app.navigate==='function'&&text(app._test.state.page)!==page)return false;";
+            const count=source.split(from).length-1;
+            if(count!==1)throw new Error(`${file}: expected one stale-render guard, found ${count}`);
+            source=source.replace(from,to);
+            fs.writeFileSync(file,source);
+          }
+          NODE
+      - name: Re-run root-cause and standalone renderer regressions
+        run: node --test --test-concurrency=1 tests/v471-route-state-ownership.test.js tests/v47-faction-route-stickiness.test.js tests/v46-company-workflow-ui.test.js tests/v47-faction-platform.test.js
+      - name: Check JavaScript syntax
+        run: npm run syntax
+      - name: Commit verified compatibility refinement
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/v46-company-platform.js src/v47-faction-platform.js
+          git commit -m "fix: scope stale route guard to central router"
+          git push origin HEAD:diag/v4.7.1-live-route-snapback
