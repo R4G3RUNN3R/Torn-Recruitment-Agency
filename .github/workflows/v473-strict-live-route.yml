@@ -24,7 +24,7 @@ jobs:
           const path='src/v45-app.js';
           let text=fs.readFileSync(path,'utf8');
           const oldRoute="    state.page=V46Navigation.normalizeRoute(page,state.settings.complexity);";
-          const newRoute="    const requested=String(page||'').trim().toLowerCase();\n    if(!V46Navigation.ROUTES.includes(requested)||(requested==='logs'&&state.settings.complexity!=='advanced')return false;\n    state.page=requested;";
+          const newRoute="    const requested=String(page||'').trim().toLowerCase();\n    if(!V46Navigation.ROUTES.includes(requested)||(requested==='logs'&&state.settings.complexity!=='advanced'))return false;\n    state.page=requested;";
           if(text.includes(oldRoute)) text=text.replace(oldRoute,newRoute);
           else if(!text.includes("if(!V46Navigation.ROUTES.includes(requested)")) throw new Error('route assignment not found');
           const oldExport="start,_test:{state,repositories,companyRepositories,factionRepositories";
