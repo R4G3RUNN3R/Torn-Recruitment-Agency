@@ -1,3 +1,4 @@
+// TDD regression contract for the approved private-chat Recruit workflow.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
