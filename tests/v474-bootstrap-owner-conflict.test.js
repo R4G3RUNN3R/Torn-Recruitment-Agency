@@ -42,13 +42,13 @@ test('persistent older owner is reported explicitly instead of silently winning 
 
   let starts = 0;
   window.RA_V45App = {
-    SCRIPT_VERSION: '4.7.3',
+    SCRIPT_VERSION: '4.7.4',
     start: async () => { starts += 1; return true; },
     _test: { state: { settings: {}, page: 'company-overview' } }
   };
 
   window.document.documentElement.setAttribute('data-r4g3-ra-v45-owner', '4.7.1');
-  window.sessionStorage.setItem('r4g3-ra-owner-conflict-reload', '4.7.1->4.7.3');
+  window.sessionStorage.setItem('r4g3-ra-owner-conflict-reload', '4.7.1->4.7.4');
   window.eval(BOOT);
   await settle(20);
 
