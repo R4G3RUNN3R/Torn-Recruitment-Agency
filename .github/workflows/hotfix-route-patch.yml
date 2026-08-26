@@ -1,4 +1,4 @@
-name: hotfix route patch
+name: package v4.7.1 hotfix
 
 on:
   push:
@@ -9,56 +9,147 @@ permissions:
   contents: write
 
 jobs:
-  patch-and-verify:
+  package-and-verify:
+    if: ${{ !contains(github.event.head_commit.message, '[v4.7.1-source]') && !contains(github.event.head_commit.message, '[v4.7.1-release-bot]') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           ref: hotfix/v4.7.1-route-stickiness
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Apply minimal route-context fix
+
+      - name: Install test dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Advance source runtime identity to v4.7.1
         run: |
           node <<'NODE'
           const fs = require('fs');
-          const path = 'src/v47-faction-platform.js';
+          const path = 'src/v45-app.js';
           let source = fs.readFileSync(path, 'utf8');
-          const beforeSignature = "function bindContentControls(){\n    const page=text(runtime.app?._test?.state?.page);";
-          const afterSignature = "function bindContentControls(currentPage){\n    const page=text(currentPage||runtime.app?._test?.state?.page);";
-          const beforeCall = "syncActiveNav(page);bindContentControls();if(options.persist!==false)await persistRoute(app,page);return true;";
-          const afterCall = "syncActiveNav(page);bindContentControls(page);if(options.persist!==false)await persistRoute(app,page);return true;";
-          if (source.includes(afterSignature) && source.includes(afterCall)) process.exit(0);
-          if (!source.includes(beforeSignature)) throw new Error('Expected bindContentControls signature was not found.');
-          if (!source.includes(beforeCall)) throw new Error('Expected renderPage binding call was not found.');
-          source = source.replace(beforeSignature, afterSignature).replace(beforeCall, afterCall);
+          const oldVersion = "const SCRIPT_VERSION = '4.7.0';";
+          const newVersion = "const SCRIPT_VERSION = '4.7.1';";
+          const routeSignature = 'function bindContentControls(currentPage){';
+          const routeBinding = 'syncActiveNav(page);bindContentControls(page);if(options.persist!==false)await persistRoute(app,page);return true;';
+          if (!source.includes(routeSignature) || !source.includes(routeBinding)) {
+            throw new Error('Verified Faction route-stickiness fix is missing from the source tree.');
+          }
+          if (source.includes(newVersion)) process.exit(0);
+          if (!source.includes(oldVersion)) throw new Error('Expected v4.7.0 source identity was not found.');
+          source = source.replace(oldVersion, newVersion);
           fs.writeFileSync(path, source);
           NODE
-      - name: Stop if already patched
-        id: changes
+
+      - name: Verify source hotfix before immutable pinning
         run: |
-          if git diff --quiet -- src/v47-faction-platform.js; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-          fi
-      - name: Install test dependencies
-        if: steps.changes.outputs.changed == 'true'
-        run: npm install --no-audit --no-fund
-      - name: Verify focused regression
-        if: steps.changes.outputs.changed == 'true'
-        run: node --test tests/v47-faction-route-stickiness.test.js
-      - name: Verify full suite
-        if: steps.changes.outputs.changed == 'true'
-        run: npm test
-      - name: Verify syntax
-        if: steps.changes.outputs.changed == 'true'
-        run: npm run syntax
-      - name: Commit verified hotfix
-        if: steps.changes.outputs.changed == 'true'
+          node --test tests/v47-faction-route-stickiness.test.js tests/v47-runtime-version.test.js tests/v46-foundation-static.test.js
+          npm test
+          npm run syntax
+
+      - name: Commit and publish immutable v4.7.1 source
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add src/v47-faction-platform.js
-          git commit -m "fix: keep faction controls on active route"
+          git add src/v45-app.js
+          if git diff --cached --quiet; then
+            echo "No source identity change to commit; refusing to guess an immutable source SHA."
+            exit 1
+          fi
+          git commit -m "chore: prepare v4.7.1 hotfix runtime identity [v4.7.1-source]"
+          SOURCE_SHA="$(git rev-parse HEAD)"
+          echo "SOURCE_SHA=$SOURCE_SHA" >> "$GITHUB_ENV"
+          git push origin HEAD:hotfix/v4.7.1-route-stickiness
+
+      - name: Confirm immutable source is publicly addressable
+        run: |
+          URL="https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/${SOURCE_SHA}/src/v45-app.js"
+          for attempt in 1 2 3 4 5; do
+            if curl --fail --silent --show-error "$URL" -o /tmp/v45-app.js && grep -q "SCRIPT_VERSION = '4.7.1'" /tmp/v45-app.js; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Immutable v4.7.1 source was not retrievable at $SOURCE_SHA"
+          exit 1
+
+      - name: Package public v4.7.1 release against immutable source
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const sourceSha = process.env.SOURCE_SHA;
+          if (!/^[0-9a-f]{40}$/.test(sourceSha || '')) throw new Error('SOURCE_SHA is invalid.');
+
+          const oldSha = '4de6d7f59f19765d3888b5a43284e3aca48ac719';
+          const userPath = 'R4G3RUNN3R-Recruitment-Agency.user.js';
+          let boot = fs.readFileSync(userPath, 'utf8');
+          const oldPins = (boot.match(new RegExp(oldSha, 'g')) || []).length;
+          if (oldPins !== 29) throw new Error(`Expected 29 v4.7.0 runtime pins, found ${oldPins}.`);
+          boot = boot.replace('// @version      4.7.0', '// @version      4.7.1');
+          boot = boot.replaceAll(oldSha, sourceSha);
+          boot = boot.replace("const INSTALLER_VERSION = '4.7.0';", "const INSTALLER_VERSION = '4.7.1';");
+          boot = boot.replace("const EXPECTED_APP_VERSION = '4.7.0';", "const EXPECTED_APP_VERSION = '4.7.1';");
+          const newPins = (boot.match(new RegExp(sourceSha, 'g')) || []).length;
+          if (newPins !== 29) throw new Error(`Expected 29 v4.7.1 runtime pins, found ${newPins}.`);
+          if (/\/main\/src\//.test(boot)) throw new Error('Mutable main runtime pin found in public userscript.');
+          fs.writeFileSync(userPath, boot);
+
+          const pkgPath = 'package.json';
+          const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+          if (pkg.version !== '4.7.0') throw new Error(`Unexpected package version ${pkg.version}.`);
+          pkg.version = '4.7.1';
+          fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
+
+          const staticPath = 'tests/userscript-static.test.js';
+          let staticTest = fs.readFileSync(staticPath, 'utf8');
+          if (!staticTest.includes(oldSha)) throw new Error('Old userscript static pin fixture was not found.');
+          staticTest = staticTest.replaceAll(oldSha, sourceSha);
+          staticTest = staticTest.replaceAll('4.7.0', '4.7.1');
+          staticTest = staticTest.replaceAll('4\\.7\\.0', '4\\.7\\.1');
+          fs.writeFileSync(staticPath, staticTest);
+
+          const contractPath = 'tests/v47-release-contract.test.js';
+          let contract = fs.readFileSync(contractPath, 'utf8');
+          contract = contract.replaceAll('4.7.0', '4.7.1');
+          contract = contract.replaceAll('4\\.7\\.0', '4\\.7\\.1');
+          fs.writeFileSync(contractPath, contract);
+
+          const readmePath = 'README.md';
+          let readme = fs.readFileSync(readmePath, 'utf8');
+          readme = readme.replaceAll('v4.7.0', 'v4.7.1');
+          readme = readme.replaceAll(oldSha, sourceSha);
+          const anchor = '## v4.7 Faction Recruitment release\n';
+          if (!readme.includes(anchor)) throw new Error('README v4.7 release section was not found.');
+          readme = readme.replace(anchor, `${anchor}\n**v4.7.1 hotfix:** Faction page controls now retain the route the recruiter actually selected, so the first interaction on a newly opened Faction tab cannot snap the workspace back to the previously active route. The regression is covered by a browser-like route-stickiness test and the public installer pins the corrected runtime immutably.\n`);
+          fs.writeFileSync(readmePath, readme);
+          NODE
+
+      - name: Verify complete public release contract
+        run: |
+          npm test
+          npm run syntax
+          node <<'NODE'
+          const fs = require('fs');
+          const sourceSha = process.env.SOURCE_SHA;
+          const boot = fs.readFileSync('R4G3RUNN3R-Recruitment-Agency.user.js', 'utf8');
+          const app = fs.readFileSync('src/v45-app.js', 'utf8');
+          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          if (!/@version\s+4\.7\.1/.test(boot)) throw new Error('Userscript metadata is not v4.7.1.');
+          if (!/INSTALLER_VERSION\s*=\s*'4\.7\.1'/.test(boot)) throw new Error('Installer version is not v4.7.1.');
+          if (!/EXPECTED_APP_VERSION\s*=\s*'4\.7\.1'/.test(boot)) throw new Error('Expected runtime is not v4.7.1.');
+          if (!/SCRIPT_VERSION\s*=\s*'4\.7\.1'/.test(app)) throw new Error('Source runtime is not v4.7.1.');
+          if (pkg.version !== '4.7.1') throw new Error('Package is not v4.7.1.');
+          const requires = boot.split('\n').filter(line => line.startsWith('// @require'));
+          if (requires.length !== 29) throw new Error(`Expected 29 @require lines, found ${requires.length}.`);
+          const pins = new Set(requires.map(line => line.match(/Torn-Recruitment-Agency\/([0-9a-f]{40})\/src\//)?.[1]).filter(Boolean));
+          if (pins.size !== 1 || !pins.has(sourceSha)) throw new Error(`Public runtime pins are not uniformly ${sourceSha}.`);
+          NODE
+
+      - name: Remove temporary release machinery and publish verified head
+        run: |
+          git rm .github/workflows/hotfix-route-patch.yml
+          git add R4G3RUNN3R-Recruitment-Agency.user.js package.json README.md tests/userscript-static.test.js tests/v47-release-contract.test.js
+          git commit -m "release: publish v4.7.1 route snapback hotfix [v4.7.1-release-bot]"
           git push origin HEAD:hotfix/v4.7.1-route-stickiness
