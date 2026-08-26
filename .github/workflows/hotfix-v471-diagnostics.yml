@@ -1,0 +1,31 @@
+name: v4.7.1 release diagnostics
+
+on:
+  push:
+    branches:
+      - hotfix/v4.7.1-route-stickiness
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm install --no-audit --no-fund
+      - name: Apply runtime version in diagnostic workspace
+        run: node -e "const fs=require('fs');const p='src/v45-app.js';let s=fs.readFileSync(p,'utf8');s=s.replace(\"const SCRIPT_VERSION = '4.7.0';\",\"const SCRIPT_VERSION = '4.7.1';\");fs.writeFileSync(p,s);"
+      - name: Route stickiness regression
+        run: node --test tests/v47-faction-route-stickiness.test.js
+      - name: Runtime version contract
+        run: node --test tests/v47-runtime-version.test.js
+      - name: Foundation version contract
+        run: node --test tests/v46-foundation-static.test.js
+      - name: Full suite
+        run: npm test
+      - name: Syntax
+        run: npm run syntax
