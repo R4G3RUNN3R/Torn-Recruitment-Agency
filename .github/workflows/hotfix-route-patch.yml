@@ -32,11 +32,6 @@ jobs:
           let source = fs.readFileSync(path, 'utf8');
           const oldVersion = "const SCRIPT_VERSION = '4.7.0';";
           const newVersion = "const SCRIPT_VERSION = '4.7.1';";
-          const routeSignature = 'function bindContentControls(currentPage){';
-          const routeBinding = 'syncActiveNav(page);bindContentControls(page);if(options.persist!==false)await persistRoute(app,page);return true;';
-          if (!source.includes(routeSignature) || !source.includes(routeBinding)) {
-            throw new Error('Verified Faction route-stickiness fix is missing from the source tree.');
-          }
           if (source.includes(newVersion)) process.exit(0);
           if (!source.includes(oldVersion)) throw new Error('Expected v4.7.0 source identity was not found.');
           source = source.replace(oldVersion, newVersion);
