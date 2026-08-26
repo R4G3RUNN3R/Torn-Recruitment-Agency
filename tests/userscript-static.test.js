@@ -6,7 +6,7 @@ const root=path.join(__dirname,'..');
 const boot=fs.readFileSync(path.join(root,'R4G3RUNN3R-Recruitment-Agency.user.js'),'utf8');
 const app=fs.readFileSync(path.join(root,'src/v45-app.js'),'utf8');
 const PINNED_RUNTIME='520da615d418d42524761e774f10f3ab26c28572';
-const RELEASE_FILES=['scout-core.js','results-core.js','global-core.js','match-core.js','forum-core.js','v45-runtime.js','v45-candidates.js','v45-discovery.js','v45-messaging.js','v46-domain-core.js','v46-storage-core.js','v46-navigation.js','v46-company-core.js','v46-company-storage.js','v46-company-ui.js','v46-company-operations.js','v46-company-workflow.js','v46-company-workflow-ui.js','v46-company-opportunity-ui.js','v46-company-platform.js','v47-faction-core.js','v47-faction-storage.js','v47-faction-ui.js','v47-faction-operations.js','v47-faction-workflow.js','v47-faction-workflow-ui.js','v47-faction-opportunity-ui.js','v47-faction-platform.js','v45-app.js'];
+const RELEASE_FILES=['scout-core.js','results-core.js','global-core.js','match-core.js','forum-core.js','v45-runtime.js','v45-candidates.js','v45-discovery.js','v45-messaging.js','v46-domain-core.js','v46-storage-core.js','v46-navigation.js','v46-company-core.js','v46-company-storage.js','v46-company-ui.js','v46-company-operations.js','v46-company-workflow.js','v46-company-workflow-ui.js','v46-company-opportunity-ui.js','v46-company-platform.js','v45-app.js'];
 
 test('public userscript is the v4.6.0 modular bootstrap with immutable reviewed runtime requires',()=>{
   assert.match(boot,/@version\s+4\.6\.0/);
@@ -85,7 +85,7 @@ test('maximize marks its guarded state before the first persistence await',()=>{
   assert.ok(classIndex<awaitIndex,'maximized class must be applied before yielding to persistence');
 });
 
-test('source app targets additive DB14 over DB13 foundation and shared scheduler',()=>{assert.match(app,/DB_VERSION\s*=\s*V46CompanyStorage\.DB_VERSION/);assert.match(app,/V46Storage\.applyUpgrade\(db\)[\s\S]*V46CompanyStorage\.applyUpgrade\(db\)/);assert.doesNotMatch(app,/deleteObjectStore\s*\(/);assert.match(app,/HARD_API_RATE\s*=\s*75/);assert.match(app,/MIN_API_GAP_MS\s*=\s*800/);assert.match(app,/Math\.max\(MIN_API_GAP_MS,60000\/clampRate/);});
+test('source app targets additive DB15 over DB13 and DB14 foundations and shared scheduler',()=>{assert.match(app,/DB_VERSION\s*=\s*V47FactionStorage\.DB_VERSION/);assert.match(app,/V46Storage\.applyUpgrade\(db\)[\s\S]*V46CompanyStorage\.applyUpgrade\(db\)[\s\S]*V47FactionStorage\.applyUpgrade\(db\)/);assert.doesNotMatch(app,/deleteObjectStore\s*\(/);assert.match(app,/HARD_API_RATE\s*=\s*75/);assert.match(app,/MIN_API_GAP_MS\s*=\s*800/);assert.match(app,/Math\.max\(MIN_API_GAP_MS,60000\/clampRate/);});
 
 test('v4.6 keeps Smart Match local and messaging manual',()=>{assert.match(app,/Smart Match.*zero Torn API calls/i);assert.match(app,/you still click Send/);assert.doesNotMatch(app,/autoSubmit\s*:\s*true/);assert.doesNotMatch(app,/pipelineStage\s*=\s*['"]Contacted['"]s*;.*message/s);});
 
