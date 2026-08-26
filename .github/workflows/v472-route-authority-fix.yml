@@ -1,0 +1,236 @@
+name: Apply v4.7.2 route authority fix
+
+on:
+  push:
+    branches:
+      - diag/v4.7.1-live-route-snapback
+    paths:
+      - .github/workflows/v472-route-authority-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: diag/v4.7.1-live-route-snapback
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Apply route authority fix
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+
+          function read(file){return fs.readFileSync(file,'utf8');}
+          function write(file,text){fs.writeFileSync(file,text);}
+          function replaceOnce(source,from,to,label){
+            const count=source.split(from).length-1;
+            if(count!==1)throw new Error(`${label}: expected one match, found ${count}`);
+            return source.replace(from,to);
+          }
+          function rewriteRender(source,kind){
+            const start=source.indexOf('  async function renderPage(page,options={}){');
+            const end=source.indexOf('\n  function bindNav()',start);
+            if(start<0||end<0)throw new Error(`${kind}: renderPage block not found`);
+            let block=source.slice(start,end);
+            block=replaceOnce(
+              block,
+              '    const app=runtime.app;\n    if(!app||!IMPLEMENTED_ROUTES.has(page))return false;\n',
+              '    const app=runtime.app;page=text(page);\n    if(!app||!IMPLEMENTED_ROUTES.has(page))return false;\n    if(options.persist!==false)claimRoute(app,page);\n',
+              `${kind} render prelude`
+            );
+            block=replaceOnce(
+              block,
+              "    const meta=routeMeta(page);title.textContent=meta.title;desc.textContent=meta.description;\n",
+              '',
+              `${kind} early DOM title`
+            );
+            block=replaceOnce(
+              block,
+              '    const rows=await buildRows(app);\n',
+              "    const rows=await buildRows(app);\n    let html='';\n",
+              `${kind} html buffer`
+            );
+            block=block.replaceAll('content.innerHTML=','html=');
+            if(kind==='company'){
+              block=replaceOnce(
+                block,
+                '    syncActiveNav(page);bindContentControls();if(options.persist!==false)await persistRoute(app,page);return true;\n  }',
+                "    if(text(app._test.state.page)!==page)return false;\n    const meta=routeMeta(page);title.textContent=meta.title;desc.textContent=meta.description;content.innerHTML=html;\n    syncActiveNav(page);bindContentControls(page);if(options.persist!==false)await persistRoute(app,page);return true;\n  }",
+                'company render commit'
+              );
+            }else{
+              block=replaceOnce(
+                block,
+                '    syncActiveNav(page);bindContentControls(page);if(options.persist!==false)await persistRoute(app,page);return true;\n  }',
+                "    if(text(app._test.state.page)!==page)return false;\n    const meta=routeMeta(page);title.textContent=meta.title;desc.textContent=meta.description;content.innerHTML=html;\n    syncActiveNav(page);bindContentControls(page);if(options.persist!==false)await persistRoute(app,page);return true;\n  }",
+                'faction render commit'
+              );
+            }
+            return source.slice(0,start)+block+source.slice(end);
+          }
+
+          // Central app owns navigation. Platforms may render, but they no longer own route selection.
+          {
+            const file='src/v45-app.js';
+            let s=read(file);
+            s=replaceOnce(
+              s,
+              '  const companyPlatformApp={_test:{state,repositories,companyRepositories,factionRepositories}};\n',
+              '  const companyPlatformApp={navigate:(page,persist=true)=>route(page,persist),_test:{state,repositories,companyRepositories,factionRepositories}};\n',
+              'central platform navigation adapter'
+            );
+            write(file,s);
+          }
+
+          // Company platform: synchronously claim fallback route state, delegate navigation to central router,
+          // and never let a stale asynchronous render repaint a page the user has already left.
+          {
+            const file='src/v46-company-platform.js';
+            let s=read(file);
+            const marker="  async function persistRoute(app,page){const state=app?._test?.state;if(!state?.db)return false;state.page=page;state.settings=state.settings||{};state.settings.activePage=page;const meta=await dbGet(state.db,'meta','global')||{key:'global',settings:{}};meta.settings={...(meta.settings||{}),activePage:page};await dbPut(state.db,'meta',meta);return true;}\n";
+            s=replaceOnce(
+              s,
+              marker,
+              marker+"  function claimRoute(app,page){const state=app?._test?.state,route=text(page);if(!state||!IMPLEMENTED_ROUTES.has(route))return false;state.page=route;state.settings=state.settings||{};state.settings.activePage=route;return true;}\n  function navigate(page,persist=true){const route=text(page);if(!runtime.app||!IMPLEMENTED_ROUTES.has(route))return Promise.resolve(false);if(typeof runtime.app.navigate==='function')return Promise.resolve(runtime.app.navigate(route,persist));claimRoute(runtime.app,route);return renderPage(route,{persist});}\n",
+              'company route helpers'
+            );
+            s=replaceOnce(
+              s,
+              '  function bindContentControls(){\n',
+              "  function bindContentControls(currentPage){\n    const page=text(currentPage||runtime.app?._test?.state?.page);\n",
+              'company content route capture'
+            );
+            s=replaceOnce(
+              s,
+              "    document.querySelectorAll('#ra-content [data-go-page]').forEach(button=>{if(!isCompanyRoute(button.dataset.goPage))return;button.onclick=event=>{event?.preventDefault?.();renderPage(button.dataset.goPage).catch(reportError);};});\n",
+              "    document.querySelectorAll('#ra-content [data-go-page]').forEach(button=>{if(!isCompanyRoute(button.dataset.goPage))return;button.onclick=event=>{event?.preventDefault?.();navigate(button.dataset.goPage,true).catch(reportError);};});\n",
+              'company in-page navigation'
+            );
+            const stateRerender='renderPage(runtime.app._test.state.page,{persist:false})';
+            const rerenderCount=s.split(stateRerender).length-1;
+            if(rerenderCount!==2)throw new Error(`company stage rerender: expected 2 matches, found ${rerenderCount}`);
+            s=s.replaceAll(stateRerender,"renderPage(page,{persist:false})");
+            s=rewriteRender(s,'company');
+            s=replaceOnce(
+              s,
+              'button.onclick=event=>{event?.preventDefault?.();renderPage(page).catch(reportError);};',
+              'button.onclick=event=>{event?.preventDefault?.();navigate(page,true).catch(reportError);};',
+              'company sidebar navigation'
+            );
+            write(file,s);
+          }
+
+          // Faction platform receives the same state-first ownership model.
+          {
+            const file='src/v47-faction-platform.js';
+            let s=read(file);
+            const insertAt=s.indexOf('\n  function readCriteria(host){');
+            if(insertAt<0)throw new Error('faction route helper insertion point not found');
+            s=s.slice(0,insertAt)+"\n  function claimRoute(app,page){const state=app?._test?.state,route=text(page);if(!state||!IMPLEMENTED_ROUTES.has(route))return false;state.page=route;state.settings=state.settings||{};state.settings.activePage=route;return true;}\n  function navigate(page,persist=true){const route=text(page);if(!runtime.app||!IMPLEMENTED_ROUTES.has(route))return Promise.resolve(false);if(typeof runtime.app.navigate==='function')return Promise.resolve(runtime.app.navigate(route,persist));claimRoute(runtime.app,route);return renderPage(route,{persist});}\n"+s.slice(insertAt);
+            s=replaceOnce(
+              s,
+              "button.onclick=()=>renderPage(route).catch(reportError);",
+              "button.onclick=event=>{event?.preventDefault?.();navigate(route,true).catch(reportError);};",
+              'faction in-page navigation'
+            );
+            s=rewriteRender(s,'faction');
+            s=replaceOnce(
+              s,
+              'button.onclick=event=>{event?.preventDefault?.();renderPage(page).catch(reportError);};',
+              'button.onclick=event=>{event?.preventDefault?.();navigate(page,true).catch(reportError);};',
+              'faction sidebar navigation'
+            );
+            write(file,s);
+          }
+
+          // Refine the red reproduction around the real invariant: route state changes in the click turn,
+          // then the asynchronous view catches up without reverting it.
+          write('tests/v471-route-state-ownership.test.js',`const test=require('node:test');
+          const assert=require('node:assert/strict');
+          const {JSDOM}=require('jsdom');
+          const {indexedDB,IDBKeyRange}=require('fake-indexeddb');
+
+          class ResizeObserverStub{observe(){}unobserve(){}disconnect(){}}
+          const settle=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+
+          function installDom(){
+            const dom=new JSDOM('<!doctype html><html><head></head><body><section><h2>Information</h2><div><button>One</button><button>Two</button></div></section></body></html>',{url:'https://www.torn.com/index.php',pretendToBeVisual:true});
+            Object.defineProperty(dom.window.document,'readyState',{value:'complete',configurable:true});
+            Object.defineProperty(dom.window.navigator,'clipboard',{value:{writeText:async()=>{}},configurable:true});
+            global.window=dom.window;global.document=dom.window.document;global.navigator=dom.window.navigator;global.location=dom.window.location;
+            global.MutationObserver=dom.window.MutationObserver;global.HTMLElement=dom.window.HTMLElement;global.Node=dom.window.Node;global.ResizeObserver=ResizeObserverStub;
+            global.indexedDB=indexedDB;global.IDBKeyRange=IDBKeyRange;global.innerWidth=1440;global.innerHeight=900;global.confirm=()=>true;global.prompt=()=>'';global.alert=()=>{};global.open=()=>null;
+            dom.window.ResizeObserver=ResizeObserverStub;dom.window.confirm=global.confirm;dom.window.prompt=global.prompt;dom.window.alert=global.alert;dom.window.open=global.open;
+            return dom;
+          }
+
+          function freshApp(){const modulePath=require.resolve('../src/v45-app');delete require.cache[modulePath];return require('../src/v45-app');}
+          function deleteDb(){return new Promise((resolve,reject)=>{const req=indexedDB.deleteDatabase('tornWorkerDB');req.onsuccess=()=>resolve();req.onerror=()=>reject(req.error);req.onblocked=()=>resolve();});}
+
+          async function withApp(run){
+            await deleteDb();
+            const dom=installDom();
+            const App=freshApp();
+            try{
+              assert.equal(await App.start({indexedDB}),true);
+              assert.equal(App._test.state.page,'company-overview');
+              await run(App,dom);
+            }finally{
+              await settle(200);
+              App._test.state.db?.close?.();
+              dom.window.close();
+              await deleteDb();
+            }
+          }
+
+          test('Company sidebar navigation commits canonical route before asynchronous rendering',async()=>{
+            await withApp(async App=>{
+              document.querySelector('[data-page="company-candidates"]').click();
+              assert.equal(App._test.state.page,'company-candidates','Company route state must change in the same click turn');
+              await settle(180);
+              assert.equal(document.getElementById('ra-page-title').textContent,'Company Candidates');
+              assert.equal(App._test.state.page,'company-candidates');
+            });
+          });
+
+          test('Faction sidebar navigation commits canonical route before asynchronous rendering',async()=>{
+            await withApp(async App=>{
+              document.querySelector('[data-page="faction-candidates"]').click();
+              assert.equal(App._test.state.page,'faction-candidates','Faction route state must change in the same click turn');
+              await settle(180);
+              assert.equal(document.getElementById('ra-page-title').textContent,'Faction Candidates');
+              assert.equal(App._test.state.page,'faction-candidates');
+            });
+          });
+
+          test('a newer route wins over an older asynchronous render',async()=>{
+            await withApp(async App=>{
+              document.querySelector('[data-page="company-candidates"]').click();
+              assert.equal(App._test.state.page,'company-candidates');
+              document.querySelector('[data-page="faction-candidates"]').click();
+              assert.equal(App._test.state.page,'faction-candidates');
+              await settle(250);
+              assert.equal(App._test.state.page,'faction-candidates');
+              assert.equal(document.getElementById('ra-page-title').textContent,'Faction Candidates');
+            });
+          });
+          `);
+          NODE
+      - name: Run focused route regressions
+        run: node --test --test-concurrency=1 tests/v471-route-state-ownership.test.js tests/v47-faction-route-stickiness.test.js tests/v46-browser-navigation.test.js
+      - name: Check JavaScript syntax
+        run: npm run syntax
+      - name: Commit verified fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/v45-app.js src/v46-company-platform.js src/v47-faction-platform.js tests/v471-route-state-ownership.test.js
+          git commit -m "fix: centralize state-first recruitment routing"
+          git push origin HEAD:diag/v4.7.1-live-route-snapback
