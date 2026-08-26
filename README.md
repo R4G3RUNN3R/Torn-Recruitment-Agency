@@ -1,12 +1,14 @@
 # Torn Recruitment Agency
 
-R4G3RUNN3R's Recruitment Agency **v4.7.0** is a modular Torn recruitment workspace with separate Company and Faction recruitment workflows over one shared Player Intelligence identity, plus official forum discovery, Scout intelligence, local-only Smart Match scoring, optional Global Intelligence, contextual help, and safe browser-local persistence.
+R4G3RUNN3R's Recruitment Agency **v4.7.1** is a modular Torn recruitment workspace with separate Company and Faction recruitment workflows over one shared Player Intelligence identity, plus official forum discovery, Scout intelligence, local-only Smart Match scoring, optional Global Intelligence, contextual help, and safe browser-local persistence.
 
 The Scout, Results, Global Intelligence, Smart Match, Forum Discovery, Company Recruitment, and Faction Recruitment modules are clean-room implementations. They do not call, authenticate against, or depend on `rs.dnonetwork.com` or another proprietary Recruit Scout grading backend.
 
 ## v4.7 Faction Recruitment release
 
-The public **v4.7.0** release adds the complete Faction Recruitment slice alongside the existing Company Recruitment workflow without merging their private state.
+**v4.7.1 hotfix:** Faction page controls now retain the route the recruiter actually selected, so the first interaction on a newly opened Faction tab cannot snap the workspace back to the previously active route. The regression is covered by a browser-like route-stickiness test and the public installer pins the corrected runtime immutably.
+
+The public **v4.7.1** release adds the complete Faction Recruitment slice alongside the existing Company Recruitment workflow without merging their private state.
 
 - IndexedDB now upgrades additively through **DB15**. DB13 owns `playerIntelligence`, `companyRecruitment`, and `factionRecruitment`; DB14 adds `companyVacancies`, `companyCampaigns`, `companyRecruitmentConfig`, and `companyRecruitmentSessions`; DB15 adds `factionSpecialistProfiles`, `factionCampaigns`, `factionRecruitmentConfig`, and `factionRecruitmentSessions`. No prior object store is deleted.
 - One Torn player ID maps to one shared Player Intelligence identity. Company and Faction stages, notes, follow-ups, campaigns, waivers, matching context, and workflow history remain separate and local.
@@ -15,7 +17,7 @@ The public **v4.7.0** release adds the complete Faction Recruitment slice alongs
 - Faction Baseline Hard failures block only **Invite Ready** unless individually waived. Specialist Hard failures affect only that specialist profile and never block Invite Ready when the baseline is eligible. Manual specialist pins are never silently overwritten.
 - Faction waiver management records baseline or specialist scope, reason, review date, Active/Resolved state, and resolution history while keeping the failed underlying requirement visible. DNC remains a separate explicit flag and recruitment messaging remains manual-send only.
 - Scout and recruitment observations update shared Player Intelligence only through the approved fact-field boundary; recruitment-private fields never enter Global Intelligence through the generic merge path.
-- The public userscript pins all **29** runtime modules immutably to reviewed source commit `4de6d7f59f19765d3888b5a43284e3aca48ac719`. Its release regression suite fetches the exact pinned `v45-app.js` and verifies that its `SCRIPT_VERSION` equals the installer's expected runtime version before publication.
+- The public userscript pins all **29** runtime modules immutably to reviewed source commit `04bbbd030f625c2e9a95ee52d0c4b46f432d0882`. Its release regression suite fetches the exact pinned `v45-app.js` and verifies that its `SCRIPT_VERSION` equals the installer's expected runtime version before publication.
 
 ## What's new in v4.5
 
@@ -255,7 +257,7 @@ Simple mode keeps the normal recruitment workflow visible while hiding technical
 
 Install [`R4G3RUNN3R-Recruitment-Agency.user.js`](R4G3RUNN3R-Recruitment-Agency.user.js) in Tampermonkey or another compatible userscript manager.
 
-The public userscript metadata is version **4.7.0**. All application modules are loaded through immutable commit-pinned `@require` URLs pointing to reviewed source commit `4de6d7f59f19765d3888b5a43284e3aca48ac719`, while `@updateURL` and `@downloadURL` remain on `main` for normal userscript-manager updates.
+The public userscript metadata is version **4.7.0**. All application modules are loaded through immutable commit-pinned `@require` URLs pointing to reviewed source commit `04bbbd030f625c2e9a95ee52d0c4b46f432d0882`, while `@updateURL` and `@downloadURL` remain on `main` for normal userscript-manager updates.
 
 A Torn API key is stored only in the browser database used by Recruitment Agency. Torn API requests are made directly from the browser through the application scheduler.
 
@@ -272,8 +274,8 @@ The v4.7 release regression suite covers Company/Faction workflow isolation, the
 
 ## Version history
 
-- **v4.7.0** - complete Faction Recruitment workflow, DB15 additive storage, specialist profiles, scoped waivers, Opportunity/Compare, Company/Faction isolation, and immutable runtime-pin integrity checks
-- **v4.6.0** - Company Recruitment foundation and complete Company workflow slice (publication later superseded by v4.7.0 after an immutable runtime-pin mismatch was detected)
+- **v4.7.1** - complete Faction Recruitment workflow, DB15 additive storage, specialist profiles, scoped waivers, Opportunity/Compare, Company/Faction isolation, and immutable runtime-pin integrity checks
+- **v4.6.0** - Company Recruitment foundation and complete Company workflow slice (publication later superseded by v4.7.1 after an immutable runtime-pin mismatch was detected)
 - **v4.5.4** - internal routed-content scrolling, duplicate Settings navigation cleanup, viewport Maximize/Restore with normal-geometry preservation
 - **v4.5.0** - routed recruitment application, Forum Discovery pipeline, unified candidate CRM, six-stage Pipeline, messaging workflow, DB12, Scout/Smart Match/Global pages, Settings/Data/Logs, privacy and release hardening
 - **v4.4** - Smart Match and Settings/contextual-help improvements

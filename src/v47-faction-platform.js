@@ -244,8 +244,8 @@
     if(!currentAllowed)requirementSelect.value=first;
   }
 
-  function bindContentControls(){
-    const page=text(runtime.app?._test?.state?.page);
+  function bindContentControls(currentPage){
+    const page=text(currentPage||runtime.app?._test?.state?.page);
     document.querySelectorAll('[data-go-page]').forEach(button=>{const route=text(button.dataset.goPage);if(isFactionRoute(route))button.onclick=()=>renderPage(route).catch(reportError);});
     document.querySelectorAll('[data-faction-stage-select]').forEach(select=>select.onchange=async()=>{try{await changeFactionStage(select.dataset.factionStageSelect,select.value);await renderPage(page,{persist:false});}catch(error){reportError(error);await renderPage(page,{persist:false});}});
     document.querySelectorAll('[data-faction-profile-pin]').forEach(select=>select.onchange=async()=>{try{await setProfilePin(select.dataset.factionProfilePin,select.value);await renderPage(page,{persist:false});}catch(error){reportError(error);}});
@@ -318,7 +318,7 @@
     else if(page==='faction-reactivation')content.innerHTML=WorkflowUI.renderReactivationPage(rows);
     else if(page==='faction-opportunity')content.innerHTML=OpportunityUI.renderOpportunityPage(await buildOpportunityRows(app,rows,Date.now()));
     else if(page==='faction-compare')content.innerHTML=OpportunityUI.renderComparePage(rows,[...runtime.compareSelection]);
-    syncActiveNav(page);bindContentControls();if(options.persist!==false)await persistRoute(app,page);return true;
+    syncActiveNav(page);bindContentControls(page);if(options.persist!==false)await persistRoute(app,page);return true;
   }
 
   function bindNav(){
