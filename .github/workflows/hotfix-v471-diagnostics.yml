@@ -6,22 +6,42 @@ on:
       - hotfix/v4.7.1-route-stickiness
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   diagnose:
+    if: ${{ !contains(github.event.head_commit.message, '[v471-diag-result]') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: hotfix/v4.7.1-route-stickiness
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
       - run: npm install --no-audit --no-fund
       - name: Apply runtime version in diagnostic workspace
         run: node -e "const fs=require('fs');const p='src/v45-app.js';let s=fs.readFileSync(p,'utf8');s=s.replace(\"const SCRIPT_VERSION = '4.7.0';\",\"const SCRIPT_VERSION = '4.7.1';\");fs.writeFileSync(p,s);"
-      - name: Focused hotfix contracts
-        run: node --test tests/v47-faction-route-stickiness.test.js tests/v47-runtime-version.test.js tests/v46-foundation-static.test.js
-      - name: Full suite serial
-        run: node --test --test-concurrency=1 tests/*.test.js
-      - name: Syntax
-        run: npm run syntax
+      - name: Capture full-suite failure
+        run: |
+          set +e
+          node --test --test-concurrency=1 tests/*.test.js > /tmp/v471-full.log 2>&1
+          status=$?
+          set -e
+          {
+            echo "exit_status=$status"
+            echo
+            echo "=== failure-oriented lines ==="
+            grep -nE "not ok|ERR_|AssertionError|expected|actual|fail|Error:" /tmp/v471-full.log | tail -n 160 || true
+            echo
+            echo "=== tail ==="
+            tail -n 220 /tmp/v471-full.log
+          } > .github/v471-diagnostic-result.txt
+      - name: Publish diagnostic result
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add .github/v471-diagnostic-result.txt
+          git commit -m "ci: capture v4.7.1 diagnostic result [v471-diag-result]"
+          git push origin HEAD:hotfix/v4.7.1-route-stickiness
