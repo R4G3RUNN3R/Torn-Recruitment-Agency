@@ -60,7 +60,7 @@
     throw new Error('Recruitment Agency v4.5 core modules are required.');
   }
 
-  const SCRIPT_VERSION = '4.6.0';
+  const SCRIPT_VERSION = '4.7.0';
   const DB_NAME = 'tornWorkerDB';
   const DB_VERSION = V47FactionStorage.DB_VERSION;
   const API_BASE = 'https://api.torn.com/v2';
@@ -433,7 +433,7 @@
     ensureTornLauncher();syncLauncherVisibility();
     const observer=new MutationObserver(()=>{if(!document.getElementById('ra-sidebar-launcher'))ensureTornLauncher();});
     observer.observe(document.documentElement,{childList:true,subtree:true});
-    await logEvent('startup','Recruitment Agency v4.6 source started',{version:SCRIPT_VERSION,dbVersion:DB_VERSION});
+    await logEvent('startup','Recruitment Agency v4.7 source started',{version:SCRIPT_VERSION,dbVersion:DB_VERSION});
     if(state.settings.global.enabled&&globalEndpoint())void flushGlobalQueue(false);
     return true;
   }

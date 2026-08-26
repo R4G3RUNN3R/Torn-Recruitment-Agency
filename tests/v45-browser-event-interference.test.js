@@ -5,6 +5,7 @@ const http = require('node:http');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const puppeteer = require('puppeteer-core');
+const sourceCompatibleBoot = require('./source-compatible-boot');
 
 const ROOT = path.join(__dirname, '..');
 const MODULES = ['scout-core.js','results-core.js','global-core.js','match-core.js','forum-core.js','v45-runtime.js','v45-candidates.js','v45-discovery.js','v45-messaging.js','v46-domain-core.js','v46-storage-core.js','v46-navigation.js','v46-company-core.js','v46-company-storage.js','v46-company-ui.js','v46-company-operations.js','v46-company-workflow.js','v46-company-workflow-ui.js','v46-company-opportunity-ui.js','v46-company-platform.js','v47-faction-core.js','v47-faction-storage.js','v47-faction-ui.js','v47-faction-operations.js','v47-faction-workflow.js','v47-faction-workflow-ui.js','v47-faction-opportunity-ui.js','v47-faction-platform.js','v45-app.js'];
@@ -56,7 +57,7 @@ test('primary navigation and in-page controls survive a hostile document-capture
     for(const file of MODULES){
       await page.addScriptTag({content:fs.readFileSync(path.join(ROOT,'src',file),'utf8')});
     }
-    await page.addScriptTag({content:fs.readFileSync(path.join(ROOT,'R4G3RUNN3R-Recruitment-Agency.user.js'),'utf8')});
+    await page.addScriptTag({content:sourceCompatibleBoot(ROOT)});
     await page.waitForFunction(()=>{
       if(!document.getElementById('ra-app')) return false;
       return ['#ra-sidebar-launcher','#ra-launch'].some(s=>{
