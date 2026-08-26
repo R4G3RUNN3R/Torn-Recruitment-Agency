@@ -16,16 +16,25 @@ class ResizeObserverStub {
 
 const settle = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-// Reproduce an older installed instance owning the shared Torn document first.
-test('new public bootstrap does not silently yield to an older Recruitment Agency owner', async () => {
-  const dom = new JSDOM('<!doctype html><html><head></head><body></body></html>', {
+function makeDom() {
+  return new JSDOM('<!doctype html><html><head></head><body></body></html>', {
     url: 'https://www.torn.com/index.php',
     runScripts: 'dangerously',
     pretendToBeVisual: true
   });
+}
+
+test('public bootstrap contains a one-reload stale-owner recovery path', () => {
+  assert.match(BOOT, /r4g3-ra-owner-conflict-reload/, 'bootstrap must track one stale-owner recovery reload');
+  assert.match(BOOT, /location\.reload\(\)/, 'bootstrap must hard reload once when an older owner is detected');
+});
+
+test('persistent older owner is reported explicitly instead of silently winning forever', async () => {
+  const dom = makeDom();
   const {window} = dom;
   window.ResizeObserver = ResizeObserverStub;
-  window.alert = () => {};
+  const alerts = [];
+  window.alert = message => alerts.push(String(message));
   window.confirm = () => true;
   window.prompt = () => '';
   window.open = () => null;
@@ -38,10 +47,14 @@ test('new public bootstrap does not silently yield to an older Recruitment Agenc
   };
 
   window.document.documentElement.setAttribute('data-r4g3-ra-v45-owner', '4.7.1');
+  window.sessionStorage.setItem('r4g3-ra-owner-conflict-reload', '4.7.1->4.7.3');
   window.eval(BOOT);
   await settle(20);
 
-  assert.equal(starts, 1, 'the current bootstrap must start instead of silently returning behind an older owner marker');
-  assert.equal(window.document.documentElement.getAttribute('data-r4g3-ra-v45-owner'), '4.7.3');
+  assert.equal(starts, 0, 'two active versions must never be force-run together');
+  assert.equal(window.document.documentElement.getAttribute('data-r4g3-ra-v45-owner'), '4.7.1');
+  assert.equal(alerts.length, 1, 'persistent duplicate ownership must be visible to the user');
+  assert.match(alerts[0], /4\.7\.1/);
+  assert.match(alerts[0], /duplicate|another active/i);
   dom.window.close();
 });
