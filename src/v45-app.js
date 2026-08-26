@@ -295,7 +295,9 @@
   const renderCompanyPlaceholder=async()=>panel(pageMeta(state.page)[0],'Company recruitment route shell',`<div class="ra-muted">This dedicated Company workspace is wired and will be populated by the next Company implementation task.</div>`);
   const renderers={'company-overview':renderOverview,'company-discover':renderDiscover,'company-candidates':renderCandidates,'company-pipeline':renderPipeline,'company-today':renderCompanyPlaceholder,'company-vacancies':renderCompanyPlaceholder,'company-campaigns':renderCompanyPlaceholder,'company-followups':renderCompanyPlaceholder,'company-timeline':renderCompanyPlaceholder,'company-stage-aging':renderCompanyPlaceholder,'company-contact-outcomes':renderCompanyPlaceholder,'company-recruitment-sessions':renderCompanyPlaceholder,'company-talent-pool':renderCompanyPlaceholder,'company-reactivation':renderCompanyPlaceholder,'company-opportunity':renderCompanyPlaceholder,'company-compare':renderCompanyPlaceholder,scout:renderScout,'smart-match':renderSmartMatch,'global-intelligence':renderGlobal,settings:renderSettings,data:renderData,logs:renderLogs};
   async function route(page,persist=true){
-    state.page=V46Navigation.normalizeRoute(page,state.settings.complexity);
+    const requested=String(page||'').trim().toLowerCase();
+    if(!V46Navigation.ROUTES.includes(requested)||(requested==='logs'&&state.settings.complexity!=='advanced'))return false;
+    state.page=requested;
     if(persist)await saveSettings({activePage:state.page});
     if(V46CompanyPlatform._test.IMPLEMENTED_ROUTES.has(state.page)){
       await V46CompanyPlatform.renderPage(state.page,{persist:false});
@@ -438,5 +440,5 @@
     return true;
   }
 
-  return Object.freeze({SCRIPT_VERSION,DB_VERSION,HARD_API_RATE,MIN_API_GAP_MS,DEFAULT_VISIBLE_COLUMNS,OPTIONAL_COLUMNS,openDB,mergeSettings,start,_test:{state,repositories,companyRepositories,factionRepositories,recruitmentDomainForFeed,persistDiscoveredCandidate,deleteCompanyCandidateData,clearRecruitmentData,applyCandidateFilters,candidateCsvRow,matchAvailability,forumThreadUrl}});
+  return Object.freeze({SCRIPT_VERSION,DB_VERSION,HARD_API_RATE,MIN_API_GAP_MS,DEFAULT_VISIBLE_COLUMNS,OPTIONAL_COLUMNS,openDB,mergeSettings,start,_test:{navigate:route,state,repositories,companyRepositories,factionRepositories,recruitmentDomainForFeed,persistDiscoveredCandidate,deleteCompanyCandidateData,clearRecruitmentData,applyCandidateFilters,candidateCsvRow,matchAvailability,forumThreadUrl}});
 });
