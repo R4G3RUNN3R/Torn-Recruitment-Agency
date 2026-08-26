@@ -1,0 +1,253 @@
+exit_status=1
+
+=== failure-oriented lines ===
+77:# Subtest: classifyRetry distinguishes permanent data failures from transient failures
+78:ok 16 - classifyRetry distinguishes permanent data failures from transient failures
+137:# Subtest: normalizeCandidate preserves actual manual field values for future precedence
+138:ok 28 - normalizeCandidate preserves actual manual field values for future precedence
+373:not ok 75 - DOM singleton prevents duplicate source-compatible mounts across isolated userscript worlds and clears legacy UI
+377:  failureType: 'testCodeFailure'
+380:    + actual - expected
+385:  code: 'ERR_ASSERTION'
+386:  name: 'AssertionError'
+387:  expected: '4.7.1'
+388:  actual: '4.7.0'
+475:# Subtest: failed candidate persistence never advances checkpoint
+476:ok 92 - failed candidate persistence never advances checkpoint
+615:# Subtest: an active per-requirement waiver changes eligibility without falsifying the failed criterion
+616:ok 120 - an active per-requirement waiver changes eligibility without falsifying the failed criterion
+845:# Subtest: Hired is blocked only while Company baseline has an unwaived Hard failure
+846:ok 166 - Hired is blocked only while Company baseline has an unwaived Hard failure
+1055:# Subtest: Faction baseline Hard failure blocks normal eligibility and individual waiver restores it
+1056:ok 208 - Faction baseline Hard failure blocks normal eligibility and individual waiver restores it
+1060:# Subtest: Preferred baseline failure lowers score but does not block eligibility
+1061:ok 209 - Preferred baseline failure lowers score but does not block eligibility
+1065:# Subtest: specialist Hard failure preserves raw score while making only that profile ineligible
+1066:ok 210 - specialist Hard failure preserves raw score while making only that profile ineligible
+1290:# Subtest: Faction waiver UI persists an individual baseline exception, preserves failed facts, and resolves history instead of deleting it
+1291:ok 255 - Faction waiver UI persists an individual baseline exception, preserves failed facts, and resolves history instead of deleting it
+1340:# Subtest: Invite Ready is rejected only when Faction Baseline has an unwaived Hard failure
+1341:ok 265 - Invite Ready is rejected only when Faction Baseline has an unwaived Hard failure
+1389:# fail 1
+
+=== tail ===
+  ...
+# Subtest: DNC applies a contact penalty without changing Faction Baseline eligibility
+ok 232 - DNC applies a contact penalty without changing Faction Baseline eligibility
+  ---
+  duration_ms: 0.246253
+  ...
+# Subtest: Faction Opportunity page displays selected match source and breakdown
+ok 233 - Faction Opportunity page displays selected match source and breakdown
+  ---
+  duration_ms: 1.206966
+  ...
+# Subtest: Faction Compare exposes shared facts and Faction results only and caps four unique selections
+ok 234 - Faction Compare exposes shared facts and Faction results only and caps four unique selections
+  ---
+  duration_ms: 14.814051
+  ...
+# Subtest: Faction platform owns the complete approved Faction route set only
+ok 235 - Faction platform owns the complete approved Faction route set only
+  ---
+  duration_ms: 1.795512
+  ...
+# Subtest: Faction platform installs only on Faction navigation and leaves Company/shared handlers alone
+ok 236 - Faction platform installs only on Faction navigation and leaves Company/shared handlers alone
+  ---
+  duration_ms: 59.978476
+  ...
+# Subtest: Faction platform exposes synchronous navigation rebinding for rebuilt sidebars
+ok 237 - Faction platform exposes synchronous navigation rebinding for rebuilt sidebars
+  ---
+  duration_ms: 9.28851
+  ...
+# Subtest: Faction controls stay on the route the recruiter navigated to
+ok 238 - Faction controls stay on the route the recruiter navigated to
+  ---
+  duration_ms: 517.968641
+  ...
+# Subtest: app wires every Faction runtime dependency and uses DB15 as the database target
+ok 239 - app wires every Faction runtime dependency and uses DB15 as the database target
+  ---
+  duration_ms: 1.491936
+  ...
+# Subtest: DB open applies Foundation then Company then Faction upgrades additively
+ok 240 - DB open applies Foundation then Company then Faction upgrades additively
+  ---
+  duration_ms: 0.315695
+  ...
+# Subtest: Faction repositories are created from the existing IndexedDB adapter and exposed to platforms/tests
+ok 241 - Faction repositories are created from the existing IndexedDB adapter and exposed to platforms/tests
+  ---
+  duration_ms: 0.208887
+  ...
+# Subtest: source app installs, delegates and synchronously rebinds owned Faction routes
+ok 242 - source app installs, delegates and synchronously rebinds owned Faction routes
+  ---
+  duration_ms: 0.253714
+  ...
+# Subtest: syntax script parses every Faction source module
+ok 243 - syntax script parses every Faction source module
+  ---
+  duration_ms: 0.234896
+  ...
+# Subtest: DB15 declares only additive Faction support stores
+ok 244 - DB15 declares only additive Faction support stores
+  ---
+  duration_ms: 1.615718
+  ...
+# Subtest: DB15 upgrade preserves DB13 foundation and DB14 Company stores
+ok 245 - DB15 upgrade preserves DB13 foundation and DB14 Company stores
+  ---
+  duration_ms: 8.293575
+  ...
+# Subtest: Faction config normalizes baseline thresholds and Opportunity weights under one record
+ok 246 - Faction config normalizes baseline thresholds and Opportunity weights under one record
+  ---
+  duration_ms: 3.321538
+  ...
+# Subtest: specialist profile repository preserves approved lifecycle states and lists active profiles only
+ok 247 - specialist profile repository preserves approved lifecycle states and lists active profiles only
+  ---
+  duration_ms: 10.194883
+  ...
+# Subtest: Faction campaigns and recruitment sessions remain separate durable entities
+ok 248 - Faction campaigns and recruitment sessions remain separate durable entities
+  ---
+  duration_ms: 2.0321
+  ...
+# Subtest: Faction candidate rows join shared intelligence and expose no Company workflow fields
+ok 249 - Faction candidate rows join shared intelligence and expose no Company workflow fields
+  ---
+  duration_ms: 10.234151
+  ...
+# Subtest: manual specialist pin is preserved while automatic best profile can change
+ok 250 - manual specialist pin is preserved while automatic best profile can change
+  ---
+  duration_ms: 0.394039
+  ...
+# Subtest: Faction overview and Today models stay read-only and use Faction semantics
+ok 251 - Faction overview and Today models stay read-only and use Faction semantics
+  ---
+  duration_ms: 1.159286
+  ...
+# Subtest: Faction pipeline contains exactly the eight approved Faction stages and never Company-only stages
+ok 252 - Faction pipeline contains exactly the eight approved Faction stages and never Company-only stages
+  ---
+  duration_ms: 1.688595
+  ...
+# Subtest: Requirements page exposes Faction Baseline Hard Preferred controls and specialist lifecycle controls
+ok 253 - Requirements page exposes Faction Baseline Hard Preferred controls and specialist lifecycle controls
+  ---
+  duration_ms: 0.734812
+  ...
+# Subtest: Faction HTML renderers escape player content and link only to Faction routes
+ok 254 - Faction HTML renderers escape player content and link only to Faction routes
+  ---
+  duration_ms: 0.59127
+  ...
+# Subtest: Faction waiver UI persists an individual baseline exception, preserves failed facts, and resolves history instead of deleting it
+ok 255 - Faction waiver UI persists an individual baseline exception, preserves failed facts, and resolves history instead of deleting it
+  ---
+  duration_ms: 435.298704
+  ...
+# Subtest: Faction Requirements exposes individual waiver controls without hiding the underlying requirement
+ok 256 - Faction Requirements exposes individual waiver controls without hiding the underlying requirement
+  ---
+  duration_ms: 16.475439
+  ...
+# Subtest: Faction waiver history keeps resolved entries and only active waivers expose Resolve
+ok 257 - Faction waiver history keeps resolved entries and only active waivers expose Resolve
+  ---
+  duration_ms: 0.349234
+  ...
+# Subtest: Faction Campaigns page uses specialist profiles and supports many-to-many membership
+ok 258 - Faction Campaigns page uses specialist profiles and supports many-to-many membership
+  ---
+  duration_ms: 1.671892
+  ...
+# Subtest: Faction Follow-ups page exposes add complete reason note and recurrence controls
+ok 259 - Faction Follow-ups page exposes add complete reason note and recurrence controls
+  ---
+  duration_ms: 14.523806
+  ...
+# Subtest: Faction Timeline separates immutable system history from editable recruiter notes
+ok 260 - Faction Timeline separates immutable system history from editable recruiter notes
+  ---
+  duration_ms: 0.464534
+  ...
+# Subtest: Faction Contact Outcomes keeps DNC separate from stage and exposes deliberate override wording
+ok 261 - Faction Contact Outcomes keeps DNC separate from stage and exposes deliberate override wording
+  ---
+  duration_ms: 0.33954
+  ...
+# Subtest: Faction Stage Aging is warning-only with no automatic stage-change controls
+ok 262 - Faction Stage Aging is warning-only with no automatic stage-change controls
+  ---
+  duration_ms: 1.079179
+  ...
+# Subtest: Faction Reactivation offers terminal or archived candidates and preserves identity
+ok 263 - Faction Reactivation offers terminal or archived candidates and preserves identity
+  ---
+  duration_ms: 0.266622
+  ...
+# Subtest: Faction Recruitment Sessions shows exactly the current candidate and explicit Faction actions
+ok 264 - Faction Recruitment Sessions shows exactly the current candidate and explicit Faction actions
+  ---
+  duration_ms: 0.449432
+  ...
+# Subtest: Invite Ready is rejected only when Faction Baseline has an unwaived Hard failure
+ok 265 - Invite Ready is rejected only when Faction Baseline has an unwaived Hard failure
+  ---
+  duration_ms: 1.829694
+  ...
+# Subtest: specialist profile ineligibility never blocks Invite Ready
+ok 266 - specialist profile ineligibility never blocks Invite Ready
+  ---
+  duration_ms: 0.222107
+  ...
+# Subtest: Faction stage changes reject Company and unknown stages
+ok 267 - Faction stage changes reject Company and unknown stages
+  ---
+  duration_ms: 0.314643
+  ...
+# Subtest: Faction campaign membership is many-to-many and removal preserves other campaigns
+ok 268 - Faction campaign membership is many-to-many and removal preserves other campaigns
+  ---
+  duration_ms: 0.894738
+  ...
+# Subtest: reactivation reuses the same Faction record and starts a new Prospect cycle
+ok 269 - reactivation reuses the same Faction record and starts a new Prospect cycle
+  ---
+  duration_ms: 0.293692
+  ...
+# Subtest: recruitment session advances only after an explicit action on the current candidate
+ok 270 - recruitment session advances only after an explicit action on the current candidate
+  ---
+  duration_ms: 0.465295
+  ...
+# Subtest: release package version is 4.7.0
+ok 271 - release package version is 4.7.0
+  ---
+  duration_ms: 1.214939
+  ...
+# Subtest: README identifies v4.7.0 as the public Faction Recruitment release
+ok 272 - README identifies v4.7.0 as the public Faction Recruitment release
+  ---
+  duration_ms: 0.270909
+  ...
+# Subtest: Faction v4.7.1 hotfix source advertises runtime version 4.7.1 before public release pinning
+ok 273 - Faction v4.7.1 hotfix source advertises runtime version 4.7.1 before public release pinning
+  ---
+  duration_ms: 1.355996
+  ...
+1..273
+# tests 273
+# suites 0
+# pass 272
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 30348.382283
