@@ -55,8 +55,26 @@
   if (window.top !== window.self) return;
 
   const root = document.documentElement;
-  if (root.hasAttribute(DOM_GUARD)) return;
+  const OWNER_RELOAD_KEY = 'r4g3-ra-owner-conflict-reload';
+  const existingOwner = root.getAttribute(DOM_GUARD);
+  if (existingOwner) {
+    if (existingOwner === INSTALLER_VERSION) return;
+    const conflict = `${existingOwner}->${INSTALLER_VERSION}`;
+    let previousConflict = '';
+    try { previousConflict = sessionStorage.getItem(OWNER_RELOAD_KEY) || ''; } catch {}
+    if (previousConflict !== conflict) {
+      try { sessionStorage.setItem(OWNER_RELOAD_KEY, conflict); } catch {}
+      location.reload();
+      return;
+    }
+    try { sessionStorage.removeItem(OWNER_RELOAD_KEY); } catch {}
+    const message = `Recruitment Agency ${INSTALLER_VERSION} detected another active Recruitment Agency instance (${existingOwner}). Disable or remove the older duplicate userscript, then reload Torn.`;
+    console.error('[RA]', message);
+    try { alert(message); } catch {}
+    return;
+  }
   root.setAttribute(DOM_GUARD, INSTALLER_VERSION);
+  try { sessionStorage.removeItem(OWNER_RELOAD_KEY); } catch {}
 
   function clearDomGuard() {
     if (root.getAttribute(DOM_GUARD) === INSTALLER_VERSION) root.removeAttribute(DOM_GUARD);
