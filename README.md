@@ -1,14 +1,18 @@
 # Torn Recruitment Agency
 
-R4G3RUNN3R's Recruitment Agency **v4.7.2** is a modular Torn recruitment workspace with separate Company and Faction recruitment workflows over one shared Player Intelligence identity, plus official forum discovery, Scout intelligence, local-only Smart Match scoring, optional Global Intelligence, contextual help, and safe browser-local persistence.
+R4G3RUNN3R's Recruitment Agency **v4.7.3** is a modular Torn recruitment workspace with separate Company and Faction recruitment workflows over one shared Player Intelligence identity, plus official forum discovery, Scout intelligence, local-only Smart Match scoring, optional Global Intelligence, contextual help, and safe browser-local persistence.
 
 The Scout, Results, Global Intelligence, Smart Match, Forum Discovery, Company Recruitment, and Faction Recruitment modules are clean-room implementations. They do not call, authenticate against, or depend on `rs.dnonetwork.com` or another proprietary Recruit Scout grading backend.
 
-## v4.7.2 routing hotfix
+## v4.7.3 navigation ownership hotfix
 
-**v4.7.2 hotfix:** Recruitment navigation now has one canonical route authority. Company and Faction sidebar/in-page navigation delegate to the central state-first router, so the selected route is committed before asynchronous IndexedDB rendering begins. A stale render from a page the recruiter has already left is not allowed to repaint over the newer route. This fixes the live failure where controls on non-Company pages could snap the workspace back to Company Overview. Regression coverage now includes immediate Company route state, immediate Faction route state, and a rapid cross-domain route race where the newest route must win.
+**v4.7.3 hotfix:** Recruitment Agency navigation now binds only to controls inside its own `#ra-nav` sidebar. v4.7.2 still used document-global `[data-page]` / `[data-nav-toggle]` selectors, so Torn-owned controls could be claimed by the Recruitment Agency router. When one of those controls supplied a value that was not a Recruitment Agency route, the old live router normalized it to Company Overview. v4.7.3 also rejects invalid live route requests instead of converting them to Company Overview. Startup restoration still safely normalizes legacy persisted routes.
 
-v4.7.2 supersedes v4.7.1 for this routing defect. v4.7.1 corrected a narrower Faction control symptom, but live testing later proved that the underlying split route-authority race still existed across recruitment pages.
+Regression coverage now reproduces the exact `faction-candidates -> company-overview` fallback using a foreign Torn-style `data-page="2"` control, verifies the Torn control keeps its own click handler, verifies invalid live routes leave the current Recruitment Agency page untouched, and exercises Faction Requirements in-page controls through both the public bootstrap and a Tampermonkey-like isolated userscript world.
+
+## v4.7.2 routing hotfix (historical)
+
+v4.7.2 made the central route state synchronous and added stale asynchronous-render protection. Those changes remain valid, but user testing proved they did **not** eliminate the live Company Overview snapback because a separate document-global navigation ownership defect still existed. v4.7.3 supersedes v4.7.2 for that live defect.
 
 ## v4.7 Faction Recruitment release
 
@@ -23,7 +27,7 @@ The v4.7 release family adds the complete Faction Recruitment slice alongside th
 - Faction Baseline Hard failures block only **Invite Ready** unless individually waived. Specialist Hard failures affect only that specialist profile and never block Invite Ready when the baseline is eligible. Manual specialist pins are never silently overwritten.
 - Faction waiver management records baseline or specialist scope, reason, review date, Active/Resolved state, and resolution history while keeping the failed underlying requirement visible. DNC remains a separate explicit flag and recruitment messaging remains manual-send only.
 - Scout and recruitment observations update shared Player Intelligence only through the approved fact-field boundary; recruitment-private fields never enter Global Intelligence through the generic merge path.
-- The public userscript pins all **29** runtime modules immutably to reviewed v4.7.2 source commit `bba0de9ac95fcfb280335f63a9c2a47dc2a5db41`. Its release regression suite fetches the exact pinned `v45-app.js` and verifies that its `SCRIPT_VERSION` equals the installer's expected runtime version before publication.
+- The public userscript pins all **29** runtime modules immutably to reviewed v4.7.3 source commit `6da014279063cca945aad399af8dadc28ce0e859`. Its release regression suite fetches the exact pinned `v45-app.js` and verifies that its `SCRIPT_VERSION` equals the installer's expected runtime version before publication.
 
 ## What's new in v4.5
 
@@ -263,7 +267,7 @@ Simple mode keeps the normal recruitment workflow visible while hiding technical
 
 Install [`R4G3RUNN3R-Recruitment-Agency.user.js`](R4G3RUNN3R-Recruitment-Agency.user.js) in Tampermonkey or another compatible userscript manager.
 
-The public userscript metadata is version **4.7.2**. All **29** application modules are loaded through immutable commit-pinned `@require` URLs pointing to reviewed source commit `bba0de9ac95fcfb280335f63a9c2a47dc2a5db41`, while `@updateURL` and `@downloadURL` remain on `main` for normal userscript-manager updates.
+The public userscript metadata is version **4.7.3**. All **29** application modules are loaded through immutable commit-pinned `@require` URLs pointing to reviewed source commit `6da014279063cca945aad399af8dadc28ce0e859`, while `@updateURL` and `@downloadURL` remain on `main` for normal userscript-manager updates.
 
 A Torn API key is stored only in the browser database used by Recruitment Agency. Torn API requests are made directly from the browser through the application scheduler.
 
@@ -280,7 +284,8 @@ The v4.7 release regression suite covers Company/Faction workflow isolation, the
 
 ## Version history
 
-- **v4.7.2** - central state-first recruitment route authority, stale asynchronous render protection, and direct Company/Faction/cross-domain route-race regressions; supersedes v4.7.1 for the live Company Overview snapback defect
+- **v4.7.3** - scopes Recruitment Agency navigation ownership to its own sidebar, preserves Torn-owned controls, rejects invalid live routes instead of falling back to Company Overview, and adds public-bootstrap/isolated-world in-page regressions
+- **v4.7.2** - central state-first route authority and stale asynchronous-render protection; valid but incomplete for the live Company Overview snapback, which still had a separate document-global navigation ownership cause
 - **v4.7.1** - Faction route-control hotfix and complete Faction Recruitment workflow; later found incomplete for the broader live route-authority race fixed in v4.7.2
 - **v4.6.0** - Company Recruitment foundation and complete Company workflow slice (publication later superseded by v4.7.1 after an immutable runtime-pin mismatch was detected)
 - **v4.5.4** - internal routed-content scrolling, duplicate Settings navigation cleanup, viewport Maximize/Restore with normal-geometry preservation

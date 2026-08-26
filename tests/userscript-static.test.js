@@ -5,23 +5,23 @@ const path=require('node:path');
 const root=path.join(__dirname,'..');
 const boot=fs.readFileSync(path.join(root,'R4G3RUNN3R-Recruitment-Agency.user.js'),'utf8');
 const app=fs.readFileSync(path.join(root,'src/v45-app.js'),'utf8');
-const PINNED_RUNTIME='bba0de9ac95fcfb280335f63a9c2a47dc2a5db41';
+const PINNED_RUNTIME='6da014279063cca945aad399af8dadc28ce0e859';
 const RELEASE_FILES=['scout-core.js','results-core.js','global-core.js','match-core.js','forum-core.js','v45-runtime.js','v45-candidates.js','v45-discovery.js','v45-messaging.js','v46-domain-core.js','v46-storage-core.js','v46-navigation.js','v46-company-core.js','v46-company-storage.js','v46-company-ui.js','v46-company-operations.js','v46-company-workflow.js','v46-company-workflow-ui.js','v46-company-opportunity-ui.js','v46-company-platform.js','v47-faction-core.js','v47-faction-storage.js','v47-faction-ui.js','v47-faction-operations.js','v47-faction-workflow.js','v47-faction-workflow-ui.js','v47-faction-opportunity-ui.js','v47-faction-platform.js','v45-app.js'];
 
-test('public userscript is the v4.7.2 modular bootstrap with immutable reviewed runtime requires',()=>{
-  assert.match(boot,/@version\s+4\.7\.2/);
+test('public userscript is the v4.7.3 modular bootstrap with immutable reviewed runtime requires',()=>{
+  assert.match(boot,/@version\s+4\.7\.3/);
   assert.match(boot,/@noframes/);
   for(const file of RELEASE_FILES){
     assert.ok(boot.includes(`/${PINNED_RUNTIME}/src/${file}`),`pinned ${file}`);
   }
   assert.doesNotMatch(boot,/@require\s+https:\/\/raw\.githubusercontent\.com\/R4G3RUNN3R\/Torn-Recruitment-Agency\/main\/src\//);
-  assert.match(boot,/INSTALLER_VERSION\s*=\s*'4\.7\.2'/);
-  assert.match(boot,/EXPECTED_APP_VERSION\s*=\s*'4\.7\.2'/);
+  assert.match(boot,/INSTALLER_VERSION\s*=\s*'4\.7\.3'/);
+  assert.match(boot,/EXPECTED_APP_VERSION\s*=\s*'4\.7\.3'/);
   assert.match(boot,/app\.SCRIPT_VERSION/);
   assert.match(boot,/app\.start\(\)/);
 });
 
-test('v4.7.2 loads Company and Faction dependencies before the source application',()=>{
+test('v4.7.3 loads Company and Faction dependencies before the source application',()=>{
   const appIndex=boot.indexOf(`/src/v45-app.js`);
   assert.ok(appIndex>0);
   for(const file of ['v46-domain-core.js','v46-storage-core.js','v46-navigation.js','v46-company-core.js','v46-company-storage.js','v46-company-ui.js','v46-company-operations.js','v46-company-workflow.js','v46-company-workflow-ui.js','v46-company-opportunity-ui.js','v46-company-platform.js','v47-faction-core.js','v47-faction-storage.js','v47-faction-ui.js','v47-faction-operations.js','v47-faction-workflow.js','v47-faction-workflow-ui.js','v47-faction-opportunity-ui.js','v47-faction-platform.js']){
@@ -33,7 +33,7 @@ test('v4.7.2 loads Company and Faction dependencies before the source applicatio
   assert.ok(boot.indexOf('/src/v47-faction-platform.js')<appIndex,'FactionPlatform must load before v45-app.js');
 });
 
-test('v4.7.2 preserves the direct and addEventListener click bridge',()=>{
+test('v4.7.3 preserves the direct and addEventListener click bridge',()=>{
   assert.match(boot,/function installClickListenerBridge\(\)/);
   assert.match(boot,/registry = new WeakMap\(\)/);
   assert.match(boot,/EventTarget\.prototype\.addEventListener/);
@@ -49,7 +49,7 @@ test('v4.7.2 preserves the direct and addEventListener click bridge',()=>{
   assert.match(boot,/clickBridge\.invoke\(action, event\)/);
 });
 
-test('v4.7.2 guards the shared DOM against duplicate worlds and legacy RA UI',()=>{
+test('v4.7.3 guards the shared DOM against duplicate worlds and legacy RA UI',()=>{
   assert.match(boot,/DOM_GUARD\s*=\s*'data-r4g3-ra-v45-owner'/);
   assert.match(boot,/root\.getAttribute\(DOM_GUARD\)/);
   assert.match(boot,/root\.setAttribute\(DOM_GUARD, INSTALLER_VERSION\)/);
@@ -58,7 +58,7 @@ test('v4.7.2 guards the shared DOM against duplicate worlds and legacy RA UI',()
   for(const id of ['ra-styles','ra-panel','ra-results-panel','ra-config-modal','ra-dock-fallback','ra-launcher']) assert.ok(boot.includes(`'${id}'`),`legacy cleanup ${id}`);
 });
 
-test('v4.7.2 keeps scrollable content, title-bar-only Settings and safe maximize restore',()=>{
+test('v4.7.3 keeps scrollable content, title-bar-only Settings and safe maximize restore',()=>{
   assert.match(boot,/SHELL_STYLE_ID\s*=\s*'ra-v454-shell-css'/);
   assert.match(boot,/function stripSidebarSettings\(\)/);
   assert.match(boot,/#ra-nav \[data-page=\"settings\"\]/);
