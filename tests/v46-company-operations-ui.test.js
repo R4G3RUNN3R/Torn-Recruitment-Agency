@@ -22,10 +22,11 @@ test('Contact Outcomes page manages outcomes and explicit Do Not Contact separat
   assert.match(html,/Contacted/);
 });
 
-test('DNC candidate rendering suppresses ordinary Message and exposes a deliberate override',()=>{
+test('DNC candidate rendering suppresses ordinary Recruit and exposes a deliberate override',()=>{
   const html=UI.renderCandidates([{...row,doNotContact:true,companyRecord:{...row.companyRecord,doNotContact:true}}]);
-  assert.doesNotMatch(html,/data-company-message="101"/);
-  assert.match(html,/data-company-message-override="101"/);
+  assert.doesNotMatch(html,/data-company-recruit="101"/);
+  assert.match(html,/data-company-recruit-override="101"/);
+  assert.match(html,/Override &amp; Recruit/);
 });
 
 test('Stage Aging page is warning-only and does not expose automatic stage movement',()=>{
