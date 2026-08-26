@@ -206,7 +206,7 @@
     else if(page==='company-recruitment-sessions')html=WorkflowUI.renderRecruitmentSessionsPage({sessions:await getSessions(app),rows});
     else if(page==='company-opportunity')html=OpportunityUI.renderOpportunityPage(await buildOpportunityRows(app,rows,Date.now()));
     else if(page==='company-compare')html=OpportunityUI.renderComparePage(rows,[...runtime.compareSelection]);
-    if(text(app._test.state.page)!==page)return false;
+    if(typeof app.navigate==='function'&&text(app._test.state.page)!==page)return false;
     const meta=routeMeta(page);title.textContent=meta.title;desc.textContent=meta.description;content.innerHTML=html;
     syncActiveNav(page);bindContentControls(page);if(options.persist!==false)await persistRoute(app,page);return true;
   }

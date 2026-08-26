@@ -322,7 +322,7 @@
     else if(page==='faction-reactivation')html=WorkflowUI.renderReactivationPage(rows);
     else if(page==='faction-opportunity')html=OpportunityUI.renderOpportunityPage(await buildOpportunityRows(app,rows,Date.now()));
     else if(page==='faction-compare')html=OpportunityUI.renderComparePage(rows,[...runtime.compareSelection]);
-    if(text(app._test.state.page)!==page)return false;
+    if(typeof app.navigate==='function'&&text(app._test.state.page)!==page)return false;
     const meta=routeMeta(page);title.textContent=meta.title;desc.textContent=meta.description;content.innerHTML=html;
     syncActiveNav(page);bindContentControls(page);if(options.persist!==false)await persistRoute(app,page);return true;
   }
