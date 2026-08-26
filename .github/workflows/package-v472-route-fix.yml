@@ -1,0 +1,133 @@
+name: Package v4.7.2 route authority release
+
+on:
+  push:
+    branches:
+      - ops/v472-route-release
+    paths:
+      - .github/workflows/package-v472-route-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: diag/v4.7.1-live-route-snapback
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Prepare immutable v4.7.2 source identity
+        id: source
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          function replaceOnce(file,from,to,label){
+            let source=fs.readFileSync(file,'utf8');
+            const count=source.split(from).length-1;
+            if(count!==1)throw new Error(`${label}: expected one match, found ${count}`);
+            source=source.replace(from,to);
+            fs.writeFileSync(file,source);
+          }
+          replaceOnce('src/v45-app.js',"const SCRIPT_VERSION = '4.7.1';","const SCRIPT_VERSION = '4.7.2';",'source runtime version');
+          for(const file of ['tests/v46-foundation-static.test.js','tests/v47-runtime-version.test.js']){
+            let source=fs.readFileSync(file,'utf8');
+            source=source.replaceAll('4.7.1','4.7.2').replaceAll('4\\.7\\.1','4\\.7\\.2');
+            fs.writeFileSync(file,source);
+          }
+          NODE
+          node --test --test-concurrency=1 tests/v46-foundation-static.test.js tests/v47-runtime-version.test.js tests/v471-route-state-ownership.test.js
+          npm run syntax
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/v45-app.js tests/v46-foundation-static.test.js tests/v47-runtime-version.test.js
+          git commit -m "chore: prepare v4.7.2 immutable runtime source [skip ci]"
+          SOURCE_SHA=$(git rev-parse HEAD)
+          echo "sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
+          git push origin HEAD:diag/v4.7.1-live-route-snapback
+      - name: Verify immutable source is published
+        env:
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: |
+          for i in 1 2 3 4 5; do
+            if curl -fsSL "https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/$SOURCE_SHA/src/v45-app.js" | grep -q "const SCRIPT_VERSION = '4.7.2';"; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Immutable v4.7.2 source was not readable from GitHub" >&2
+          exit 1
+      - name: Package public v4.7.2 release
+        env:
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const path=require('path');
+          const sourceSha=process.env.SOURCE_SHA;
+          const oldPin='04bbbd030f625c2e9a95ee52d0c4b46f432d0882';
+
+          {
+            const file='R4G3RUNN3R-Recruitment-Agency.user.js';
+            let source=fs.readFileSync(file,'utf8');
+            const pinCount=source.split(oldPin).length-1;
+            if(pinCount!==29)throw new Error(`expected 29 old runtime pins, found ${pinCount}`);
+            source=source.replace('// @version      4.7.1','// @version      4.7.2');
+            source=source.replace("const INSTALLER_VERSION = '4.7.1';","const INSTALLER_VERSION = '4.7.2';");
+            source=source.replace("const EXPECTED_APP_VERSION = '4.7.1';","const EXPECTED_APP_VERSION = '4.7.2';");
+            source=source.replaceAll(oldPin,sourceSha);
+            fs.writeFileSync(file,source);
+          }
+
+          {
+            const file='package.json';
+            const pkg=JSON.parse(fs.readFileSync(file,'utf8'));
+            if(pkg.version!=='4.7.1')throw new Error(`unexpected package version ${pkg.version}`);
+            pkg.version='4.7.2';
+            fs.writeFileSync(file,JSON.stringify(pkg,null,2)+'\n');
+          }
+
+          for(const name of fs.readdirSync('tests').filter(name=>name.endsWith('.js'))){
+            const file=path.join('tests',name);
+            let source=fs.readFileSync(file,'utf8');
+            source=source.replaceAll('4.7.1','4.7.2').replaceAll('4\\.7\\.1','4\\.7\\.2');
+            if(name==='userscript-static.test.js')source=source.replace(oldPin,sourceSha);
+            fs.writeFileSync(file,source);
+          }
+
+          {
+            const file='README.md';
+            let source=fs.readFileSync(file,'utf8');
+            const from="R4G3RUNN3R's Recruitment Agency **v4.7.1**";
+            const count=source.split(from).length-1;
+            if(count!==1)throw new Error(`README current-version header: expected one match, found ${count}`);
+            source=source.replace(from,"R4G3RUNN3R's Recruitment Agency **v4.7.2**");
+            const marker='## v4.7 Faction Recruitment release\n\n';
+            if(!source.includes(marker))throw new Error('README v4.7 release marker missing');
+            const hotfix=`## v4.7.2 routing hotfix\n\n**v4.7.2 hotfix:** Recruitment navigation now has one canonical route authority. Company and Faction sidebar/in-page navigation delegate to the central state-first router, so the selected route is committed before asynchronous IndexedDB rendering begins. A stale render from a page the recruiter has already left is not allowed to repaint over the newer route. This fixes the live failure where controls on non-Company pages could snap the workspace back to Company Overview. Regression coverage now includes immediate Company route state, immediate Faction route state, and a rapid cross-domain route race where the newest route must win.\n\n`;
+            source=source.replace(marker,hotfix+marker);
+            source=source.replace('The public **v4.7.1** release adds the complete Faction Recruitment slice','The v4.7 release family adds the complete Faction Recruitment slice');
+            fs.writeFileSync(file,source);
+          }
+          NODE
+          PIN_COUNT=$(grep -c "${SOURCE_SHA}/src/" R4G3RUNN3R-Recruitment-Agency.user.js)
+          test "$PIN_COUNT" -eq 29
+          grep -q '^// @version      4.7.2$' R4G3RUNN3R-Recruitment-Agency.user.js
+          grep -q "INSTALLER_VERSION = '4.7.2'" R4G3RUNN3R-Recruitment-Agency.user.js
+          grep -q "EXPECTED_APP_VERSION = '4.7.2'" R4G3RUNN3R-Recruitment-Agency.user.js
+          grep -q "const SCRIPT_VERSION = '4.7.2';" src/v45-app.js
+          npm test
+          npm run syntax
+          git add R4G3RUNN3R-Recruitment-Agency.user.js README.md package.json tests src/v45-app.js
+          git commit -m "release: publish v4.7.2 route authority hotfix"
+          git push origin HEAD:diag/v4.7.1-live-route-snapback
+      - name: Report immutable source
+        run: |
+          echo "v4.7.2 immutable source: ${{ steps.source.outputs.sha }}"
+          echo "v4.7.2 release head: $(git rev-parse HEAD)"
