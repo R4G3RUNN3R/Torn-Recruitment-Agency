@@ -1,5 +1,6 @@
 name: v4.7 waiver patch
 
+# Re-run after DB15 regression harness alignment.
 on:
   push:
     branches:
