@@ -83,7 +83,7 @@ async function physicalClick(page, selector) {
   await page.mouse.click(info.x, info.y);
 }
 
-test('real Chrome hit-testing and physical clicks can navigate the public v4.7.1 UI', { timeout: 60000 }, async () => {
+test('real Chrome hit-testing and physical clicks can navigate the public v4.7.2 UI', { timeout: 60000 }, async () => {
   const server = await serve();
   const port = server.address().port;
   const browser = await puppeteer.launch({

@@ -1,14 +1,18 @@
 # Torn Recruitment Agency
 
-R4G3RUNN3R's Recruitment Agency **v4.7.1** is a modular Torn recruitment workspace with separate Company and Faction recruitment workflows over one shared Player Intelligence identity, plus official forum discovery, Scout intelligence, local-only Smart Match scoring, optional Global Intelligence, contextual help, and safe browser-local persistence.
+R4G3RUNN3R's Recruitment Agency **v4.7.2** is a modular Torn recruitment workspace with separate Company and Faction recruitment workflows over one shared Player Intelligence identity, plus official forum discovery, Scout intelligence, local-only Smart Match scoring, optional Global Intelligence, contextual help, and safe browser-local persistence.
 
 The Scout, Results, Global Intelligence, Smart Match, Forum Discovery, Company Recruitment, and Faction Recruitment modules are clean-room implementations. They do not call, authenticate against, or depend on `rs.dnonetwork.com` or another proprietary Recruit Scout grading backend.
+
+## v4.7.2 routing hotfix
+
+**v4.7.2 hotfix:** Recruitment navigation now has one canonical route authority. Company and Faction sidebar/in-page navigation delegate to the central state-first router, so the selected route is committed before asynchronous IndexedDB rendering begins. A stale render from a page the recruiter has already left is not allowed to repaint over the newer route. This fixes the live failure where controls on non-Company pages could snap the workspace back to Company Overview. Regression coverage now includes immediate Company route state, immediate Faction route state, and a rapid cross-domain route race where the newest route must win.
 
 ## v4.7 Faction Recruitment release
 
 **v4.7.1 hotfix:** Faction page controls now retain the route the recruiter actually selected, so the first interaction on a newly opened Faction tab cannot snap the workspace back to the previously active route. The regression is covered by a browser-like route-stickiness test and the public installer pins the corrected runtime immutably.
 
-The public **v4.7.1** release adds the complete Faction Recruitment slice alongside the existing Company Recruitment workflow without merging their private state.
+The v4.7 release family adds the complete Faction Recruitment slice alongside the existing Company Recruitment workflow without merging their private state.
 
 - IndexedDB now upgrades additively through **DB15**. DB13 owns `playerIntelligence`, `companyRecruitment`, and `factionRecruitment`; DB14 adds `companyVacancies`, `companyCampaigns`, `companyRecruitmentConfig`, and `companyRecruitmentSessions`; DB15 adds `factionSpecialistProfiles`, `factionCampaigns`, `factionRecruitmentConfig`, and `factionRecruitmentSessions`. No prior object store is deleted.
 - One Torn player ID maps to one shared Player Intelligence identity. Company and Faction stages, notes, follow-ups, campaigns, waivers, matching context, and workflow history remain separate and local.
