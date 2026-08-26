@@ -1,44 +1,50 @@
 // ==UserScript==
 // @name         R4G3RUNN3R's Recruitment Agency
 // @namespace    r4g3runn3r.recruitment.agency
-// @version      4.6.0
+// @version      4.6.1
 // @description  Recruitment discovery, candidate pipeline, Scout intelligence and local recruitment workflow for Torn.
 // @author       R4G3RUNN3R[3877028]
 // @license      MIT
 // @match        https://www.torn.com/*
 // @noframes
+// @grant        GM_info
 // @grant        GM_xmlhttpRequest
 // @connect      script.google.com
 // @connect      script.googleusercontent.com
-// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/520da615d418d42524761e774f10f3ab26c28572/src/scout-core.js
-// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/520da615d418d42524761e774f10f3ab26c28572/src/results-core.js
-// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/520da615d418d42524761e774f10f3ab26c28572/src/global-core.js
-// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/520da615d418d42524761e774f10f3ab26c28572/src/match-core.js
-// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/520da615d418d42524761e774f10f3ab26c28572/src/forum-core.js
-// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/520da615d418d42524761e774f10f3ab26c28572/src/v45-runtime.js
-// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/520da615d418d42524761e774f10f3ab26c28572/src/v45-candidates.js
-// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/520da615d418d42524761e774f10f3ab26c28572/src/v45-discovery.js
-// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/520da615d418d42524761e774f10f3ab26c28572/src/v45-messaging.js
-// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/520da615d418d42524761e774f10f3ab26c28572/src/v46-domain-core.js
-// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/520da615d418d42524761e774f10f3ab26c28572/src/v46-storage-core.js
-// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/520da615d418d42524761e774f10f3ab26c28572/src/v46-navigation.js
-// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/520da615d418d42524761e774f10f3ab26c28572/src/v46-company-core.js
-// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/520da615d418d42524761e774f10f3ab26c28572/src/v46-company-storage.js
-// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/520da615d418d42524761e774f10f3ab26c28572/src/v46-company-ui.js
-// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/520da615d418d42524761e774f10f3ab26c28572/src/v46-company-operations.js
-// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/520da615d418d42524761e774f10f3ab26c28572/src/v46-company-workflow.js
-// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/520da615d418d42524761e774f10f3ab26c28572/src/v46-company-workflow-ui.js
-// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/520da615d418d42524761e774f10f3ab26c28572/src/v46-company-opportunity-ui.js
-// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/520da615d418d42524761e774f10f3ab26c28572/src/v46-company-platform.js
-// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/520da615d418d42524761e774f10f3ab26c28572/src/v45-app.js
+// @connect      raw.githubusercontent.com
+// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/7be08cdd413698d301cb5d6b58eb771f690d2882/src/scout-core.js
+// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/7be08cdd413698d301cb5d6b58eb771f690d2882/src/results-core.js
+// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/7be08cdd413698d301cb5d6b58eb771f690d2882/src/global-core.js
+// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/7be08cdd413698d301cb5d6b58eb771f690d2882/src/match-core.js
+// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/7be08cdd413698d301cb5d6b58eb771f690d2882/src/forum-core.js
+// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/7be08cdd413698d301cb5d6b58eb771f690d2882/src/v45-runtime.js
+// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/7be08cdd413698d301cb5d6b58eb771f690d2882/src/v45-candidates.js
+// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/7be08cdd413698d301cb5d6b58eb771f690d2882/src/v45-discovery.js
+// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/7be08cdd413698d301cb5d6b58eb771f690d2882/src/v45-messaging.js
+// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/7be08cdd413698d301cb5d6b58eb771f690d2882/src/v46-domain-core.js
+// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/7be08cdd413698d301cb5d6b58eb771f690d2882/src/v46-storage-core.js
+// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/7be08cdd413698d301cb5d6b58eb771f690d2882/src/v46-navigation.js
+// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/7be08cdd413698d301cb5d6b58eb771f690d2882/src/v46-company-core.js
+// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/7be08cdd413698d301cb5d6b58eb771f690d2882/src/v46-company-storage.js
+// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/7be08cdd413698d301cb5d6b58eb771f690d2882/src/v46-company-ui.js
+// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/7be08cdd413698d301cb5d6b58eb771f690d2882/src/v46-company-operations.js
+// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/7be08cdd413698d301cb5d6b58eb771f690d2882/src/v46-company-workflow.js
+// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/7be08cdd413698d301cb5d6b58eb771f690d2882/src/v46-company-workflow-ui.js
+// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/7be08cdd413698d301cb5d6b58eb771f690d2882/src/v46-company-opportunity-ui.js
+// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/7be08cdd413698d301cb5d6b58eb771f690d2882/src/v46-company-platform.js
+// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/7be08cdd413698d301cb5d6b58eb771f690d2882/src/v45-app.js
 // @downloadURL  https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/main/R4G3RUNN3R-Recruitment-Agency.user.js
 // @updateURL    https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/main/R4G3RUNN3R-Recruitment-Agency.user.js
 // ==/UserScript==
 
 (() => {
   'use strict';
-  const INSTALLER_VERSION = '4.6.0';
-  const EXPECTED_APP_VERSION = '4.6.0';
+  const INSTALLER_VERSION = '4.6.1';
+  const EXPECTED_APP_VERSION = '4.6.1';
+  const CANONICAL_INSTALL_URL = 'https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/main/R4G3RUNN3R-Recruitment-Agency.user.js';
+  const LATEST_USERSCRIPT_URL = CANONICAL_INSTALL_URL;
+  const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
+  const UPDATE_CHECK_STORAGE_KEY = 'r4g3-ra-last-update-check';
   const DOM_GUARD = 'data-r4g3-ra-v45-owner';
   const RA_ROOT_SELECTOR = '#ra-app,#ra-hover,#ra-context,#ra-help-popover';
   const SHELL_STYLE_ID = 'ra-v454-shell-css';
@@ -49,6 +55,95 @@
   const root = document.documentElement;
   if (root.hasAttribute(DOM_GUARD)) return;
   root.setAttribute(DOM_GUARD, INSTALLER_VERSION);
+
+  function compareVersions(left, right) {
+    const a = String(left || '').split('.').map(value => Number.parseInt(value, 10) || 0);
+    const b = String(right || '').split('.').map(value => Number.parseInt(value, 10) || 0);
+    const length = Math.max(3, a.length, b.length);
+    for (let index = 0; index < length; index += 1) {
+      const av = a[index] || 0;
+      const bv = b[index] || 0;
+      if (av > bv) return 1;
+      if (av < bv) return -1;
+    }
+    return 0;
+  }
+
+  function shouldCheckForUpdate(lastCheckedAt, now) {
+    const last = Number(lastCheckedAt) || 0;
+    const current = Number(now) || Date.now();
+    return !last || current - last >= UPDATE_CHECK_INTERVAL_MS;
+  }
+
+  function installedUserscriptVersion() {
+    const tampermonkeyVersion = typeof GM_info !== 'undefined' ? GM_info?.script?.version : '';
+    return String(tampermonkeyVersion || INSTALLER_VERSION);
+  }
+
+  function readLastUpdateCheck() {
+    try { return Number(window.localStorage?.getItem(UPDATE_CHECK_STORAGE_KEY)) || 0; } catch { return 0; }
+  }
+
+  function writeLastUpdateCheck(value) {
+    try { window.localStorage?.setItem(UPDATE_CHECK_STORAGE_KEY, String(value)); } catch {}
+  }
+
+  function showUpdateNotice({installedVersion=installedUserscriptVersion(), runtimeVersion='', latestVersion='', mismatch=false}={}) {
+    let banner = document.getElementById('ra-update-banner');
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'ra-update-banner';
+      banner.style.cssText = 'position:fixed;right:18px;top:18px;z-index:2147483647;max-width:430px;padding:16px 18px;background:#17191d;color:#f4f4f4;border:1px solid #b8793f;border-radius:10px;box-shadow:0 12px 36px rgba(0,0,0,.45);font:14px/1.45 Arial,sans-serif';
+      document.body?.appendChild(banner);
+    }
+    const title = mismatch ? 'Recruitment Agency installation is out of sync' : 'Recruitment Agency update available';
+    const installedLine = 'Installed: ' + String(installedVersion || 'unknown');
+    const runtimeLine = runtimeVersion ? '<br>Runtime: ' + String(runtimeVersion) : '';
+    const latestLine = latestVersion ? '<br>Latest: ' + String(latestVersion) : '';
+    banner.innerHTML = '<strong style="font-size:15px">' + title + '</strong><div style="margin-top:7px">' + installedLine + runtimeLine + latestLine + '</div><button id="ra-update-now" type="button" style="margin-top:12px;padding:8px 12px;cursor:pointer">Update Recruitment Agency</button>';
+    const button = document.getElementById('ra-update-now');
+    if (button) button.onclick = () => window.open(CANONICAL_INSTALL_URL, '_blank', 'noopener,noreferrer');
+    return banner;
+  }
+
+  function checkForUpdates(options={}) {
+    const installedVersion = installedUserscriptVersion();
+    const runtimeVersion = String(options.runtimeVersion || '');
+    const now = Date.now();
+    const force = !!options.force;
+    const lastCheckedAt = readLastUpdateCheck();
+    if (!force && !shouldCheckForUpdate(lastCheckedAt, now)) return Promise.resolve(null);
+    writeLastUpdateCheck(now);
+    if (typeof GM_xmlhttpRequest !== 'function') return Promise.resolve(null);
+
+    return new Promise(resolve => {
+      GM_xmlhttpRequest({
+        method:'GET',
+        url:LATEST_USERSCRIPT_URL + '?ra_update=' + now,
+        headers:{'Cache-Control':'no-cache'},
+        onload:response => {
+          const text = String(response?.responseText || '');
+          const match = text.match(/@version\s+(\d+\.\d+\.\d+)/);
+          const latestVersion = match?.[1] || '';
+          if (latestVersion && compareVersions(latestVersion, installedVersion) > 0) {
+            showUpdateNotice({installedVersion, runtimeVersion, latestVersion, mismatch:!!options.mismatch});
+          } else if (options.mismatch) {
+            showUpdateNotice({installedVersion, runtimeVersion, latestVersion, mismatch:true});
+          }
+          resolve(latestVersion || null);
+        },
+        onerror:() => {
+          if (options.mismatch) showUpdateNotice({installedVersion, runtimeVersion, mismatch:true});
+          resolve(null);
+        },
+        ontimeout:() => {
+          if (options.mismatch) showUpdateNotice({installedVersion, runtimeVersion, mismatch:true});
+          resolve(null);
+        },
+        timeout:10000
+      });
+    });
+  }
 
   function clearDomGuard() {
     if (root.getAttribute(DOM_GUARD) === INSTALLER_VERSION) root.removeAttribute(DOM_GUARD);
@@ -372,18 +467,20 @@
 
   const app = window.RA_V45App;
   if (!app || typeof app.start !== 'function') {
-    clearDomGuard();
-    const message = `Recruitment Agency ${INSTALLER_VERSION} could not load its application module. Update or reinstall the userscript so Tampermonkey refreshes the pinned runtime files.`;
-    console.error('[RA]', message);
-    alert(message);
+    const installedVersion = installedUserscriptVersion();
+    const runtimeVersion = 'missing';
+    console.error('[RA]', `Recruitment Agency ${installedVersion} could not load its application module.`);
+    showUpdateNotice({installedVersion, runtimeVersion, mismatch:true});
+    checkForUpdates({force:true, runtimeVersion, mismatch:true}).catch(() => {});
     return;
   }
 
   if (String(app.SCRIPT_VERSION || '') !== EXPECTED_APP_VERSION) {
-    clearDomGuard();
-    const message = `Recruitment Agency ${INSTALLER_VERSION} detected a mismatched runtime (${app.SCRIPT_VERSION || 'unknown'}). Update or reinstall the userscript before continuing.`;
-    console.error('[RA]', message);
-    alert(message);
+    const installedVersion = installedUserscriptVersion();
+    const runtimeVersion = String(app.SCRIPT_VERSION || 'unknown');
+    console.error('[RA]', `Recruitment Agency ${installedVersion} detected a mismatched runtime (${runtimeVersion}).`);
+    showUpdateNotice({installedVersion, runtimeVersion, mismatch:true});
+    checkForUpdates({force:true, runtimeVersion, mismatch:true}).catch(() => {});
     return;
   }
 
@@ -391,6 +488,7 @@
   app.start().then(() => {
     restoreResizeObserver();
     enhanceShellUi(app);
+    checkForUpdates().catch(error => console.warn('[RA] update check failed.', error));
   }).catch(error => {
     restoreResizeObserver();
     clearDomGuard();
