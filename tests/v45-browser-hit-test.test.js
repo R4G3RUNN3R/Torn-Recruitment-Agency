@@ -5,18 +5,25 @@ const http = require('node:http');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const puppeteer = require('puppeteer-core');
+const sourceCompatibleBoot = require('./source-compatible-boot');
 
 const ROOT = path.join(__dirname, '..');
 const MODULES = [
   'scout-core.js', 'results-core.js', 'global-core.js', 'match-core.js', 'forum-core.js',
-  'v45-runtime.js', 'v45-candidates.js', 'v45-discovery.js', 'v45-messaging.js','v46-domain-core.js','v46-storage-core.js','v46-navigation.js','v46-company-core.js','v46-company-storage.js','v46-company-ui.js','v46-company-operations.js','v46-company-workflow.js','v46-company-workflow-ui.js','v46-company-opportunity-ui.js','v46-company-platform.js','v47-faction-core.js','v47-faction-storage.js','v47-faction-ui.js','v47-faction-operations.js','v47-faction-workflow.js','v47-faction-workflow-ui.js','v47-faction-opportunity-ui.js','v47-faction-platform.js','v45-app.js'
+  'v45-runtime.js', 'v45-candidates.js', 'v45-discovery.js', 'v45-messaging.js',
+  'v46-domain-core.js', 'v46-storage-core.js', 'v46-navigation.js', 'v46-company-core.js',
+  'v46-company-storage.js', 'v46-company-ui.js', 'v46-company-operations.js',
+  'v46-company-workflow.js', 'v46-company-workflow-ui.js', 'v46-company-opportunity-ui.js',
+  'v46-company-platform.js', 'v47-faction-core.js', 'v47-faction-storage.js',
+  'v47-faction-ui.js', 'v47-faction-operations.js', 'v47-faction-workflow.js',
+  'v47-faction-workflow-ui.js', 'v47-faction-opportunity-ui.js', 'v47-faction-platform.js',
+  'v45-app.js'
 ];
+const BOOT = sourceCompatibleBoot(ROOT);
 
 function chromePath() {
   for (const cmd of ['google-chrome-stable', 'google-chrome', 'chromium-browser', 'chromium']) {
-    try {
-      return execFileSync('which', [cmd], { encoding: 'utf8' }).trim();
-    } catch {}
+    try { return execFileSync('which', [cmd], { encoding: 'utf8' }).trim(); } catch {}
   }
   throw new Error('No Chrome/Chromium executable found on CI runner.');
 }
@@ -37,7 +44,6 @@ function serve() {
         window.__startupError='';
         window.addEventListener('error',e=>{window.__startupError += String(e.error||e.message)+'\\n';});
         window.addEventListener('unhandledrejection',e=>{window.__startupError += String(e.reason||'unhandled rejection')+'\\n';});
-        (async()=>{try{await window.RA_V45App.start();window.__raStarted=true;}catch(e){window.__startupError += String(e&&e.stack||e);window.__raStarted=false;}})();
       </script></body></html>`);
       return;
     }
@@ -77,7 +83,7 @@ async function physicalClick(page, selector) {
   await page.mouse.click(info.x, info.y);
 }
 
-test('real Chrome hit-testing and physical clicks can navigate the v4.5 UI', { timeout: 60000 }, async () => {
+test('real Chrome hit-testing and physical clicks can navigate the public v4.7.1 UI', { timeout: 60000 }, async () => {
   const server = await serve();
   const port = server.address().port;
   const browser = await puppeteer.launch({
@@ -89,10 +95,17 @@ test('real Chrome hit-testing and physical clicks can navigate the v4.5 UI', { t
     const page = await browser.newPage();
     await page.setViewport({ width: 1440, height: 900 });
     await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: 'networkidle0' });
-    await page.waitForFunction(() => window.__raStarted === true || window.__raStarted === false);
+    await page.addScriptTag({ content: BOOT });
+    await page.waitForFunction(() => {
+      if (!document.getElementById('ra-app')) return false;
+      return ['#ra-sidebar-launcher', '#ra-launch'].some(selector => {
+        const el = document.querySelector(selector);
+        return el && getComputedStyle(el).display !== 'none' && getComputedStyle(el).visibility !== 'hidden';
+      });
+    }, { timeout: 10000 });
+
     const startupError = await page.evaluate(() => window.__startupError);
     assert.equal(startupError, '', `startup errors: ${startupError}`);
-    assert.equal(await page.evaluate(() => window.__raStarted), true);
 
     const launcher = await page.evaluate(() => {
       for (const selector of ['#ra-sidebar-launcher', '#ra-launch']) {
@@ -106,7 +119,7 @@ test('real Chrome hit-testing and physical clicks can navigate the v4.5 UI', { t
     assert.equal(await page.$eval('#ra-app', el => getComputedStyle(el).display), 'block');
 
     await physicalClick(page, '[data-nav-toggle="intelligence"]');
-    await page.waitForFunction(() => document.querySelector('[data-nav-toggle="intelligence"]')?.getAttribute('aria-expanded') === 'true');
+    await page.waitForFunction(() => document.querySelector('[data-nav-toggle="intelligence"]')?.getAttribute('aria-expanded') === 'true', { timeout: 10000 });
 
     const routes = [
       ['company-discover', 'Company Discover'],
@@ -118,11 +131,11 @@ test('real Chrome hit-testing and physical clicks can navigate the v4.5 UI', { t
     ];
     for (const [route, title] of routes) {
       await physicalClick(page, `[data-page="${route}"]`);
-      await page.waitForFunction(expected => document.getElementById('ra-page-title')?.textContent === expected, {}, title);
+      await page.waitForFunction(expected => document.getElementById('ra-page-title')?.textContent === expected, { timeout: 10000 }, title);
     }
 
     await physicalClick(page, '#ra-settings-button');
-    await page.waitForFunction(() => document.getElementById('ra-page-title')?.textContent === 'Settings');
+    await page.waitForFunction(() => document.getElementById('ra-page-title')?.textContent === 'Settings', { timeout: 10000 });
 
     await physicalClick(page, '#ra-mobile-menu');
     assert.equal(await page.$eval('.ra-shell', el => el.classList.contains('sidebar-open')), true);
