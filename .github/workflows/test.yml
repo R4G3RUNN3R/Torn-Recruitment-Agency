@@ -5,47 +5,8 @@ on:
     branches: [main]
   pull_request:
 
-permissions:
-  contents: write
-
 jobs:
-  patch-navigation-scope:
-    if: github.head_ref == 'diag/v4.7.2-live-click-path' && !contains(github.event.pull_request.head.sha, 'never')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: diag/v4.7.2-live-click-path
-      - name: Scope Recruitment Agency navigation to its own sidebar
-        shell: bash
-        run: |
-          node <<'NODE'
-          const fs = require('fs');
-          const path = 'src/v45-app.js';
-          let text = fs.readFileSync(path, 'utf8');
-          const oldText = "function rebuildNav(){const target=document.getElementById('ra-nav');if(target)target.innerHTML=navHtml();document.querySelector('.ra-shell')?.classList.toggle('is-collapsed',!!state.settings.sidebarCollapsed);document.querySelectorAll('[data-nav-toggle]').forEach(button=>button.onclick=async()=>{const expanded=V46Navigation.toggleExpandedGroup(state.settings.navigation.expandedGroups,button.dataset.navToggle);await saveSettings({navigation:{...state.settings.navigation,expandedGroups:expanded}});rebuildNav();});document.querySelectorAll('[data-page]').forEach(btn=>btn.onclick=()=>route(btn.dataset.page).catch(e=>toast(e.message,true)));V46CompanyPlatform.syncNavigation?.();V47FactionPlatform.syncNavigation?.();document.querySelector(`[data-page=\"${state.page}\"]`)?.classList.add('active');}";
-          const newText = "function rebuildNav(){const target=document.getElementById('ra-nav');if(target)target.innerHTML=navHtml();document.querySelector('.ra-shell')?.classList.toggle('is-collapsed',!!state.settings.sidebarCollapsed);target?.querySelectorAll('[data-nav-toggle]').forEach(button=>button.onclick=async()=>{const expanded=V46Navigation.toggleExpandedGroup(state.settings.navigation.expandedGroups,button.dataset.navToggle);await saveSettings({navigation:{...state.settings.navigation,expandedGroups:expanded}});rebuildNav();});target?.querySelectorAll('[data-page]').forEach(btn=>btn.onclick=()=>route(btn.dataset.page).catch(e=>toast(e.message,true)));V46CompanyPlatform.syncNavigation?.();V47FactionPlatform.syncNavigation?.();target?.querySelector(`[data-page=\"${state.page}\"]`)?.classList.add('active');}";
-          if (!text.includes(oldText)) {
-            if (text.includes(newText)) process.exit(0);
-            throw new Error('Expected rebuildNav implementation was not found; refusing to patch');
-          }
-          fs.writeFileSync(path, text.replace(oldText, newText));
-          NODE
-      - name: Commit production fix if needed
-        shell: bash
-        run: |
-          if git diff --quiet -- src/v45-app.js; then
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/v45-app.js
-          git diff --cached --check
-          git commit -m "fix: scope navigation bindings to Recruitment Agency"
-          git push origin HEAD:diag/v4.7.2-live-click-path
-
   verify:
-    needs: patch-navigation-scope
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
