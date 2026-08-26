@@ -4,6 +4,7 @@ const {JSDOM}=require('jsdom');
 const {indexedDB,IDBKeyRange}=require('fake-indexeddb');
 
 class ResizeObserverStub{observe(){}unobserve(){}disconnect(){}}
+const settle=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 
 function installDom(){
   const dom=new JSDOM('<!doctype html><html><head></head><body><section><h2>Information</h2><div><button>One</button><button>Two</button></div></section></body></html>',{url:'https://www.torn.com/index.php',pretendToBeVisual:true});
@@ -28,6 +29,7 @@ async function withApp(run){
     assert.equal(App._test.state.page,'company-overview');
     await run(App,dom);
   }finally{
+    await settle(200);
     App._test.state.db?.close?.();
     dom.window.close();
     await deleteDb();
@@ -37,16 +39,31 @@ async function withApp(run){
 test('Company sidebar navigation commits canonical route before asynchronous rendering',async()=>{
   await withApp(async App=>{
     document.querySelector('[data-page="company-candidates"]').click();
-    assert.equal(document.getElementById('ra-page-title').textContent,'Company Candidates','the click should begin rendering Company Candidates immediately');
-    assert.equal(App._test.state.page,'company-candidates','canonical route state must change in the same click turn, before asynchronous page reads can yield');
+    assert.equal(App._test.state.page,'company-candidates','Company route state must change in the same click turn');
+    await settle(180);
+    assert.equal(document.getElementById('ra-page-title').textContent,'Company Candidates');
+    assert.equal(App._test.state.page,'company-candidates');
   });
 });
 
 test('Faction sidebar navigation commits canonical route before asynchronous rendering',async()=>{
   await withApp(async App=>{
-    document.querySelector('[data-nav-toggle="faction-recruitment"]').click();
     document.querySelector('[data-page="faction-candidates"]').click();
-    assert.equal(document.getElementById('ra-page-title').textContent,'Faction Candidates','the click should begin rendering Faction Candidates immediately');
-    assert.equal(App._test.state.page,'faction-candidates','canonical route state must change in the same click turn, before asynchronous page reads can yield');
+    assert.equal(App._test.state.page,'faction-candidates','Faction route state must change in the same click turn');
+    await settle(180);
+    assert.equal(document.getElementById('ra-page-title').textContent,'Faction Candidates');
+    assert.equal(App._test.state.page,'faction-candidates');
+  });
+});
+
+test('a newer route wins over an older asynchronous render',async()=>{
+  await withApp(async App=>{
+    document.querySelector('[data-page="company-candidates"]').click();
+    assert.equal(App._test.state.page,'company-candidates');
+    document.querySelector('[data-page="faction-candidates"]').click();
+    assert.equal(App._test.state.page,'faction-candidates');
+    await settle(250);
+    assert.equal(App._test.state.page,'faction-candidates');
+    assert.equal(document.getElementById('ra-page-title').textContent,'Faction Candidates');
   });
 });

@@ -116,6 +116,8 @@
   }
 
   async function persistRoute(app,page){const state=app?._test?.state;if(!state?.db)return false;state.page=page;state.settings=state.settings||{};state.settings.activePage=page;const meta=await dbGet(state.db,'meta','global')||{key:'global',settings:{}};meta.settings={...(meta.settings||{}),activePage:page};await dbPut(state.db,'meta',meta);return true;}
+  function claimRoute(app,page){const state=app?._test?.state,route=text(page);if(!state||!IMPLEMENTED_ROUTES.has(route))return false;state.page=route;state.settings=state.settings||{};state.settings.activePage=route;return true;}
+  function navigate(page,persist=true){const route=text(page);if(!runtime.app||!IMPLEMENTED_ROUTES.has(route))return Promise.resolve(false);if(typeof runtime.app.navigate==='function')return Promise.resolve(runtime.app.navigate(route,persist));claimRoute(runtime.app,route);return renderPage(route,{persist});}
   function readCriteria(host){if(!host)return[];return[...host.querySelectorAll('[data-criterion-row]')].map((row,index)=>{const get=key=>row.querySelector(`[data-criterion-field="${key}"]`)?.value??'';const rawValue=get('value');const numericValue=rawValue!==''&&Number.isFinite(Number(rawValue))?Number(rawValue):rawValue;return{id:text(row.dataset.criterionId)||makeId(`criterion-${index+1}`),label:text(get('label')),field:text(get('field')),operator:text(get('operator'))||'gte',kind:text(get('kind'))==='Hard'?'Hard':'Preferred',value:numericValue,weight:Math.max(0,number(get('weight'),1))};});}
   async function rowFor(userId){const rows=await buildRows(runtime.app);const row=rows.find(item=>text(item.userId)===text(userId));if(!row)throw new Error('Company candidate was not found.');return row;}
   async function saveOperationalRecord(userId,next){await saveCompanyPatch(runtime.app,userId,next);return next;}
@@ -139,9 +141,10 @@
   async function createSessionFromUi(){const rows=await buildRows(runtime.app);const candidateIds=rows.filter(row=>!row.archived&&!terminalStage(row.pipelineStage)).map(row=>text(row.userId));if(!candidateIds.length)throw new Error('No active Company candidates are available for this session.');return saveSession(runtime.app,{sessionId:makeId('session'),title:text(document.getElementById('ra-company-session-title')?.value)||'Recruitment Session',candidateIds,cursor:0,status:'Active',outcomes:[],filters:{source:text(document.getElementById('ra-company-session-source')?.value)||'active'},startedAt:Date.now(),createdAt:Date.now()});}
   async function recordSessionActionFromUi(sessionId,userId,action){const session=await getSession(runtime.app,sessionId);if(!session)throw new Error('Recruitment session was not found.');const note=text(document.querySelector(`[data-session-note="${sessionId}"]`)?.value);return saveSession(runtime.app,Workflow.recordSessionAction(session,{userId,action,note},Date.now()));}
 
-  function bindContentControls(){
-    document.querySelectorAll('#ra-content [data-go-page]').forEach(button=>{if(!isCompanyRoute(button.dataset.goPage))return;button.onclick=event=>{event?.preventDefault?.();renderPage(button.dataset.goPage).catch(reportError);};});
-    document.querySelectorAll('#ra-content [data-company-stage-select]').forEach(select=>{select.onchange=()=>changeCompanyStage(select.dataset.companyStageSelect,select.value).then(()=>renderPage(runtime.app._test.state.page,{persist:false})).catch(error=>{reportError(error);renderPage(runtime.app._test.state.page,{persist:false}).catch(reportError);});});
+  function bindContentControls(currentPage){
+    const page=text(currentPage||runtime.app?._test?.state?.page);
+    document.querySelectorAll('#ra-content [data-go-page]').forEach(button=>{if(!isCompanyRoute(button.dataset.goPage))return;button.onclick=event=>{event?.preventDefault?.();navigate(button.dataset.goPage,true).catch(reportError);};});
+    document.querySelectorAll('#ra-content [data-company-stage-select]').forEach(select=>{select.onchange=()=>changeCompanyStage(select.dataset.companyStageSelect,select.value).then(()=>renderPage(page,{persist:false})).catch(error=>{reportError(error);renderPage(page,{persist:false}).catch(reportError);});});
     document.querySelectorAll('#ra-content [data-company-vacancy-pin]').forEach(select=>{select.onchange=()=>setVacancyPin(select.dataset.companyVacancyPin,select.value).then(()=>renderPage('company-candidates',{persist:false})).catch(reportError);});
     document.querySelectorAll('#ra-content [data-company-message]').forEach(button=>{button.onclick=()=>openMessage(button.dataset.companyMessage,false).catch(reportError);});
     document.querySelectorAll('#ra-content [data-company-message-override]').forEach(button=>{button.onclick=()=>openMessage(button.dataset.companyMessageOverride,true).catch(reportError);});
@@ -176,36 +179,39 @@
   function reportError(error){console.error('[RA v4.6 Company]',error);try{globalThis.alert?.(`Company Recruitment failed: ${error?.message||error}`);}catch{}}
 
   async function renderPage(page,options={}){
-    const app=runtime.app;
+    const app=runtime.app;page=text(page);
     if(!app||!IMPLEMENTED_ROUTES.has(page))return false;
+    if(options.persist!==false)claimRoute(app,page);
     const title=document.getElementById('ra-page-title'),desc=document.getElementById('ra-page-desc'),content=document.getElementById('ra-content');
     if(!title||!desc||!content)throw new Error('Recruitment Agency shell is not mounted.');
-    const meta=routeMeta(page);title.textContent=meta.title;desc.textContent=meta.description;
     const rows=await buildRows(app);
-    if(page==='company-overview')content.innerHTML=CompanyUI.renderOverview(CompanyUI.buildOverviewModel(rows,await getVacancies(app)));
+    let html='';
+    if(page==='company-overview')html=CompanyUI.renderOverview(CompanyUI.buildOverviewModel(rows,await getVacancies(app)));
     else if(page==='company-today'){
       const config=await getConfig(app),now=Date.now();
       const opportunityRows=OpportunityUI.buildOpportunityRows(rows,{weights:opportunityWeights(config),now});
       const opportunities=Object.fromEntries(opportunityRows.map(row=>[row.userId,row.opportunity.score]));
-      content.innerHTML=CompanyUI.renderToday(CompanyUI.buildTodayModel(rows,{now,stageThresholds:config.stageThresholds||{},opportunities}));
+      html=CompanyUI.renderToday(CompanyUI.buildTodayModel(rows,{now,stageThresholds:config.stageThresholds||{},opportunities}));
     }
-    else if(page==='company-candidates')content.innerHTML=CompanyUI.renderCandidates(rows);
-    else if(page==='company-pipeline')content.innerHTML=CompanyUI.renderPipeline(CompanyUI.buildPipelineModel(rows));
-    else if(page==='company-vacancies')content.innerHTML=CompanyUI.renderVacanciesPage({config:await getConfig(app),vacancies:await getVacancies(app),rows});
-    else if(page==='company-followups')content.innerHTML=CompanyUI.renderFollowUpsPage(rows,{now:Date.now()});
-    else if(page==='company-contact-outcomes')content.innerHTML=CompanyUI.renderContactOutcomesPage(rows);
-    else if(page==='company-stage-aging'){const config=await getConfig(app);content.innerHTML=CompanyUI.renderStageAgingPage(rows.map(row=>({...row,aging:Operations.stageAging(row.companyRecord,config.stageThresholds||{},Date.now())})));}
-    else if(page==='company-timeline')content.innerHTML=CompanyUI.renderTimelinePage(rows);
-    else if(page==='company-campaigns')content.innerHTML=WorkflowUI.renderCampaignsPage({campaigns:await getCampaigns(app),rows,vacancies:await getVacancies(app)});
-    else if(page==='company-talent-pool')content.innerHTML=WorkflowUI.renderTalentPoolPage(rows);
-    else if(page==='company-reactivation')content.innerHTML=WorkflowUI.renderReactivationPage(rows);
-    else if(page==='company-recruitment-sessions')content.innerHTML=WorkflowUI.renderRecruitmentSessionsPage({sessions:await getSessions(app),rows});
-    else if(page==='company-opportunity')content.innerHTML=OpportunityUI.renderOpportunityPage(await buildOpportunityRows(app,rows,Date.now()));
-    else if(page==='company-compare')content.innerHTML=OpportunityUI.renderComparePage(rows,[...runtime.compareSelection]);
-    syncActiveNav(page);bindContentControls();if(options.persist!==false)await persistRoute(app,page);return true;
+    else if(page==='company-candidates')html=CompanyUI.renderCandidates(rows);
+    else if(page==='company-pipeline')html=CompanyUI.renderPipeline(CompanyUI.buildPipelineModel(rows));
+    else if(page==='company-vacancies')html=CompanyUI.renderVacanciesPage({config:await getConfig(app),vacancies:await getVacancies(app),rows});
+    else if(page==='company-followups')html=CompanyUI.renderFollowUpsPage(rows,{now:Date.now()});
+    else if(page==='company-contact-outcomes')html=CompanyUI.renderContactOutcomesPage(rows);
+    else if(page==='company-stage-aging'){const config=await getConfig(app);html=CompanyUI.renderStageAgingPage(rows.map(row=>({...row,aging:Operations.stageAging(row.companyRecord,config.stageThresholds||{},Date.now())})));}
+    else if(page==='company-timeline')html=CompanyUI.renderTimelinePage(rows);
+    else if(page==='company-campaigns')html=WorkflowUI.renderCampaignsPage({campaigns:await getCampaigns(app),rows,vacancies:await getVacancies(app)});
+    else if(page==='company-talent-pool')html=WorkflowUI.renderTalentPoolPage(rows);
+    else if(page==='company-reactivation')html=WorkflowUI.renderReactivationPage(rows);
+    else if(page==='company-recruitment-sessions')html=WorkflowUI.renderRecruitmentSessionsPage({sessions:await getSessions(app),rows});
+    else if(page==='company-opportunity')html=OpportunityUI.renderOpportunityPage(await buildOpportunityRows(app,rows,Date.now()));
+    else if(page==='company-compare')html=OpportunityUI.renderComparePage(rows,[...runtime.compareSelection]);
+    if(text(app._test.state.page)!==page)return false;
+    const meta=routeMeta(page);title.textContent=meta.title;desc.textContent=meta.description;content.innerHTML=html;
+    syncActiveNav(page);bindContentControls(page);if(options.persist!==false)await persistRoute(app,page);return true;
   }
 
-  function bindNav(){if(!runtime.app)return;document.querySelectorAll('#ra-nav [data-page]').forEach(button=>{const page=text(button.dataset.page);if(!IMPLEMENTED_ROUTES.has(page))return;if(!runtime.originalHandlers.has(button))runtime.originalHandlers.set(button,button.onclick||null);button.onclick=event=>{event?.preventDefault?.();renderPage(page).catch(reportError);};});}
+  function bindNav(){if(!runtime.app)return;document.querySelectorAll('#ra-nav [data-page]').forEach(button=>{const page=text(button.dataset.page);if(!IMPLEMENTED_ROUTES.has(page))return;if(!runtime.originalHandlers.has(button))runtime.originalHandlers.set(button,button.onclick||null);button.onclick=event=>{event?.preventDefault?.();navigate(page,true).catch(reportError);};});}
   function syncNavigation(){bindNav();return true;}
   function install(app,options={}){if(!app?._test?.state?.db)throw new Error('A mounted Recruitment Agency app with DB state is required.');uninstall();runtime.app=app;runtime.installed=true;bindNav();const nav=document.getElementById('ra-nav');if(nav&&typeof MutationObserver==='function'){runtime.observer=new MutationObserver(()=>bindNav());runtime.observer.observe(nav,{childList:true,subtree:true});}const page=text(app._test.state.page||app._test.state.settings?.activePage);if(options.renderInitial!==false&&IMPLEMENTED_ROUTES.has(page))renderPage(page,{persist:false}).catch(reportError);return true;}
   function uninstall(){runtime.observer?.disconnect?.();runtime.observer=null;for(const[button,handler]of runtime.originalHandlers.entries())if(button?.isConnected)button.onclick=handler;runtime.originalHandlers.clear();runtime.compareSelection.clear();runtime.app=null;runtime.installed=false;}
