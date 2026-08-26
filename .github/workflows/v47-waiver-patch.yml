@@ -22,9 +22,9 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: npm
-      - run: npm ci
+          node-version: '20'
+      - name: Install test dependencies
+        run: npm install --no-audit --no-fund
       - name: Apply guarded waiver patch
         run: node scripts/patch-v47-waiver-ui.js
       - name: Run tests
