@@ -23,17 +23,31 @@ jobs:
           const fs = require('fs');
           const path = 'src/v45-app.js';
           let text = fs.readFileSync(path, 'utf8');
-          const oldText = "function rebuildNav(){const target=document.getElementById('ra-nav');if(target)target.innerHTML=navHtml();document.querySelector('.ra-shell')?.classList.toggle('is-collapsed',!!state.settings.sidebarCollapsed);document.querySelectorAll('[data-nav-toggle]').forEach(button=>button.onclick=async()=>{const expanded=V46Navigation.toggleExpandedGroup(state.settings.navigation.expandedGroups,button.dataset.navToggle);await saveSettings({navigation:{...state.settings.navigation,expandedGroups:expanded}});rebuildNav();});document.querySelectorAll('[data-page]').forEach(btn=>btn.onclick=()=>route(btn.dataset.page).catch(e=>toast(e.message,true)));V46CompanyPlatform.syncNavigation?.();V47FactionPlatform.syncNavigation?.();document.querySelector(`[data-page=\"${state.page}\"]`)?.classList.add('active');}";
-          const newText = "function rebuildNav(){const target=document.getElementById('ra-nav');if(target)target.innerHTML=navHtml();document.querySelector('.ra-shell')?.classList.toggle('is-collapsed',!!state.settings.sidebarCollapsed);target?.querySelectorAll('[data-nav-toggle]').forEach(button=>button.onclick=async()=>{const expanded=V46Navigation.toggleExpandedGroup(state.settings.navigation.expandedGroups,button.dataset.navToggle);await saveSettings({navigation:{...state.settings.navigation,expandedGroups:expanded}});rebuildNav();});target?.querySelectorAll('[data-page]').forEach(btn=>btn.onclick=()=>route(btn.dataset.page).catch(e=>toast(e.message,true)));V46CompanyPlatform.syncNavigation?.();V47FactionPlatform.syncNavigation?.();target?.querySelector(`[data-page=\"${state.page}\"]`)?.classList.add('active');}";
-          if (!text.includes(oldText)) {
-            throw new Error('Expected rebuildNav implementation was not found; refusing to patch');
+          const start = text.indexOf('  function rebuildNav(){');
+          const end = text.indexOf('\n\n  function pageMeta', start);
+          if (start < 0 || end < 0) throw new Error('Could not isolate rebuildNav; refusing to patch');
+          let fn = text.slice(start, end);
+          const replacements = [
+            ["document.querySelectorAll('[data-nav-toggle]').forEach", "target?.querySelectorAll('[data-nav-toggle]').forEach"],
+            ["document.querySelectorAll('[data-page]').forEach", "target?.querySelectorAll('[data-page]').forEach"],
+            ['document.querySelector(`[data-page=', 'target?.querySelector(`[data-page=']
+          ];
+          for (const [from, to] of replacements) {
+            if (!fn.includes(from)) {
+              if (!fn.includes(to)) throw new Error(`Expected selector not found in rebuildNav: ${from}`);
+            } else {
+              fn = fn.replace(from, to);
+            }
           }
-          text = text.replace(oldText, newText);
+          text = text.slice(0, start) + fn + text.slice(end);
           fs.writeFileSync(path, text);
           NODE
       - name: Commit scoped navigation fix
         shell: bash
         run: |
+          if git diff --quiet -- src/v45-app.js; then
+            exit 0
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add src/v45-app.js
