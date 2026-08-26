@@ -85,7 +85,7 @@ test('maximize marks its guarded state before the first persistence await',()=>{
   assert.ok(classIndex<awaitIndex,'maximized class must be applied before yielding to persistence');
 });
 
-test('source app targets additive DB14 over DB13 foundation and shared scheduler',()=>{assert.match(app,/DB_VERSION\s*=\s*V46CompanyStorage\.DB_VERSION/);assert.match(app,/V46Storage\.applyUpgrade\(db\)[\s\S]*V46CompanyStorage\.applyUpgrade\(db\)/);assert.doesNotMatch(app,/deleteObjectStore\s*\(/);assert.match(app,/HARD_API_RATE\s*=\s*75/);assert.match(app,/MIN_API_GAP_MS\s*=\s*800/);assert.match(app,/Math\.max\(MIN_API_GAP_MS,60000\/clampRate/);});
+test('source app targets additive DB15 over DB13 and DB14 foundations and shared scheduler',()=>{assert.match(app,/DB_VERSION\s*=\s*V47FactionStorage\.DB_VERSION/);assert.match(app,/V46Storage\.applyUpgrade\(db\)[\s\S]*V46CompanyStorage\.applyUpgrade\(db\)[\s\S]*V47FactionStorage\.applyUpgrade\(db\)/);assert.doesNotMatch(app,/deleteObjectStore\s*\(/);assert.match(app,/HARD_API_RATE\s*=\s*75/);assert.match(app,/MIN_API_GAP_MS\s*=\s*800/);assert.match(app,/Math\.max\(MIN_API_GAP_MS,60000\/clampRate/);});
 
 test('v4.6 keeps Smart Match local and messaging manual',()=>{assert.match(app,/Smart Match.*zero Torn API calls/i);assert.match(app,/you still click Send/);assert.doesNotMatch(app,/autoSubmit\s*:\s*true/);assert.doesNotMatch(app,/pipelineStage\s*=\s*['"]Contacted['"]s*;.*message/s);});
 

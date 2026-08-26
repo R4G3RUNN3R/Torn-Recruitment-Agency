@@ -24,8 +24,27 @@
     Object.freeze({id:'company-compare',label:'Compare'})
   ]);
 
+  const FACTION_PAGES = Object.freeze([
+    Object.freeze({id:'faction-overview',label:'Overview'}),
+    Object.freeze({id:'faction-today',label:'Today'}),
+    Object.freeze({id:'faction-discover',label:'Discover'}),
+    Object.freeze({id:'faction-candidates',label:'Candidates'}),
+    Object.freeze({id:'faction-pipeline',label:'Pipeline'}),
+    Object.freeze({id:'faction-requirements',label:'Requirements'}),
+    Object.freeze({id:'faction-campaigns',label:'Campaigns'}),
+    Object.freeze({id:'faction-followups',label:'Follow-ups'}),
+    Object.freeze({id:'faction-timeline',label:'Timeline'}),
+    Object.freeze({id:'faction-stage-aging',label:'Stage Aging'}),
+    Object.freeze({id:'faction-contact-outcomes',label:'Contact Outcomes'}),
+    Object.freeze({id:'faction-recruitment-sessions',label:'Recruitment Sessions'}),
+    Object.freeze({id:'faction-reactivation',label:'Reactivation'}),
+    Object.freeze({id:'faction-opportunity',label:'Opportunity Queue'}),
+    Object.freeze({id:'faction-compare',label:'Compare'})
+  ]);
+
   const GROUPS = Object.freeze([
     Object.freeze({id:'company-recruitment',label:'COMPANY RECRUITMENT',pages:COMPANY_PAGES}),
+    Object.freeze({id:'faction-recruitment',label:'FACTION RECRUITMENT',pages:FACTION_PAGES}),
     Object.freeze({id:'intelligence',label:'INTELLIGENCE',pages:Object.freeze([
       Object.freeze({id:'scout',label:'Scout'}),
       Object.freeze({id:'smart-match',label:'Smart Match'}),
@@ -87,5 +106,5 @@
     return GROUP_IDS.filter(group => open.has(group));
   }
 
-  return Object.freeze({COMPANY_PAGES,GROUPS,GROUP_IDS,ROUTES,LEGACY_ROUTE_ALIASES,normalizeRoute,visibleGroups,normalizeExpandedGroups,toggleExpandedGroup});
+  return Object.freeze({COMPANY_PAGES,FACTION_PAGES,GROUPS,GROUP_IDS,ROUTES,LEGACY_ROUTE_ALIASES,normalizeRoute,visibleGroups,normalizeExpandedGroups,toggleExpandedGroup});
 });
