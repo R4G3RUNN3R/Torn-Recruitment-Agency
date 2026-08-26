@@ -1,14 +1,20 @@
 # Torn Recruitment Agency
 
-R4G3RUNN3R's Recruitment Agency **v4.7.1** is a modular Torn recruitment workspace with separate Company and Faction recruitment workflows over one shared Player Intelligence identity, plus official forum discovery, Scout intelligence, local-only Smart Match scoring, optional Global Intelligence, contextual help, and safe browser-local persistence.
+R4G3RUNN3R's Recruitment Agency **v4.7.2** is a modular Torn recruitment workspace with separate Company and Faction recruitment workflows over one shared Player Intelligence identity, plus official forum discovery, Scout intelligence, local-only Smart Match scoring, optional Global Intelligence, contextual help, and safe browser-local persistence.
 
 The Scout, Results, Global Intelligence, Smart Match, Forum Discovery, Company Recruitment, and Faction Recruitment modules are clean-room implementations. They do not call, authenticate against, or depend on `rs.dnonetwork.com` or another proprietary Recruit Scout grading backend.
 
+## v4.7.2 routing hotfix
+
+**v4.7.2 hotfix:** Recruitment navigation now has one canonical route authority. Company and Faction sidebar/in-page navigation delegate to the central state-first router, so the selected route is committed before asynchronous IndexedDB rendering begins. A stale render from a page the recruiter has already left is not allowed to repaint over the newer route. This fixes the live failure where controls on non-Company pages could snap the workspace back to Company Overview. Regression coverage now includes immediate Company route state, immediate Faction route state, and a rapid cross-domain route race where the newest route must win.
+
+v4.7.2 supersedes v4.7.1 for this routing defect. v4.7.1 corrected a narrower Faction control symptom, but live testing later proved that the underlying split route-authority race still existed across recruitment pages.
+
 ## v4.7 Faction Recruitment release
 
-**v4.7.1 hotfix:** Faction page controls now retain the route the recruiter actually selected, so the first interaction on a newly opened Faction tab cannot snap the workspace back to the previously active route. The regression is covered by a browser-like route-stickiness test and the public installer pins the corrected runtime immutably.
+**v4.7.1 historical hotfix:** Faction page controls were changed to retain the route the recruiter selected during local control rerenders. That fix addressed one downstream symptom, but it did not eliminate the underlying split route-authority race later fixed in v4.7.2.
 
-The public **v4.7.1** release adds the complete Faction Recruitment slice alongside the existing Company Recruitment workflow without merging their private state.
+The v4.7 release family adds the complete Faction Recruitment slice alongside the existing Company Recruitment workflow without merging their private state.
 
 - IndexedDB now upgrades additively through **DB15**. DB13 owns `playerIntelligence`, `companyRecruitment`, and `factionRecruitment`; DB14 adds `companyVacancies`, `companyCampaigns`, `companyRecruitmentConfig`, and `companyRecruitmentSessions`; DB15 adds `factionSpecialistProfiles`, `factionCampaigns`, `factionRecruitmentConfig`, and `factionRecruitmentSessions`. No prior object store is deleted.
 - One Torn player ID maps to one shared Player Intelligence identity. Company and Faction stages, notes, follow-ups, campaigns, waivers, matching context, and workflow history remain separate and local.
@@ -17,7 +23,7 @@ The public **v4.7.1** release adds the complete Faction Recruitment slice alongs
 - Faction Baseline Hard failures block only **Invite Ready** unless individually waived. Specialist Hard failures affect only that specialist profile and never block Invite Ready when the baseline is eligible. Manual specialist pins are never silently overwritten.
 - Faction waiver management records baseline or specialist scope, reason, review date, Active/Resolved state, and resolution history while keeping the failed underlying requirement visible. DNC remains a separate explicit flag and recruitment messaging remains manual-send only.
 - Scout and recruitment observations update shared Player Intelligence only through the approved fact-field boundary; recruitment-private fields never enter Global Intelligence through the generic merge path.
-- The public userscript pins all **29** runtime modules immutably to reviewed source commit `04bbbd030f625c2e9a95ee52d0c4b46f432d0882`. Its release regression suite fetches the exact pinned `v45-app.js` and verifies that its `SCRIPT_VERSION` equals the installer's expected runtime version before publication.
+- The public userscript pins all **29** runtime modules immutably to reviewed v4.7.2 source commit `bba0de9ac95fcfb280335f63a9c2a47dc2a5db41`. Its release regression suite fetches the exact pinned `v45-app.js` and verifies that its `SCRIPT_VERSION` equals the installer's expected runtime version before publication.
 
 ## What's new in v4.5
 
@@ -257,7 +263,7 @@ Simple mode keeps the normal recruitment workflow visible while hiding technical
 
 Install [`R4G3RUNN3R-Recruitment-Agency.user.js`](R4G3RUNN3R-Recruitment-Agency.user.js) in Tampermonkey or another compatible userscript manager.
 
-The public userscript metadata is version **4.7.0**. All application modules are loaded through immutable commit-pinned `@require` URLs pointing to reviewed source commit `04bbbd030f625c2e9a95ee52d0c4b46f432d0882`, while `@updateURL` and `@downloadURL` remain on `main` for normal userscript-manager updates.
+The public userscript metadata is version **4.7.2**. All **29** application modules are loaded through immutable commit-pinned `@require` URLs pointing to reviewed source commit `bba0de9ac95fcfb280335f63a9c2a47dc2a5db41`, while `@updateURL` and `@downloadURL` remain on `main` for normal userscript-manager updates.
 
 A Torn API key is stored only in the browser database used by Recruitment Agency. Torn API requests are made directly from the browser through the application scheduler.
 
@@ -270,11 +276,12 @@ npm test
 npm run syntax
 ```
 
-The v4.7 release regression suite covers Company/Faction workflow isolation, the exact domain stage contracts, additive DB11→DB15 upgrades, Faction waivers and specialist matching, shared Player Intelligence boundaries, the Global Intelligence whitelist, API pacing, manual messaging, routed UI/browser interaction, immutable userscript dependency order, exact pinned-runtime version integrity, and JavaScript syntax.
+The v4.7 release regression suite covers Company/Faction workflow isolation, the exact domain stage contracts, additive DB11→DB15 upgrades, Faction waivers and specialist matching, shared Player Intelligence boundaries, the Global Intelligence whitelist, API pacing, manual messaging, routed UI/browser interaction, immutable userscript dependency order, exact pinned-runtime version integrity, state-first Company/Faction route ownership, stale asynchronous render rejection, and JavaScript syntax.
 
 ## Version history
 
-- **v4.7.1** - complete Faction Recruitment workflow, DB15 additive storage, specialist profiles, scoped waivers, Opportunity/Compare, Company/Faction isolation, and immutable runtime-pin integrity checks
+- **v4.7.2** - central state-first recruitment route authority, stale asynchronous render protection, and direct Company/Faction/cross-domain route-race regressions; supersedes v4.7.1 for the live Company Overview snapback defect
+- **v4.7.1** - Faction route-control hotfix and complete Faction Recruitment workflow; later found incomplete for the broader live route-authority race fixed in v4.7.2
 - **v4.6.0** - Company Recruitment foundation and complete Company workflow slice (publication later superseded by v4.7.1 after an immutable runtime-pin mismatch was detected)
 - **v4.5.4** - internal routed-content scrolling, duplicate Settings navigation cleanup, viewport Maximize/Restore with normal-geometry preservation
 - **v4.5.0** - routed recruitment application, Forum Discovery pipeline, unified candidate CRM, six-stage Pipeline, messaging workflow, DB12, Scout/Smart Match/Global pages, Settings/Data/Logs, privacy and release hardening

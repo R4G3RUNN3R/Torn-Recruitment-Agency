@@ -123,6 +123,9 @@
     return true;
   }
 
+  function claimRoute(app,page){const state=app?._test?.state,route=text(page);if(!state||!IMPLEMENTED_ROUTES.has(route))return false;state.page=route;state.settings=state.settings||{};state.settings.activePage=route;return true;}
+  function navigate(page,persist=true){const route=text(page);if(!runtime.app||!IMPLEMENTED_ROUTES.has(route))return Promise.resolve(false);if(typeof runtime.app.navigate==='function')return Promise.resolve(runtime.app.navigate(route,persist));claimRoute(runtime.app,route);return renderPage(route,{persist});}
+
   function readCriteria(host){
     if(!host)return[];
     return[...host.querySelectorAll('[data-faction-criterion-row]')].map((row,index)=>{
@@ -246,7 +249,7 @@
 
   function bindContentControls(currentPage){
     const page=text(currentPage||runtime.app?._test?.state?.page);
-    document.querySelectorAll('[data-go-page]').forEach(button=>{const route=text(button.dataset.goPage);if(isFactionRoute(route))button.onclick=()=>renderPage(route).catch(reportError);});
+    document.querySelectorAll('[data-go-page]').forEach(button=>{const route=text(button.dataset.goPage);if(isFactionRoute(route))button.onclick=event=>{event?.preventDefault?.();navigate(route,true).catch(reportError);};});
     document.querySelectorAll('[data-faction-stage-select]').forEach(select=>select.onchange=async()=>{try{await changeFactionStage(select.dataset.factionStageSelect,select.value);await renderPage(page,{persist:false});}catch(error){reportError(error);await renderPage(page,{persist:false});}});
     document.querySelectorAll('[data-faction-profile-pin]').forEach(select=>select.onchange=async()=>{try{await setProfilePin(select.dataset.factionProfilePin,select.value);await renderPage(page,{persist:false});}catch(error){reportError(error);}});
     document.querySelectorAll('[data-faction-message]').forEach(button=>button.onclick=()=>rowFor(button.dataset.factionMessage).then(row=>openManualMessage(row,false)).catch(reportError));
@@ -292,32 +295,35 @@
   }
 
   async function renderPage(page,options={}){
-    const app=runtime.app;
+    const app=runtime.app;page=text(page);
     if(!app||!IMPLEMENTED_ROUTES.has(page))return false;
+    if(options.persist!==false)claimRoute(app,page);
     const title=document.getElementById('ra-page-title'),desc=document.getElementById('ra-page-desc'),content=document.getElementById('ra-content');
     if(!title||!desc||!content)throw new Error('Recruitment Agency shell is not mounted.');
-    const meta=routeMeta(page);title.textContent=meta.title;desc.textContent=meta.description;
     const rows=await buildRows(app);
+    let html='';
     const[config,profiles,campaigns,sessions]=await Promise.all([getConfig(app),getProfiles(app),getCampaigns(app),getSessions(app)]);
 
-    if(page==='faction-overview')content.innerHTML=FactionUI.renderOverview(FactionUI.buildOverviewModel(rows,profiles));
+    if(page==='faction-overview')html=FactionUI.renderOverview(FactionUI.buildOverviewModel(rows,profiles));
     else if(page==='faction-today'){
       const opportunities=await buildOpportunityRows(app,rows,Date.now());
-      content.innerHTML=FactionUI.renderToday(FactionUI.buildTodayModel(rows,{now:Date.now(),stageThresholds:config.stageThresholds||{},opportunities:Object.fromEntries(opportunities.map(item=>[item.userId,item.opportunity.score]))}));
+      html=FactionUI.renderToday(FactionUI.buildTodayModel(rows,{now:Date.now(),stageThresholds:config.stageThresholds||{},opportunities:Object.fromEntries(opportunities.map(item=>[item.userId,item.opportunity.score]))}));
     }
-    else if(page==='faction-discover')content.innerHTML=renderDiscover(rows);
-    else if(page==='faction-candidates')content.innerHTML=FactionUI.renderCandidates(rows);
-    else if(page==='faction-pipeline')content.innerHTML=FactionUI.renderPipeline(FactionUI.buildPipelineModel(rows));
-    else if(page==='faction-requirements')content.innerHTML=FactionUI.renderRequirementsPage({config,profiles,rows});
-    else if(page==='faction-campaigns')content.innerHTML=WorkflowUI.renderCampaignsPage({campaigns,rows,profiles});
-    else if(page==='faction-followups')content.innerHTML=WorkflowUI.renderFollowUpsPage(rows);
-    else if(page==='faction-timeline')content.innerHTML=WorkflowUI.renderTimelinePage(rows);
-    else if(page==='faction-stage-aging')content.innerHTML=WorkflowUI.renderStageAgingPage(rows.map(row=>({...row,stageAging:Operations.stageAging(row.factionRecord,config.stageThresholds||{},Date.now())})));
-    else if(page==='faction-contact-outcomes')content.innerHTML=WorkflowUI.renderContactOutcomesPage(rows);
-    else if(page==='faction-recruitment-sessions')content.innerHTML=WorkflowUI.renderRecruitmentSessionsPage({sessions,rows});
-    else if(page==='faction-reactivation')content.innerHTML=WorkflowUI.renderReactivationPage(rows);
-    else if(page==='faction-opportunity')content.innerHTML=OpportunityUI.renderOpportunityPage(await buildOpportunityRows(app,rows,Date.now()));
-    else if(page==='faction-compare')content.innerHTML=OpportunityUI.renderComparePage(rows,[...runtime.compareSelection]);
+    else if(page==='faction-discover')html=renderDiscover(rows);
+    else if(page==='faction-candidates')html=FactionUI.renderCandidates(rows);
+    else if(page==='faction-pipeline')html=FactionUI.renderPipeline(FactionUI.buildPipelineModel(rows));
+    else if(page==='faction-requirements')html=FactionUI.renderRequirementsPage({config,profiles,rows});
+    else if(page==='faction-campaigns')html=WorkflowUI.renderCampaignsPage({campaigns,rows,profiles});
+    else if(page==='faction-followups')html=WorkflowUI.renderFollowUpsPage(rows);
+    else if(page==='faction-timeline')html=WorkflowUI.renderTimelinePage(rows);
+    else if(page==='faction-stage-aging')html=WorkflowUI.renderStageAgingPage(rows.map(row=>({...row,stageAging:Operations.stageAging(row.factionRecord,config.stageThresholds||{},Date.now())})));
+    else if(page==='faction-contact-outcomes')html=WorkflowUI.renderContactOutcomesPage(rows);
+    else if(page==='faction-recruitment-sessions')html=WorkflowUI.renderRecruitmentSessionsPage({sessions,rows});
+    else if(page==='faction-reactivation')html=WorkflowUI.renderReactivationPage(rows);
+    else if(page==='faction-opportunity')html=OpportunityUI.renderOpportunityPage(await buildOpportunityRows(app,rows,Date.now()));
+    else if(page==='faction-compare')html=OpportunityUI.renderComparePage(rows,[...runtime.compareSelection]);
+    if(typeof app.navigate==='function'&&text(app._test.state.page)!==page)return false;
+    const meta=routeMeta(page);title.textContent=meta.title;desc.textContent=meta.description;content.innerHTML=html;
     syncActiveNav(page);bindContentControls(page);if(options.persist!==false)await persistRoute(app,page);return true;
   }
 
@@ -326,7 +332,7 @@
     document.querySelectorAll('#ra-nav [data-page]').forEach(button=>{
       const page=text(button.dataset.page);if(!IMPLEMENTED_ROUTES.has(page))return;
       if(!runtime.originalHandlers.has(button))runtime.originalHandlers.set(button,button.onclick||null);
-      button.onclick=event=>{event?.preventDefault?.();renderPage(page).catch(reportError);};
+      button.onclick=event=>{event?.preventDefault?.();navigate(page,true).catch(reportError);};
     });
   }
   function syncNavigation(){bindNav();return true;}

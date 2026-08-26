@@ -60,7 +60,7 @@
     throw new Error('Recruitment Agency v4.5 core modules are required.');
   }
 
-  const SCRIPT_VERSION = '4.7.1';
+  const SCRIPT_VERSION = '4.7.2';
   const DB_NAME = 'tornWorkerDB';
   const DB_VERSION = V47FactionStorage.DB_VERSION;
   const API_BASE = 'https://api.torn.com/v2';
@@ -144,7 +144,7 @@
   const repositories=V46Storage.createRepositories(idb);
   const companyRepositories=V46CompanyStorage.createRepositories(idb,V46CompanyCore);
   const factionRepositories=V47FactionStorage.createRepositories(idb,V47FactionCore);
-  const companyPlatformApp={_test:{state,repositories,companyRepositories,factionRepositories}};
+  const companyPlatformApp={navigate:(page,persist=true)=>route(page,persist),_test:{state,repositories,companyRepositories,factionRepositories}};
 
   function mergeSettings(raw={}) {
     const base=defaultSettings();

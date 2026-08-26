@@ -46,7 +46,7 @@ async function physicalClick(page, selector) {
   await page.mouse.click(point.x, point.y);
 }
 
-test('public v4.7.1 runtime remains physically clickable on the real Torn host page', { timeout: 90000 }, async () => {
+test('public v4.7.2 runtime remains physically clickable on the real Torn host page', { timeout: 90000 }, async () => {
   const browser = await puppeteer.launch({
     executablePath: chromePath(),
     headless: true,
