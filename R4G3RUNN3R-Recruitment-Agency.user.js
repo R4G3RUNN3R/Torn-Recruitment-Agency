@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         R4G3RUNN3R's Recruitment Agency
 // @namespace    r4g3runn3r.recruitment.agency
-// @version      4.7.4
+// @version      4.7.5
 // @description  Company and Faction recruitment workflows with shared Player Intelligence, Scout, Smart Match and local-first persistence for Torn.
 // @author       R4G3RUNN3R[3877028]
 // @license      MIT
@@ -45,7 +45,7 @@
 
 (() => {
   'use strict';
-  const INSTALLER_VERSION = '4.7.4';
+  const INSTALLER_VERSION = '4.7.5';
   const EXPECTED_APP_VERSION = '4.7.4';
   const DOM_GUARD = 'data-r4g3-ra-v45-owner';
   const RA_ROOT_SELECTOR = '#ra-app,#ra-hover,#ra-context,#ra-help-popover';
@@ -241,12 +241,34 @@
 #ra-app .ra-content::-webkit-scrollbar-thumb{background:var(--ra-accent);border:3px solid var(--ra-panel2);border-radius:99px}
 #ra-app.ra-maximized{left:0!important;top:0!important;width:100vw!important;height:100vh!important;max-width:none!important;max-height:none!important;min-width:0!important;min-height:0!important;border-radius:0!important;resize:none!important}
 #ra-app.ra-maximized .ra-titlebar{cursor:default!important}
+#ra-app .ra-table thead th{color:var(--ra-text)!important}
+#ra-app .ra-table tbody td{color:var(--ra-accent2)!important}
+#ra-app .ra-table tbody td .ra-muted{color:var(--ra-muted)!important}
+#ra-app .ra-table tbody td .ra-btn,
+#ra-app .ra-table tbody td input,
+#ra-app .ra-table tbody td select,
+#ra-app .ra-table tbody td textarea{color:var(--ra-text)!important}
+#ra-app .ra-table tbody td a,
+#ra-app .ra-table tbody td .ra-link{color:var(--ra-accent2)!important}
+#ra-app .ra-settings summary{color:var(--ra-accent2)!important}
+#ra-app .ra-settings .ra-field label{color:var(--ra-accent2)!important}
+#ra-app .ra-settings .ra-field input,
+#ra-app .ra-settings .ra-field select,
+#ra-app .ra-settings .ra-field textarea,
+#ra-app .ra-settings .ra-field option{color:var(--ra-accent2)!important}
+#ra-app .ra-settings .ra-muted{color:var(--ra-muted)!important}
+#ra-app .ra-settings .ra-danger-zone summary{color:var(--ra-danger)!important}
 `;
     document.head.appendChild(style);
   }
 
   function stripSidebarSettings() {
     document.querySelectorAll('#ra-nav [data-page="settings"]').forEach(node => node.remove());
+  }
+
+  function syncPublicVersionLabel() {
+    const version = document.querySelector('#ra-titlebar b .ra-muted');
+    if (version) version.textContent = `v${INSTALLER_VERSION}`;
   }
 
   function readWindowGeometry(appNode) {
@@ -366,6 +388,7 @@
 
     injectShellStyles();
     stripSidebarSettings();
+    syncPublicVersionLabel();
 
     const nav = document.getElementById('ra-nav');
     if (nav && !shellUiState.navObserver) {
