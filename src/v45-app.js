@@ -44,7 +44,7 @@
     throw new Error('Recruitment Agency v4.5 core modules are required.');
   }
 
-  const SCRIPT_VERSION = '4.6.0';
+  const SCRIPT_VERSION = '4.6.1';
   const DB_NAME = 'tornWorkerDB';
   const DB_VERSION = V46CompanyStorage.DB_VERSION;
   const API_BASE = 'https://api.torn.com/v2';
