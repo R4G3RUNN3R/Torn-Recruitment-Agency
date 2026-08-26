@@ -1,0 +1,62 @@
+name: finalize v4.7.4 bootstrap ownership hotfix
+
+on:
+  push:
+    branches: [hotfix/v4.7.4-bootstrap-takeover]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    if: ${{ !contains(github.event.head_commit.message, '[v474-final]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: hotfix/v4.7.4-bootstrap-takeover
+          fetch-depth: 0
+      - name: Package public userscript against reviewed immutable source
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          SOURCE_SHA = '999a2f9eafd28891dc5de461f08b1d29bbd41eea'
+          OLD_SHA = '6da014279063cca945aad399af8dadc28ce0e859'
+          p = Path('R4G3RUNN3R-Recruitment-Agency.user.js')
+          s = p.read_text()
+          if s.count(OLD_SHA) != 29:
+              raise SystemExit(f'expected exactly 29 old immutable pins, found {s.count(OLD_SHA)}')
+          if '// @version      4.7.3' not in s:
+              raise SystemExit('public @version 4.7.3 not found')
+          if "const INSTALLER_VERSION = '4.7.3';" not in s:
+              raise SystemExit('installer version 4.7.3 not found')
+          if "const EXPECTED_APP_VERSION = '4.7.3';" not in s:
+              raise SystemExit('expected runtime version 4.7.3 not found')
+          s = s.replace('// @version      4.7.3', '// @version      4.7.4', 1)
+          s = s.replace("const INSTALLER_VERSION = '4.7.3';", "const INSTALLER_VERSION = '4.7.4';", 1)
+          s = s.replace("const EXPECTED_APP_VERSION = '4.7.3';", "const EXPECTED_APP_VERSION = '4.7.4';", 1)
+          s = s.replace(OLD_SHA, SOURCE_SHA)
+          if s.count(SOURCE_SHA) != 29:
+              raise SystemExit(f'expected exactly 29 v4.7.4 immutable pins, found {s.count(SOURCE_SHA)}')
+          p.write_text(s)
+
+          r = Path('README.md')
+          text = r.read_text()
+          text = text.replace('The public userscript pins all **29** runtime modules immutably to the reviewed v4.7.4 source commit recorded below.', f'The public userscript pins all **29** runtime modules immutably to reviewed v4.7.4 source commit `{SOURCE_SHA}`.')
+          text = text.replace('All **29** application modules are loaded through immutable commit-pinned `@require` URLs pointing to reviewed source commit `6da014279063cca945aad399af8dadc28ce0e859`', f'All **29** application modules are loaded through immutable commit-pinned `@require` URLs pointing to reviewed source commit `{SOURCE_SHA}`')
+          r.write_text(text)
+          PY
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm install --no-audit --no-fund
+      - run: npm test
+      - run: npm run syntax
+      - name: Commit verified public v4.7.4 release
+        run: |
+          rm -f .github/workflows/v474-final-release.yml
+          git config user.name 'R4G3RUNN3R'
+          git config user.email 'ragerunner__gr@hotmail.com'
+          git add -A
+          git commit -m 'release: publish v4.7.4 bootstrap ownership hotfix [v474-final]'
+          git push origin HEAD:hotfix/v4.7.4-bootstrap-takeover
