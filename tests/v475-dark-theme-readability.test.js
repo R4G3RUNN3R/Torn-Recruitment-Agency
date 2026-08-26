@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const http = require('node:http');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const puppeteer = require('puppeteer-core');
@@ -17,6 +18,14 @@ function chromePath(){
   throw new Error('No Chrome/Chromium executable found.');
 }
 
+function serve(){
+  const server=http.createServer((req,res)=>{
+    res.writeHead(200,{'content-type':'text/html; charset=utf-8'});
+    res.end('<!doctype html><html><head><meta charset="utf-8"></head><body><section><h2>Information</h2><div><button>One</button><button>Two</button></div></section><script>window.alert=()=>{};window.confirm=()=>true;window.prompt=()=>"";window.open=()=>null;</script></body></html>');
+  });
+  return new Promise(resolve=>server.listen(0,'127.0.0.1',()=>resolve(server)));
+}
+
 function rgb(hex){
   const clean=hex.replace('#','');
   return `rgb(${parseInt(clean.slice(0,2),16)}, ${parseInt(clean.slice(2,4),16)}, ${parseInt(clean.slice(4,6),16)})`;
@@ -28,11 +37,13 @@ async function visibleLauncher(page){
 }
 
 test('dark theme keeps Recruitment Agency tables and settings readable against hostile Torn text rules',{timeout:60000},async()=>{
+  const server=await serve();
+  const port=server.address().port;
   const browser=await puppeteer.launch({executablePath:chromePath(),headless:true,args:['--no-sandbox','--disable-setuid-sandbox','--disable-dev-shm-usage']});
   try{
     const page=await browser.newPage();
     await page.setViewport({width:1440,height:900});
-    await page.setContent('<!doctype html><html><head><meta charset="utf-8"></head><body><section><h2>Information</h2><div><button>One</button><button>Two</button></div></section><script>window.alert=()=>{};window.confirm=()=>true;window.prompt=()=>\"\";window.open=()=>null;</script></body></html>');
+    await page.goto(`http://127.0.0.1:${port}/`,{waitUntil:'load'});
 
     for(const file of MODULES) await page.addScriptTag({content:fs.readFileSync(path.join(ROOT,'src',file),'utf8')});
     await page.addScriptTag({content:BOOT});
@@ -84,5 +95,6 @@ test('dark theme keeps Recruitment Agency tables and settings readable against h
     assert.equal(settingsColors.danger,rgb('#e65d62'),'Danger Zone heading should remain red');
   }finally{
     await browser.close();
+    await new Promise(resolve=>server.close(resolve));
   }
 });
