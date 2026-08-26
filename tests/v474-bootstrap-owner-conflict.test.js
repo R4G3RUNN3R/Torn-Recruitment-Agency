@@ -16,6 +16,7 @@ class ResizeObserverStub {
 
 const settle = ms => new Promise(resolve => setTimeout(resolve, ms));
 
+// Reproduce an older installed instance owning the shared Torn document first.
 test('new public bootstrap does not silently yield to an older Recruitment Agency owner', async () => {
   const dom = new JSDOM('<!doctype html><html><head></head><body></body></html>', {
     url: 'https://www.torn.com/index.php',
