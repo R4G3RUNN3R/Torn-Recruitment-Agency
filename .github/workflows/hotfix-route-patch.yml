@@ -1,0 +1,64 @@
+name: hotfix route patch
+
+on:
+  push:
+    branches:
+      - hotfix/v4.7.1-route-stickiness
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: hotfix/v4.7.1-route-stickiness
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Apply minimal route-context fix
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const path = 'src/v47-faction-platform.js';
+          let source = fs.readFileSync(path, 'utf8');
+          const beforeSignature = "function bindContentControls(){\n    const page=text(runtime.app?._test?.state?.page);";
+          const afterSignature = "function bindContentControls(currentPage){\n    const page=text(currentPage||runtime.app?._test?.state?.page);";
+          const beforeCall = "syncActiveNav(page);bindContentControls();if(options.persist!==false)await persistRoute(app,page);return true;";
+          const afterCall = "syncActiveNav(page);bindContentControls(page);if(options.persist!==false)await persistRoute(app,page);return true;";
+          if (source.includes(afterSignature) && source.includes(afterCall)) process.exit(0);
+          if (!source.includes(beforeSignature)) throw new Error('Expected bindContentControls signature was not found.');
+          if (!source.includes(beforeCall)) throw new Error('Expected renderPage binding call was not found.');
+          source = source.replace(beforeSignature, afterSignature).replace(beforeCall, afterCall);
+          fs.writeFileSync(path, source);
+          NODE
+      - name: Stop if already patched
+        id: changes
+        run: |
+          if git diff --quiet -- src/v47-faction-platform.js; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Install test dependencies
+        if: steps.changes.outputs.changed == 'true'
+        run: npm install --no-audit --no-fund
+      - name: Verify focused regression
+        if: steps.changes.outputs.changed == 'true'
+        run: node --test tests/v47-faction-route-stickiness.test.js
+      - name: Verify full suite
+        if: steps.changes.outputs.changed == 'true'
+        run: npm test
+      - name: Verify syntax
+        if: steps.changes.outputs.changed == 'true'
+        run: npm run syntax
+      - name: Commit verified hotfix
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add src/v47-faction-platform.js
+          git commit -m "fix: keep faction controls on active route"
+          git push origin HEAD:hotfix/v4.7.1-route-stickiness
