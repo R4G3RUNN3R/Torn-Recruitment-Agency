@@ -1,21 +1,21 @@
 # Torn Recruitment Agency
 
-R4G3RUNN3R's Recruitment Agency **v4.6.0** is a modular Torn recruitment workspace combining official forum discovery, a local candidate CRM and six-stage pipeline, Scout intelligence, local-only Smart Match scoring, optional Global Intelligence, contextual help, and safe browser-local persistence.
+R4G3RUNN3R's Recruitment Agency **v4.7.0** is a modular Torn recruitment workspace with separate Company and Faction recruitment workflows over one shared Player Intelligence identity, plus official forum discovery, Scout intelligence, local-only Smart Match scoring, optional Global Intelligence, contextual help, and safe browser-local persistence.
 
-The Scout, Results, Global Intelligence, Smart Match, Forum Discovery, and v4.5 application modules are clean-room implementations. They do not call, authenticate against, or depend on `rs.dnonetwork.com` or another proprietary Recruit Scout grading backend.
+The Scout, Results, Global Intelligence, Smart Match, Forum Discovery, Company Recruitment, and Faction Recruitment modules are clean-room implementations. They do not call, authenticate against, or depend on `rs.dnonetwork.com` or another proprietary Recruit Scout grading backend.
 
-## v4.6 Company Recruitment release
+## v4.7 Faction Recruitment release
 
-The repository now contains the **v4.6 Foundation and complete Company Recruitment slice**, released through the public **v4.6.0** userscript. Runtime modules are loaded through immutable `@require` pins to the reviewed source commit used for this release.
+The public **v4.7.0** release adds the complete Faction Recruitment slice alongside the existing Company Recruitment workflow without merging their private state.
 
-- Source-level IndexedDB upgrades additively through **DB14**. DB13 adds `playerIntelligence`, `companyRecruitment`, and `factionRecruitment`; DB14 adds `companyVacancies`, `companyCampaigns`, `companyRecruitmentConfig`, and `companyRecruitmentSessions`. No prior object store is deleted.
-- One Torn ID maps to one shared Player Intelligence identity while Company Recruitment and Faction Recruitment remain separate records and workflows.
-- Legacy recruitment data is classified from discovery provenance. Company-only and Faction-only records migrate to their own domains; ambiguous cross-domain workflow state is preserved for review rather than guessed.
-- New Faction discoveries write Faction recruitment state and shared player facts only. They no longer create Company recruitment records or legacy Company-candidate rows.
-- Scout and company observations update shared Player Intelligence through an explicit fact-field whitelist. Recruitment-private fields such as pipeline state, recruiter notes, salary, waivers, campaigns, and messaging state cannot enter that shared record through the generic merge path.
-- Sidebar groups can be independently expanded or collapsed, multiple groups may remain open, and expansion state is remembered locally. Settings remains accessible from the title bar rather than returning as a duplicate sidebar item.
-- The Company slice now provides dedicated Overview, Today, Discover, Candidates, Pipeline, Vacancies, Campaigns, Follow-ups, Timeline, Stage Aging, Contact Outcomes, Recruitment Sessions, Talent Pool, Reactivation, Opportunity Queue, and Compare routes. Baseline Hard/Preferred requirements, per-requirement waivers, vacancy matching/pinning, DNC, explicit session advancement, cycle-preserving reactivation, and explainable Opportunity scoring remain Company-only. Faction workflow state is not read or mutated by these Company operations.
-- The public userscript is **v4.6.0** and pins its runtime modules immutably to reviewed source commit `520da615d418d42524761e774f10f3ab26c28572`. Faction recruitment remains a separate domain and is not merged into the Company workflows.
+- IndexedDB now upgrades additively through **DB15**. DB13 owns `playerIntelligence`, `companyRecruitment`, and `factionRecruitment`; DB14 adds `companyVacancies`, `companyCampaigns`, `companyRecruitmentConfig`, and `companyRecruitmentSessions`; DB15 adds `factionSpecialistProfiles`, `factionCampaigns`, `factionRecruitmentConfig`, and `factionRecruitmentSessions`. No prior object store is deleted.
+- One Torn player ID maps to one shared Player Intelligence identity. Company and Faction stages, notes, follow-ups, campaigns, waivers, matching context, and workflow history remain separate and local.
+- Company Recruitment keeps its dedicated Overview, Today, Discover, Candidates, Pipeline, Vacancies, Campaigns, Follow-ups, Timeline, Stage Aging, Contact Outcomes, Recruitment Sessions, Talent Pool, Reactivation, Opportunity Queue, and Compare routes.
+- Faction Recruitment adds dedicated Overview, Today, Discover, Candidates, Pipeline, Requirements, Campaigns, Follow-ups, Timeline, Stage Aging, Contact Outcomes, Recruitment Sessions, Reactivation, Opportunity, and Compare routes.
+- Faction Baseline Hard failures block only **Invite Ready** unless individually waived. Specialist Hard failures affect only that specialist profile and never block Invite Ready when the baseline is eligible. Manual specialist pins are never silently overwritten.
+- Faction waiver management records baseline or specialist scope, reason, review date, Active/Resolved state, and resolution history while keeping the failed underlying requirement visible. DNC remains a separate explicit flag and recruitment messaging remains manual-send only.
+- Scout and recruitment observations update shared Player Intelligence only through the approved fact-field boundary; recruitment-private fields never enter Global Intelligence through the generic merge path.
+- The public userscript pins all **29** runtime modules immutably to reviewed source commit `4de6d7f59f19765d3888b5a43284e3aca48ac719`. Its release regression suite fetches the exact pinned `v45-app.js` and verifies that its `SCRIPT_VERSION` equals the installer's expected runtime version before publication.
 
 ## What's new in v4.5
 
@@ -213,11 +213,11 @@ The reproducible Apps Script service lives in [`global/google-apps-script/`](glo
 
 The userscript remains functional without a Global Intelligence endpoint.
 
-## Local storage and DB v12
+## Local storage and DB15
 
-v4.5 uses IndexedDB version **12** with additive migration only.
+The current v4.7 application uses IndexedDB version **15** with additive migration only. DB13 introduces the shared/domain foundation, DB14 adds Company support stores, and DB15 adds Faction support stores. Existing stores are preserved.
 
-The v4.5 recruitment stores include:
+Legacy v4.5 recruitment stores remain part of the additive upgrade path and include:
 
 - `candidateLocal`
 - `forumSources`
@@ -255,7 +255,7 @@ Simple mode keeps the normal recruitment workflow visible while hiding technical
 
 Install [`R4G3RUNN3R-Recruitment-Agency.user.js`](R4G3RUNN3R-Recruitment-Agency.user.js) in Tampermonkey or another compatible userscript manager.
 
-The public userscript metadata is version **4.5.4**. Its application modules are loaded from the repository through immutable commit-pinned `@require` URLs rather than mutable branch URLs.
+The public userscript metadata is version **4.7.0**. All application modules are loaded through immutable commit-pinned `@require` URLs pointing to reviewed source commit `4de6d7f59f19765d3888b5a43284e3aca48ac719`, while `@updateURL` and `@downloadURL` remain on `main` for normal userscript-manager updates.
 
 A Torn API key is stored only in the browser database used by Recruitment Agency. Torn API requests are made directly from the browser through the application scheduler.
 
@@ -268,10 +268,12 @@ npm test
 npm run syntax
 ```
 
-The v4.5 release regression suite covers the exact pipeline stages, DB12 migration contract, Global Intelligence whitelist, API pacing, shared scheduler, safe forum checkpoint ordering, local/private-field boundaries, manual message sending, routed Settings, candidate workspace/pipeline behavior, responsive shell, internal scrolling, Maximize/Restore geometry preservation, hostile host click capture, contextual help, and syntax of the public userscript and application modules.
+The v4.7 release regression suite covers Company/Faction workflow isolation, the exact domain stage contracts, additive DB11→DB15 upgrades, Faction waivers and specialist matching, shared Player Intelligence boundaries, the Global Intelligence whitelist, API pacing, manual messaging, routed UI/browser interaction, immutable userscript dependency order, exact pinned-runtime version integrity, and JavaScript syntax.
 
 ## Version history
 
+- **v4.7.0** - complete Faction Recruitment workflow, DB15 additive storage, specialist profiles, scoped waivers, Opportunity/Compare, Company/Faction isolation, and immutable runtime-pin integrity checks
+- **v4.6.0** - Company Recruitment foundation and complete Company workflow slice (publication later superseded by v4.7.0 after an immutable runtime-pin mismatch was detected)
 - **v4.5.4** - internal routed-content scrolling, duplicate Settings navigation cleanup, viewport Maximize/Restore with normal-geometry preservation
 - **v4.5.0** - routed recruitment application, Forum Discovery pipeline, unified candidate CRM, six-stage Pipeline, messaging workflow, DB12, Scout/Smart Match/Global pages, Settings/Data/Logs, privacy and release hardening
 - **v4.4** - Smart Match and Settings/contextual-help improvements
