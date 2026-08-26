@@ -20,6 +20,16 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+      - name: Normalize temporary patch-script escapes
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const file = 'scripts/apply-v476-recruit-private-chat.mjs';
+          let s = fs.readFileSync(file, 'utf8');
+          s = s.split('\\\\${').join('\\${');
+          s = s.replace("eligibility.currentName||`a ${label}`", "eligibility.currentName||('a '+label)");
+          fs.writeFileSync(file, s);
+          NODE
       - name: Apply deterministic source patch
         run: node scripts/apply-v476-recruit-private-chat.mjs
       - name: Remove temporary patch machinery
