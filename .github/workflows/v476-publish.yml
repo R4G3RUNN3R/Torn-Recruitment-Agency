@@ -1,0 +1,33 @@
+name: publish-v476-wrapper
+
+on:
+  push:
+    branches: [feature/recruit-private-chat]
+    paths:
+      - 'scripts/publish-v476.mjs'
+      - '.github/workflows/v476-publish.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/recruit-private-chat
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Publish v4.7.6 wrapper and release contract
+        run: node scripts/publish-v476.mjs
+      - name: Remove temporary packaging machinery
+        run: rm scripts/publish-v476.mjs .github/workflows/v476-publish.yml
+      - name: Commit public release candidate
+        run: |
+          git config user.name "R4G3RUNN3R"
+          git config user.email "ragerunner__gr@hotmail.com"
+          git add -A
+          git commit -m "release: publish v4.7.6 private-chat Recruit"
+          git push origin HEAD:feature/recruit-private-chat
