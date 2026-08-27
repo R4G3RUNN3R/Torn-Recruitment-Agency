@@ -1,8 +1,18 @@
 # Torn Recruitment Agency
 
-R4G3RUNN3R's Recruitment Agency **v4.7.5** is a modular Torn recruitment workspace with separate Company and Faction recruitment workflows over one shared Player Intelligence identity, plus official forum discovery, Scout intelligence, local-only Smart Match scoring, optional Global Intelligence, contextual help, and safe browser-local persistence.
+R4G3RUNN3R's Recruitment Agency **v4.7.6** is a modular Torn recruitment workspace with separate Company and Faction recruitment workflows over one shared Player Intelligence identity, plus official forum discovery, Scout intelligence, local-only Smart Match scoring, optional Global Intelligence, contextual help, and safe browser-local persistence.
 
 The Scout, Results, Global Intelligence, Smart Match, Forum Discovery, Company Recruitment, and Faction Recruitment modules are clean-room implementations. They do not call, authenticate against, or depend on `rs.dnonetwork.com` or another proprietary Recruit Scout grading backend.
+
+## v4.7.6 private-chat Recruit workflow
+
+**v4.7.6** adds a clear **Recruit** action to Company and Faction candidate rows. Recruit performs a fresh official Torn v2 membership check before preparing contact: Company recruitment checks the target's current job/company, while Faction recruitment checks current faction membership. If the player already belongs to the relevant organization type, recruitment stops and reports that membership.
+
+Company and Faction recruitment templates are separate, browser-local settings. Company supports `{name}`, `{company_name}`, and `{company_type}`; Faction supports `{name}` and `{faction_name}`. The defaults are editable and saved for reuse.
+
+Recruitment contact uses **Torn private chat**, not Torn Messages/Mail. For an eligible player, the script opens the target profile, opens the Torn private-chat surface, inserts the prepared text, and focuses the chat input. The final Torn **Send** remains a manual player action: v4.7.6 does not click Send, synthesize Enter, auto-submit a chat, or mutate recruitment stage merely because a draft was prepared. Do Not Contact protections remain in force with the existing deliberate override path.
+
+The feature keeps DB15 unchanged, preserves strict Company/Faction workflow isolation, uses the shared official Torn v2 scheduler, and does not expand the Global Intelligence whitelist. A real-Chrome regression verifies the private-chat draft handoff and explicitly asserts zero Send clicks and zero Enter submissions.
 
 ## v4.7.5 dark-theme readability hotfix
 
