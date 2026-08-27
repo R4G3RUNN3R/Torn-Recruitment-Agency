@@ -26,7 +26,7 @@ The contrast rules are scoped beneath `#ra-app` and use explicit high-priority s
 
 ## v4.7.3 navigation ownership hotfix
 
-**v4.7.3 hotfix:** Recruitment Agency navigation now binds only to controls inside its own `#ra-nav` sidebar. v4.7.2 still used document-global `[data-page]` / `[data-nav-toggle]` selectors, so Torn-owned controls could be claimed by the Recruitment Agency router. When one of those controls supplied a value that was not a Recruitment Agency route, the old live router normalized to Company Overview. v4.7.3 also rejects invalid live route requests instead of converting them to Company Overview. Startup restoration still safely normalizes legacy persisted routes.
+**v4.7.3 hotfix:** Recruitment Agency navigation now binds only to controls inside its own `#ra-nav` sidebar. v4.7.2 still used document-global `[data-page]` / `[data-nav-toggle]` selectors, so Torn-owned controls could be claimed by the Recruitment Agency router. When one of those controls supplied a value that was not a Recruitment Agency route, the old live router normalized it to Company Overview. v4.7.3 also rejects invalid live route requests instead of converting them to Company Overview. Startup restoration still safely normalizes legacy persisted routes.
 
 Regression coverage now reproduces the exact `faction-candidates -> company-overview` fallback using a foreign Torn-style `data-page="2"` control, verifies the Torn control keeps its own click handler, verifies invalid live routes leave the current Recruitment Agency page untouched, and exercises Faction Requirements in-page controls through both the public bootstrap and a Tampermonkey-like isolated userscript world.
 
