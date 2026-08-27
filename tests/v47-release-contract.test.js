@@ -18,3 +18,11 @@ test('README identifies v4.7.6 as the private-chat Recruit release',()=>{
   assert.match(readme,/Send[\s\S]*manual player action/i);
   assert.match(readme,/DB15/);
 });
+
+test('README install and history sections describe the released v4.7.6 runtime identity',()=>{
+  assert.match(readme,/public userscript metadata and runtime version are \*\*4\.7\.6\*\*/i);
+  assert.match(readme,/9475f00745f81173a114bb87451f654769b3d32a/);
+  assert.match(readme,/EXPECTED_APP_VERSION[^\n]*4\.7\.6/i);
+  assert.match(readme,/\*\*v4\.7\.6\*\*[^\n]*private-chat Recruit/i);
+  assert.doesNotMatch(readme,/public userscript metadata and shell version are \*\*4\.7\.5\*\*/i);
+});
