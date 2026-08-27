@@ -102,8 +102,8 @@ test('Company and Faction candidate actions are Recruit actions backed by fresh 
 
   assert.match(companyPlatform, /recruitCandidate\?\.\('company'/);
   assert.match(factionPlatform, /recruitCandidate\?\.\('faction'/);
-  assert.match(app, /user\/\$\{userId\}\/job/);
-  assert.match(app, /user\/\$\{userId\}\/faction/);
+  assert.match(app, /user\/\$\{targetId\}\/job/);
+  assert.match(app, /user\/\$\{targetId\}\/faction/);
   assert.match(app, /Messaging\.queuePrivateChatDraft/);
   assert.match(app, /Messaging\.consumePrivateChatDraft/);
 });
