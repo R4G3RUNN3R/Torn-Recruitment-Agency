@@ -15,6 +15,6 @@ test('README identifies v4.7.6 as the private-chat Recruit release',()=>{
   assert.match(readme,/Recruitment Agency \*\*v4\.7\.6\*\*/);
   assert.match(readme,/v4\.7 Faction Recruitment release/);
   assert.match(readme,/private chat/i);
-  assert.match(readme,/manual.*Send/i);
+  assert.match(readme,/Send[\s\S]*manual player action/i);
   assert.match(readme,/DB15/);
 });
