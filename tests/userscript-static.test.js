@@ -8,14 +8,14 @@ const app=fs.readFileSync(path.join(root,'src/v45-app.js'),'utf8');
 const PINNED_RUNTIME='9475f00745f81173a114bb87451f654769b3d32a';
 const RELEASE_FILES=['scout-core.js','results-core.js','global-core.js','match-core.js','forum-core.js','v45-runtime.js','v45-candidates.js','v45-discovery.js','v45-messaging.js','v46-domain-core.js','v46-storage-core.js','v46-navigation.js','v46-company-core.js','v46-company-storage.js','v46-company-ui.js','v46-company-operations.js','v46-company-workflow.js','v46-company-workflow-ui.js','v46-company-opportunity-ui.js','v46-company-platform.js','v47-faction-core.js','v47-faction-storage.js','v47-faction-ui.js','v47-faction-operations.js','v47-faction-workflow.js','v47-faction-workflow-ui.js','v47-faction-opportunity-ui.js','v47-faction-platform.js','v45-app.js'];
 
-test('public userscript is the v4.7.6 shell hotfix with immutable v4.7.6 core requires',()=>{
-  assert.match(boot,/@version\s+4\.7\.5/);
+test('public userscript is the v4.7.6 Recruit release with immutable v4.7.6 core requires',()=>{
+  assert.match(boot,/@version\s+4\.7\.6/);
   assert.match(boot,/@noframes/);
   for(const file of RELEASE_FILES){
     assert.ok(boot.includes(`/${PINNED_RUNTIME}/src/${file}`),`pinned ${file}`);
   }
   assert.doesNotMatch(boot,/@require\s+https:\/\/raw\.githubusercontent\.com\/R4G3RUNN3R\/Torn-Recruitment-Agency\/main\/src\//);
-  assert.match(boot,/INSTALLER_VERSION\s*=\s*'4\.7\.5'/);
+  assert.match(boot,/INSTALLER_VERSION\s*=\s*'4\.7\.6'/);
   assert.match(boot,/EXPECTED_APP_VERSION\s*=\s*'4\.7\.6'/);
   assert.match(boot,/app\.SCRIPT_VERSION/);
   assert.match(boot,/app\.start\(\)/);
