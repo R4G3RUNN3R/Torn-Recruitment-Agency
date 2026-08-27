@@ -99,7 +99,7 @@ test('maximize marks its guarded state before the first persistence await',()=>{
 
 test('source app targets additive DB15 over DB13 and DB14 foundations and shared scheduler',()=>{assert.match(app,/DB_VERSION\s*=\s*V47FactionStorage\.DB_VERSION/);assert.match(app,/V46Storage\.applyUpgrade\(db\)[\s\S]*V46CompanyStorage\.applyUpgrade\(db\)[\s\S]*V47FactionStorage\.applyUpgrade\(db\)/);assert.doesNotMatch(app,/deleteObjectStore\s*\(/);assert.match(app,/HARD_API_RATE\s*=\s*75/);assert.match(app,/MIN_API_GAP_MS\s*=\s*800/);assert.match(app,/Math\.max\(MIN_API_GAP_MS,60000\/clampRate/);});
 
-test('v4.7 keeps Smart Match local and messaging manual',()=>{assert.match(app,/Smart Match.*zero Torn API calls/i);assert.match(app,/you still click Send/);assert.doesNotMatch(app,/autoSubmit\s*:\s*true/);assert.doesNotMatch(app,/pipelineStage\s*=\s*['"]Contacted['"]s*;.*message/s);});
+test('v4.7 keeps Smart Match local and messaging manual',()=>{assert.match(app,/Smart Match.*zero Torn API calls/i);assert.match(app,/private chat[\s\S]*press Send/i);assert.doesNotMatch(app,/autoSubmit\s*:\s*true/);assert.doesNotMatch(app,/pipelineStage\s*=\s*['"]Contacted['"]s*;.*message/s);});
 
 test('Settings is a real routed page and Danger Zone uses inline biohazard SVG',()=>{assert.match(app,/id=\"ra-settings-button\"/);assert.match(app,/document\.getElementById\('ra-settings-button'\)\.onclick=\(\)=>route\('settings'\)/);for(const section of ['General','Recruitment','Scout','Candidates','Smart Match','Global Intelligence','Data & Reset','Danger Zone'])assert.ok(app.includes(section));assert.match(app,/function biohazardSvg/);assert.match(app,/NUKE IT ALL!/);assert.match(app,/Type NUKE to confirm/);});
 
