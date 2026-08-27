@@ -47,7 +47,7 @@ The v4.7 release family adds the complete Faction Recruitment slice alongside th
 - Faction Baseline Hard failures block only **Invite Ready** unless individually waived. Specialist Hard failures affect only that specialist profile and never block Invite Ready when the baseline is eligible. Manual specialist pins are never silently overwritten.
 - Faction waiver management records baseline or specialist scope, reason, review date, Active/Resolved state, and resolution history while keeping the failed underlying requirement visible. DNC remains a separate explicit flag and recruitment messaging remains manual-send only.
 - Scout and recruitment observations update shared Player Intelligence only through the approved fact-field boundary; recruitment-private fields never enter Global Intelligence through the generic merge path.
-- The public userscript pins all **29** runtime modules immutably to the reviewed v4.7.4 source commit recorded below. Its release regression suite fetches the exact pinned `v45-app.js` and verifies that its `SCRIPT_VERSION` equals the installer's expected runtime version before publication.
+- The public userscript pins all **29** runtime modules immutably to reviewed v4.7.6 source commit `9475f00745f81173a114bb87451f654769b3d32a`. Its release regression suite fetches the exact pinned `v45-app.js` and verifies that its `SCRIPT_VERSION` equals the installer's expected runtime version before publication.
 
 ## What's new in v4.5
 
@@ -137,15 +137,15 @@ If a page fails or the user cancels, already-saved work remains intact and the s
 
 Continuation URLs are accepted only from `api.torn.com` v2 paths and credential-shaped query parameters such as `key` and `comment` are removed before persistence.
 
-## Recruitment messaging
+## Legacy Message Player workflow
 
-Messages are prepared locally and are never sent automatically.
+The older generic **Message Player** action remains available separately from the v4.7.6 Recruit action. It prepares a local message and opens Torn's message-compose page; it is not the v4.7.6 private-chat Recruit handoff. Neither path sends automatically.
 
-Supported placeholders are:
+Supported placeholders for the legacy Message Player action are:
 
 `{name}`, `{player_id}`, `{looking_for}`, `{company_name}`, `{current_company}`, `{match_score}`, `{fit_score}`
 
-The workflow is:
+The legacy workflow is:
 
 1. Prepare/edit the message locally.
 2. Optionally save it as the single global default recruitment message.
@@ -287,7 +287,7 @@ Simple mode keeps the normal recruitment workflow visible while hiding technical
 
 Install [`R4G3RUNN3R-Recruitment-Agency.user.js`](R4G3RUNN3R-Recruitment-Agency.user.js) in Tampermonkey or another compatible userscript manager.
 
-The public userscript metadata and shell version are **4.7.5**. All **29** application modules are loaded through immutable commit-pinned `@require` URLs pointing to reviewed source commit `999a2f9eafd28891dc5de461f08b1d29bbd41eea`. The pinned application core runtime remains **v4.7.4**, so the wrapper's `EXPECTED_APP_VERSION` deliberately remains `4.7.4`. `@updateURL` and `@downloadURL` remain on `main` for normal userscript-manager updates.
+The public userscript metadata and runtime version are **4.7.6**. All **29** application modules are loaded through immutable commit-pinned `@require` URLs pointing to reviewed source commit `9475f00745f81173a114bb87451f654769b3d32a`. The public wrapper's `INSTALLER_VERSION` and `EXPECTED_APP_VERSION`, the pinned application's `SCRIPT_VERSION`, and package metadata all report `4.7.6`. `@updateURL` and `@downloadURL` remain on `main` for normal userscript-manager updates.
 
 A Torn API key is stored only in the browser database used by Recruitment Agency. Torn API requests are made directly from the browser through the application scheduler.
 
@@ -300,10 +300,11 @@ npm test
 npm run syntax
 ```
 
-The v4.7 release regression suite covers Company/Faction workflow isolation, the exact domain stage contracts, additive DB11→DB15 upgrades, Faction waivers and specialist matching, shared Player Intelligence boundaries, the Global Intelligence whitelist, API pacing, manual messaging, routed UI/browser interaction, immutable userscript dependency order, exact pinned-runtime version integrity, state-first Company/Faction route ownership, stale asynchronous render rejection, dark-theme computed-style protection against hostile Torn CSS, and JavaScript syntax.
+The v4.7 release regression suite covers Company/Faction workflow isolation, the exact domain stage contracts, additive DB11→DB15 upgrades, Faction waivers and specialist matching, shared Player Intelligence boundaries, the Global Intelligence whitelist, API pacing, manual messaging, private-chat Recruit preparation with zero automated Send/Enter submission, routed UI/browser interaction, immutable userscript dependency order, exact pinned-runtime version integrity, state-first Company/Faction route ownership, stale asynchronous render rejection, dark-theme computed-style protection against hostile Torn CSS, and JavaScript syntax.
 
 ## Version history
 
+- **v4.7.6** - adds the private-chat Recruit workflow with fresh official Torn v2 Company/Faction membership checks, separate browser-local templates, draft insertion/focus, and strictly manual final Send; all 29 runtime modules pin to immutable v4.7.6 source `9475f00745f81173a114bb87451f654769b3d32a`
 - **v4.7.5** - protects dark-theme Company/Faction tables and Settings text from Torn host CSS, using neon-green primary text, readable muted/bright controls, and preserved red Danger Zone styling while retaining the immutable v4.7.4 core
 - **v4.7.4** - detects stale/duplicate bootstrap ownership, performs one clean recovery reload, and reports persistent older-owner conflicts instead of silently yielding
 - **v4.7.3** - scopes Recruitment Agency navigation ownership to its own sidebar, preserves Torn-owned controls, rejects invalid live routes instead of falling back to Company Overview, and adds public-bootstrap/isolated-world in-page regressions
