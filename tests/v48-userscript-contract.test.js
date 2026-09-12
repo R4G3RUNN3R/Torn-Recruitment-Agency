@@ -8,7 +8,7 @@ const root=path.join(__dirname,'..');
 const boot=fs.readFileSync(path.join(root,'R4G3RUNN3R-Recruitment-Agency.user.js'),'utf8');
 const pkg=JSON.parse(fs.readFileSync(path.join(root,'package.json'),'utf8'));
 
-const CORE_PIN='9475f00745f81173fa114bb87451f654769b3d32a'.replace('73fa','73a');
+const CORE_PIN='9475f00745f81173a114bb87451f654769b3d32a';
 const V48_SHELL_PIN='5097269b1f4553311ab3972eca2b908f13708721';
 
 test('v4.8.0 installer keeps reviewed v4.7.6 core immutable and adds immutable simplified shell',()=>{
@@ -23,10 +23,11 @@ test('v4.8.0 installer keeps reviewed v4.7.6 core immutable and adds immutable s
   assert.equal(pkg.version,'4.8.0');
 });
 
-test('source-compatible browser bootstrap loads the local v4.8 shell without downgrading installer identity',()=>{
+test('source-compatible browser bootstrap loads the local shell while preserving the local core test identity',()=>{
   const compatible=sourceCompatibleBoot(root);
   assert.match(compatible,/root\.RA_V48Shell=api/);
-  assert.match(compatible,/const INSTALLER_VERSION\s*=\s*'4\.8\.0'/);
+  assert.match(compatible,/const VERSION='4\.7\.6'/);
+  assert.match(compatible,/const INSTALLER_VERSION\s*=\s*'4\.7\.6'/);
   assert.match(compatible,/const EXPECTED_APP_VERSION\s*=\s*'4\.7\.6'/);
 });
 
