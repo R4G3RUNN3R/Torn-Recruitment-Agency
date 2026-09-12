@@ -65,7 +65,7 @@
     async function ensureCompany(userId, recruitmentPatch = {}, options = {}) {
       const id = Domain.normalizeUserId(userId);
       const observedAt = legacyTimestamp(options.observedAt,Date.now());
-      await players.ensure(id,definedPatch(options.sharedPatch || {}),options.source || 'company',observedAt);
+      await players.ensure(id,{...candidateSharedPatch(recruitmentPatch),...definedPatch(options.sharedPatch || {})},options.source || 'company',observedAt);
       const existing = await idb.get('companyRecruitment',id);
       const input = {...(existing || {}),...recruitmentPatch,userId:id};
       if (!Object.prototype.hasOwnProperty.call(recruitmentPatch,'updatedAt')) input.updatedAt = observedAt;
@@ -77,7 +77,7 @@
     async function ensureFaction(userId, recruitmentPatch = {}, options = {}) {
       const id = Domain.normalizeUserId(userId);
       const observedAt = legacyTimestamp(options.observedAt,Date.now());
-      await players.ensure(id,definedPatch(options.sharedPatch || {}),options.source || 'faction',observedAt);
+      await players.ensure(id,{...candidateSharedPatch(recruitmentPatch),...definedPatch(options.sharedPatch || {})},options.source || 'faction',observedAt);
       const existing = await idb.get('factionRecruitment',id);
       const input = {...(existing || {}),...recruitmentPatch,userId:id};
       if (!Object.prototype.hasOwnProperty.call(recruitmentPatch,'updatedAt')) input.updatedAt = observedAt;
@@ -174,7 +174,7 @@
         addObservation(observations,row.userId,{name:row.authorName},'legacy-forum',row.lastSeenPost || row.postedAt || row.observedAt || observedAt);
       }
       for (const row of users) {
-        addObservation(observations,row.userId,{name:row.name,ee:row.ee},'legacy-user',row.lastSeenPost || row.postedAt || row.postDate || observedAt);
+        addObservation(observations,row.userId,{...candidateSharedPatch(row),name:row.name,ee:row.ee},'legacy-user',row.lastSeenPost || row.postedAt || row.postDate || observedAt);
       }
       for (const row of scouts) {
         addObservation(observations,row.userId,scoutSharedPatch(row),'scout',row.capturedAt || observedAt);
