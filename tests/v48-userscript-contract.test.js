@@ -16,9 +16,9 @@ test('v4.8.0 installer keeps reviewed v4.7.6 core immutable and adds immutable s
   assert.match(boot,/EXPECTED_APP_VERSION\s*=\s*'4\.7\.6'/);
   assert.ok(boot.includes(`/${CORE_PIN}/src/v45-app.js`),'reviewed v4.7.6 core remains immutable');
   assert.ok(boot.includes(`/${V48_SHELL_PIN}/src/v48-shell.js`),'simplified v4.8 shell is immutable');
-  assert.match(boot,/RA_V48Shell/);
-  assert.match(boot,/RA_V48Shell\.VERSION/);
-  assert.match(boot,/RA_V48Shell\.install\(app\)/);
+  assert.match(boot,/const simplifiedShell = window\.RA_V48Shell/);
+  assert.match(boot,/simplifiedShell\.VERSION/);
+  assert.match(boot,/simplifiedShell\.install\(app\)/);
   assert.equal(pkg.version,'4.8.0');
 });
 
