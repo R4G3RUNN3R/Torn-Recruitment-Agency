@@ -106,23 +106,13 @@ v4.5 replaces the older multi-window recruitment workflow with one managed, mova
 
 A single Torn player ID maps to one local candidate record. Forum discovery, manual editing, Scout data, Match data, and company enrichment all compose into that candidate view without creating a second authoritative candidate database.
 
-The default Candidates columns are:
+The v4.8 core Search & Results surface shows:
 
-`Player | Stage | Match | Fit | Looking For | Source | Last Active`
+`Player | END | MAN | INT | Last Online | Message`
 
-Additional columns can be enabled for company, work stats, availability, EE, Activity 30d, posted time, and Scout status.
+Its core filters are player name / ID plus minimum END, MAN and INT. Thresholds accept plain values and compact `k`, `m`, or `b` suffixes. Last Online is the most recent activity observation currently held in shared Player Intelligence; when no observation exists it is shown as `Unknown` rather than guessed.
 
-Candidate filters include:
-
-- text / player ID
-- pipeline stage
-- source
-- Looking For
-- current company
-- minimum Match
-- minimum Fit
-- active-only
-- advanced MAN / INT / END / Activity criteria
+The previous deeper candidate, pipeline, Match, Scout and workflow views remain available as optional workspaces and retain their richer filters and controls when enabled.
 
 Opening a Torn profile, forum source, candidate detail view, or message compose window **does not change pipeline stage**.
 
@@ -260,7 +250,7 @@ The userscript remains functional without a Global Intelligence endpoint.
 
 ## Local storage and DB15
 
-The current v4.7 application uses IndexedDB version **15** with additive migration only. DB13 introduces the shared/domain foundation, DB14 adds Company support stores, and DB15 adds Faction support stores. Existing stores are preserved.
+The current v4.8 application uses IndexedDB version **15** with additive migration only. DB13 introduces the shared/domain foundation, DB14 adds Company support stores, and DB15 adds Faction support stores. Existing stores are preserved.
 
 Legacy v4.5 recruitment stores remain part of the additive upgrade path and include:
 
@@ -283,24 +273,25 @@ It does **not** touch Torn account data, unrelated browser storage, or other use
 
 ## Settings
 
-v4.5 Settings contains exactly these eight sections:
+v4.8 Settings keeps the default interface small and moves advanced surfaces behind explicit configuration:
 
 1. General
-2. Recruitment
-3. Scout
-4. Candidates
-5. Smart Match
-6. Global Intelligence
-7. Data & Reset
-8. Danger Zone
+2. Optional Features
+3. Recruitment
+4. Scout
+5. Candidates
+6. Smart Match
+7. Global Intelligence
+8. Data & Reset
+9. Danger Zone
 
-Simple mode keeps the normal recruitment workflow visible while hiding technical noise such as Logs. Advanced mode exposes the additional operational/diagnostic controls without resetting saved settings.
+**Optional Features** controls which additional Company, Faction, Scout, Smart Match, Global Intelligence, Data, Logs and workflow workspaces appear in normal navigation. Search & Results remains available regardless of optional-module choices. Advanced mode is still required for Logs and other diagnostic controls.
 
 ## Install
 
 Install [`R4G3RUNN3R-Recruitment-Agency.user.js`](R4G3RUNN3R-Recruitment-Agency.user.js) in Tampermonkey or another compatible userscript manager.
 
-The public userscript metadata and runtime version are **4.7.6**. All **29** application modules are loaded through immutable commit-pinned `@require` URLs pointing to reviewed source commit `9475f00745f81173a114bb87451f654769b3d32a`. The public wrapper's `INSTALLER_VERSION` and `EXPECTED_APP_VERSION`, the pinned application's `SCRIPT_VERSION`, and package metadata all report `4.7.6`. `@updateURL` and `@downloadURL` remain on `main` for normal userscript-manager updates.
+The public userscript metadata and runtime version are **4.8.0**. All **29** application modules are loaded through immutable commit-pinned `@require` URLs pointing to reviewed source commit `8a209e14a056fafbebd307060d823d3087b854e9`. The public wrapper's `INSTALLER_VERSION` and `EXPECTED_APP_VERSION`, the pinned application's `SCRIPT_VERSION`, and package metadata all report `4.8.0`. `@updateURL` and `@downloadURL` remain on `main` for normal userscript-manager updates.
 
 A Torn API key is stored only in the browser database used by Recruitment Agency. Torn API requests are made directly from the browser through the application scheduler.
 
@@ -313,10 +304,11 @@ npm test
 npm run syntax
 ```
 
-The v4.7 release regression suite covers Company/Faction workflow isolation, the exact domain stage contracts, additive DB11→DB15 upgrades, Faction waivers and specialist matching, shared Player Intelligence boundaries, the Global Intelligence whitelist, API pacing, manual messaging, private-chat Recruit preparation with zero automated Send/Enter submission, routed UI/browser interaction, immutable userscript dependency order, exact pinned-runtime version integrity, state-first Company/Faction route ownership, stale asynchronous render rejection, dark-theme computed-style protection against hostile Torn CSS, and JavaScript syntax.
+The v4.8 release regression suite covers Company/Faction workflow isolation, the exact domain stage contracts, additive DB11→DB15 upgrades, Faction waivers and specialist matching, shared Player Intelligence boundaries, the Global Intelligence whitelist, API pacing, manual messaging, private-chat Recruit preparation with zero automated Send/Enter submission, routed UI/browser interaction, immutable userscript dependency order, exact pinned-runtime version integrity, state-first Company/Faction route ownership, stale asynchronous render rejection, dark-theme computed-style protection against hostile Torn CSS, and JavaScript syntax.
 
 ## Version history
 
+- **v4.8.0** - simplifies the default Recruitment Agency to Search & Results with END/MAN/INT filters, Last Online, safe Company/Faction Message actions, a compact domain switch, premium Voidsmith styling, and opt-in advanced workspaces; all 29 runtime modules pin to immutable v4.8.0 source `8a209e14a056fafbebd307060d823d3087b854e9`
 - **v4.7.6** - adds the private-chat Recruit workflow with fresh official Torn v2 Company/Faction membership checks, separate browser-local templates, draft insertion/focus, and strictly manual final Send; all 29 runtime modules pin to immutable v4.7.6 source `9475f00745f81173a114bb87451f654769b3d32a`
 - **v4.7.5** - protects dark-theme Company/Faction tables and Settings text from Torn host CSS, using neon-green primary text, readable muted/bright controls, and preserved red Danger Zone styling while retaining the immutable v4.7.4 core
 - **v4.7.4** - detects stale/duplicate bootstrap ownership, performs one clean recovery reload, and reports persistent older-owner conflicts instead of silently yielding
