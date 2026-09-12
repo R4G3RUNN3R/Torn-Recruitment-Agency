@@ -8,7 +8,7 @@ const boot=fs.readFileSync(path.join(root,'R4G3RUNN3R-Recruitment-Agency.user.js
 const pkg=JSON.parse(fs.readFileSync(path.join(root,'package.json'),'utf8'));
 
 const CORE_PIN='9475f00745f81173a114bb87451f654769b3d32a';
-const V48_SHELL_PIN='bcd81943da95438244b1fdaf72e462dca646ad98';
+const V48_SHELL_PIN='73a1772996f2b0985d4d02e20c40b597c06b4c30';
 
 test('v4.8.0 installer keeps reviewed v4.7.6 core immutable and adds immutable simplified shell',()=>{
   assert.match(boot,/@version\s+4\.8\.0/);
