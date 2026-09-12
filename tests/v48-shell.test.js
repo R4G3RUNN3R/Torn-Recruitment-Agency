@@ -56,3 +56,47 @@ test('premium shell palette is Voidsmith graphite/red rather than the legacy gre
   assert.match(css, /#09090b/i);
   assert.doesNotMatch(css, /#46c96f/i);
 });
+
+test('company core results keep the full candidate set while merging company workflow state', () => {
+  const rows = Shell.buildCandidateRows({
+    domain:'company',
+    players:[{userId:'1',name:'Alpha',lastActive:1_757_689_000_000},{userId:'2',name:'Bravo'}],
+    candidates:[{userId:'1',stats:{end:100,man:200,int:300}},{userId:'2',name:'Bravo Legacy',stats:{end:400,man:500,int:600}}],
+    company:[{userId:'2',pipelineStage:'Replied'}],
+    faction:[]
+  });
+  assert.deepEqual(rows.map(row=>row.userId),['1','2']);
+  assert.equal(rows[1].workflow.pipelineStage,'Replied');
+  assert.equal(rows[1].man,500);
+});
+
+test('faction core results remain faction-scoped but reuse shared candidate stats', () => {
+  const rows = Shell.buildCandidateRows({
+    domain:'faction',
+    players:[{userId:'1',name:'Alpha'},{userId:'2',name:'Bravo'}],
+    candidates:[{userId:'1',stats:{end:100}},{userId:'2',stats:{end:900,man:800,int:700}}],
+    company:[],
+    faction:[{userId:'2',pipelineStage:'Evaluating'}]
+  });
+  assert.deepEqual(rows.map(row=>row.userId),['2']);
+  assert.equal(rows[0].end,900);
+});
+
+test('last online accepts legacy seconds and falls back to candidate activity when shared intelligence is absent', () => {
+  const rows = Shell.buildCandidateRows({
+    domain:'company',
+    players:[],
+    candidates:[{userId:'1',name:'Alpha',lastActive:1_757_689_000,stats:{}}],
+    company:[],
+    faction:[]
+  });
+  assert.equal(rows[0].lastActive,1_757_689_000_000);
+  assert.equal(Shell.formatLastOnline(1_757_689_000,1_757_689_060_000),'1 minute ago');
+});
+
+test('startup collapses legacy saved routes back to the selected simple core surface', () => {
+  assert.equal(Shell.startupRoute('company-overview',{domain:'company'}),'company-candidates');
+  assert.equal(Shell.startupRoute('faction-candidates',{domain:'company'}),'company-candidates');
+  assert.equal(Shell.startupRoute('scout',{domain:'faction'}),'faction-candidates');
+  assert.equal(Shell.startupRoute('settings',{domain:'faction'}),'settings');
+});
