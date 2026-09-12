@@ -55,6 +55,8 @@ test('premium shell palette is Voidsmith graphite/red rather than the legacy gre
   assert.match(css, /--ra-accent:#d84a4a/i);
   assert.match(css, /#09090b/i);
   assert.doesNotMatch(css, /#46c96f/i);
+  assert.match(css, /#ra-sidebar-launcher\{[^}]*color:#d84a4a!important/i);
+  assert.match(css, /#ra-mobile-menu\{display:none!important\}/i);
 });
 
 test('company core results keep the full candidate set while merging company workflow state', () => {
