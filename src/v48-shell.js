@@ -23,7 +23,7 @@
   const DEFAULT_OPTIONAL=Object.freeze(Object.fromEntries(OPTIONAL.map(x=>[x.key,false])));
   const text=v=>String(v??'').trim();
   const finite=v=>v===null||v===undefined||v===''?null:(Number.isFinite(Number(v))?Number(v):null);
-  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#039;'}[c]));
+  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
   const normalizeDomain=v=>String(v||'').toLowerCase()==='faction'?'faction':'company';
   function normalizePrefs(raw={}){
     const optional={...DEFAULT_OPTIONAL};for(const k of Object.keys(optional))optional[k]=raw?.optional?.[k]===true;
