@@ -39,7 +39,7 @@
 // @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/9475f00745f81173a114bb87451f654769b3d32a/src/v47-faction-opportunity-ui.js
 // @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/9475f00745f81173a114bb87451f654769b3d32a/src/v47-faction-platform.js
 // @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/9475f00745f81173a114bb87451f654769b3d32a/src/v45-app.js
-// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/bcd81943da95438244b1fdaf72e462dca646ad98/src/v48-shell.js
+// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/73a1772996f2b0985d4d02e20c40b597c06b4c30/src/v48-shell.js
 // @downloadURL  https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/main/R4G3RUNN3R-Recruitment-Agency.user.js
 // @updateURL    https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/main/R4G3RUNN3R-Recruitment-Agency.user.js
 // ==/UserScript==
@@ -227,7 +227,6 @@
       event.stopImmediatePropagation();
     }, true);
   }
-
   function injectShellStyles() {
     if (document.getElementById(SHELL_STYLE_ID)) return;
     const style = document.createElement('style');
