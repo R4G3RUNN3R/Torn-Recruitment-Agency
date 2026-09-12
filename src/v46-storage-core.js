@@ -96,9 +96,14 @@
     }
 
     function candidateSharedPatch(candidate = {}) {
+      const stats = candidate.stats && typeof candidate.stats === 'object' ? candidate.stats : {};
       return definedPatch({
         name:candidate.name,
         ee:candidate.ee,
+        man:stats.man ?? candidate.man,
+        int:stats.int ?? candidate.int,
+        end:stats.end ?? candidate.end,
+        total:stats.total ?? candidate.total,
         currentCompany:candidate.currentCompany,
         currentCompanyId:candidate.currentCompanyId,
         currentCompanyRating:candidate.currentCompanyRating,
