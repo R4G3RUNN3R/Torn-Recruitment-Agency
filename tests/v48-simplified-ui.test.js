@@ -64,3 +64,12 @@ test('Faction search/results keeps END MAN INT, last-online activity and domain-
   assert.match(html, /data-faction-recruit="456"[^>]*>Message</);
   assert.doesNotMatch(html, />Specialist Profile</);
 });
+
+test('unknown Company and Faction work stats render as unknown rather than confirmed zero', () => {
+  const company = CompanyUI.renderCandidates([{userId:'901',name:'Unknown Company',man:null,int:null,end:null,lastActive:null,doNotContact:false}], {filters:{},total:1});
+  const faction = FactionUI.renderCandidates([{userId:'902',name:'Unknown Faction',man:null,int:null,end:null,lastActive:null,doNotContact:false}], {filters:{},total:1});
+  assert.match(company, /<td>—<\/td><td>—<\/td><td>—<\/td>/);
+  assert.match(faction, /<td>—<\/td><td>—<\/td><td>—<\/td>/);
+  assert.doesNotMatch(company, /<td>0<\/td>/);
+  assert.doesNotMatch(faction, /<td>0<\/td>/);
+});
