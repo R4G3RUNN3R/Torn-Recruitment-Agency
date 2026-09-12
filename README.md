@@ -291,7 +291,7 @@ v4.8 Settings keeps the default interface small and moves advanced surfaces behi
 
 Install [`R4G3RUNN3R-Recruitment-Agency.user.js`](R4G3RUNN3R-Recruitment-Agency.user.js) in Tampermonkey or another compatible userscript manager.
 
-The public userscript metadata and runtime version are **4.8.0**. All **29** application modules are loaded through immutable commit-pinned `@require` URLs pointing to reviewed source commit `8a209e14a056fafbebd307060d823d3087b854e9`. The public wrapper's `INSTALLER_VERSION` and `EXPECTED_APP_VERSION`, the pinned application's `SCRIPT_VERSION`, and package metadata all report `4.8.0`. `@updateURL` and `@downloadURL` remain on `main` for normal userscript-manager updates.
+The public userscript metadata and runtime version are **4.8.0**. All **29** application modules are loaded through immutable commit-pinned `@require` URLs pointing to reviewed source commit `ae424579d7b18c4e2b04e944e7f82931fcbe1e16`. The public wrapper's `INSTALLER_VERSION` and `EXPECTED_APP_VERSION`, the pinned application's `SCRIPT_VERSION`, and package metadata all report `4.8.0`. `@updateURL` and `@downloadURL` remain on `main` for normal userscript-manager updates.
 
 A Torn API key is stored only in the browser database used by Recruitment Agency. Torn API requests are made directly from the browser through the application scheduler.
 
@@ -308,7 +308,7 @@ The v4.8 release regression suite covers Company/Faction workflow isolation, the
 
 ## Version history
 
-- **v4.8.0** - simplifies the default Recruitment Agency to Search & Results with END/MAN/INT filters, Last Online, safe Company/Faction Message actions, a compact domain switch, premium Voidsmith styling, and opt-in advanced workspaces; all 29 runtime modules pin to immutable v4.8.0 source `8a209e14a056fafbebd307060d823d3087b854e9`
+- **v4.8.0** - simplifies the default Recruitment Agency to Search & Results with END/MAN/INT filters, Last Online, safe Company/Faction Message actions, a compact domain switch, premium Voidsmith styling, and opt-in advanced workspaces; all 29 runtime modules pin to immutable v4.8.0 source `ae424579d7b18c4e2b04e944e7f82931fcbe1e16`
 - **v4.7.6** - adds the private-chat Recruit workflow with fresh official Torn v2 Company/Faction membership checks, separate browser-local templates, draft insertion/focus, and strictly manual final Send; all 29 runtime modules pin to immutable v4.7.6 source `9475f00745f81173a114bb87451f654769b3d32a`
 - **v4.7.5** - protects dark-theme Company/Faction tables and Settings text from Torn host CSS, using neon-green primary text, readable muted/bright controls, and preserved red Danger Zone styling while retaining the immutable v4.7.4 core
 - **v4.7.4** - detects stale/duplicate bootstrap ownership, performs one clean recovery reload, and reports persistent older-owner conflicts instead of silently yielding
