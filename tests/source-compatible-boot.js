@@ -10,6 +10,10 @@ module.exports=function sourceCompatibleBoot(root){
   assert.ok(sourceVersion,'local source runtime must declare SCRIPT_VERSION');
   assert.match(boot,/const INSTALLER_VERSION\s*=\s*'[^']+';/,'bootstrap must declare INSTALLER_VERSION');
   assert.match(boot,/const EXPECTED_APP_VERSION\s*=\s*'[^']+';/,'bootstrap must declare EXPECTED_APP_VERSION');
-  const compatibleBoot=boot.replace(/const EXPECTED_APP_VERSION\s*=\s*'[^']+';/,`const EXPECTED_APP_VERSION = '${sourceVersion}';`);
-  return `${shell}\n${compatibleBoot}`;
+  assert.match(shell,/const VERSION='[^']+';/,'simplified shell must declare VERSION');
+  const compatibleShell=shell.replace(/const VERSION='[^']+';/,`const VERSION='${sourceVersion}';`);
+  const compatibleBoot=boot
+    .replace(/const INSTALLER_VERSION\s*=\s*'[^']+';/,`const INSTALLER_VERSION = '${sourceVersion}';`)
+    .replace(/const EXPECTED_APP_VERSION\s*=\s*'[^']+';/,`const EXPECTED_APP_VERSION = '${sourceVersion}';`);
+  return `${compatibleShell}\n${compatibleBoot}`;
 };
