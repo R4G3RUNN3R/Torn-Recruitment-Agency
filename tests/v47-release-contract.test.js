@@ -7,7 +7,7 @@ const root=path.join(__dirname,'..');
 const pkg=JSON.parse(fs.readFileSync(path.join(root,'package.json'),'utf8'));
 const readme=fs.readFileSync(path.join(root,'README.md'),'utf8');
 
-const V48_PIN='8a209e14a056fafbebd307060d823d3087b854e9';
+const V48_PIN='ae424579d7b18c4e2b04e944e7f82931fcbe1e16';
 
 test('release package version is 4.8.0',()=>{
   assert.equal(pkg.version,'4.8.0');
