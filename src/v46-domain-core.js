@@ -6,7 +6,7 @@
   'use strict';
 
   const SHARED_PLAYER_FIELDS = Object.freeze([
-    'name','level','ee','factionId','factionName',
+    'name','level','ee','man','int','end','total','factionId','factionName',
     'currentCompany','currentCompanyId','currentCompanyRating','currentCompanyPosition','companyCheckedAt',
     'networth','fit','fitType','lastActive','lastScoutAt','lastGlobalAt',
     'activity30','xanax30','refills30','attacks30','rwHits30','scoutStatus'
