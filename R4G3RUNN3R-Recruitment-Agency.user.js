@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         R4G3RUNN3R's Recruitment Agency
 // @namespace    r4g3runn3r.recruitment.agency
-// @version      4.7.6
-// @description  Company and Faction recruitment workflows with shared Player Intelligence, Scout, Smart Match and local-first persistence for Torn.
+// @version      4.8.0
+// @description  Streamlined Company and Faction recruitment with END/MAN/INT search, Last Online, safe messaging and optional advanced workspaces for Torn.
 // @author       R4G3RUNN3R[3877028]
 // @license      MIT
 // @match        https://www.torn.com/*
@@ -10,43 +10,43 @@
 // @grant        GM_xmlhttpRequest
 // @connect      script.google.com
 // @connect      script.googleusercontent.com
-// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/9475f00745f81173a114bb87451f654769b3d32a/src/scout-core.js
-// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/9475f00745f81173a114bb87451f654769b3d32a/src/results-core.js
-// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/9475f00745f81173a114bb87451f654769b3d32a/src/global-core.js
-// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/9475f00745f81173a114bb87451f654769b3d32a/src/match-core.js
-// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/9475f00745f81173a114bb87451f654769b3d32a/src/forum-core.js
-// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/9475f00745f81173a114bb87451f654769b3d32a/src/v45-runtime.js
-// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/9475f00745f81173a114bb87451f654769b3d32a/src/v45-candidates.js
-// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/9475f00745f81173a114bb87451f654769b3d32a/src/v45-discovery.js
-// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/9475f00745f81173a114bb87451f654769b3d32a/src/v45-messaging.js
-// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/9475f00745f81173a114bb87451f654769b3d32a/src/v46-domain-core.js
-// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/9475f00745f81173a114bb87451f654769b3d32a/src/v46-storage-core.js
-// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/9475f00745f81173a114bb87451f654769b3d32a/src/v46-navigation.js
-// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/9475f00745f81173a114bb87451f654769b3d32a/src/v46-company-core.js
-// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/9475f00745f81173a114bb87451f654769b3d32a/src/v46-company-storage.js
-// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/9475f00745f81173a114bb87451f654769b3d32a/src/v46-company-ui.js
-// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/9475f00745f81173a114bb87451f654769b3d32a/src/v46-company-operations.js
-// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/9475f00745f81173a114bb87451f654769b3d32a/src/v46-company-workflow.js
-// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/9475f00745f81173a114bb87451f654769b3d32a/src/v46-company-workflow-ui.js
-// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/9475f00745f81173a114bb87451f654769b3d32a/src/v46-company-opportunity-ui.js
-// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/9475f00745f81173a114bb87451f654769b3d32a/src/v46-company-platform.js
-// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/9475f00745f81173a114bb87451f654769b3d32a/src/v47-faction-core.js
-// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/9475f00745f81173a114bb87451f654769b3d32a/src/v47-faction-storage.js
-// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/9475f00745f81173a114bb87451f654769b3d32a/src/v47-faction-ui.js
-// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/9475f00745f81173a114bb87451f654769b3d32a/src/v47-faction-operations.js
-// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/9475f00745f81173a114bb87451f654769b3d32a/src/v47-faction-workflow.js
-// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/9475f00745f81173a114bb87451f654769b3d32a/src/v47-faction-workflow-ui.js
-// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/9475f00745f81173a114bb87451f654769b3d32a/src/v47-faction-opportunity-ui.js
-// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/9475f00745f81173a114bb87451f654769b3d32a/src/v47-faction-platform.js
-// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/9475f00745f81173a114bb87451f654769b3d32a/src/v45-app.js
+// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/8a209e14a056fafbebd307060d823d3087b854e9/src/scout-core.js
+// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/8a209e14a056fafbebd307060d823d3087b854e9/src/results-core.js
+// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/8a209e14a056fafbebd307060d823d3087b854e9/src/global-core.js
+// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/8a209e14a056fafbebd307060d823d3087b854e9/src/match-core.js
+// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/8a209e14a056fafbebd307060d823d3087b854e9/src/forum-core.js
+// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/8a209e14a056fafbebd307060d823d3087b854e9/src/v45-runtime.js
+// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/8a209e14a056fafbebd307060d823d3087b854e9/src/v45-candidates.js
+// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/8a209e14a056fafbebd307060d823d3087b854e9/src/v45-discovery.js
+// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/8a209e14a056fafbebd307060d823d3087b854e9/src/v45-messaging.js
+// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/8a209e14a056fafbebd307060d823d3087b854e9/src/v46-domain-core.js
+// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/8a209e14a056fafbebd307060d823d3087b854e9/src/v46-storage-core.js
+// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/8a209e14a056fafbebd307060d823d3087b854e9/src/v46-navigation.js
+// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/8a209e14a056fafbebd307060d823d3087b854e9/src/v46-company-core.js
+// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/8a209e14a056fafbebd307060d823d3087b854e9/src/v46-company-storage.js
+// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/8a209e14a056fafbebd307060d823d3087b854e9/src/v46-company-ui.js
+// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/8a209e14a056fafbebd307060d823d3087b854e9/src/v46-company-operations.js
+// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/8a209e14a056fafbebd307060d823d3087b854e9/src/v46-company-workflow.js
+// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/8a209e14a056fafbebd307060d823d3087b854e9/src/v46-company-workflow-ui.js
+// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/8a209e14a056fafbebd307060d823d3087b854e9/src/v46-company-opportunity-ui.js
+// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/8a209e14a056fafbebd307060d823d3087b854e9/src/v46-company-platform.js
+// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/8a209e14a056fafbebd307060d823d3087b854e9/src/v47-faction-core.js
+// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/8a209e14a056fafbebd307060d823d3087b854e9/src/v47-faction-storage.js
+// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/8a209e14a056fafbebd307060d823d3087b854e9/src/v47-faction-ui.js
+// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/8a209e14a056fafbebd307060d823d3087b854e9/src/v47-faction-operations.js
+// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/8a209e14a056fafbebd307060d823d3087b854e9/src/v47-faction-workflow.js
+// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/8a209e14a056fafbebd307060d823d3087b854e9/src/v47-faction-workflow-ui.js
+// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/8a209e14a056fafbebd307060d823d3087b854e9/src/v47-faction-opportunity-ui.js
+// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/8a209e14a056fafbebd307060d823d3087b854e9/src/v47-faction-platform.js
+// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/8a209e14a056fafbebd307060d823d3087b854e9/src/v45-app.js
 // @downloadURL  https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/main/R4G3RUNN3R-Recruitment-Agency.user.js
 // @updateURL    https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/main/R4G3RUNN3R-Recruitment-Agency.user.js
 // ==/UserScript==
 
 (() => {
   'use strict';
-  const INSTALLER_VERSION = '4.7.6';
-  const EXPECTED_APP_VERSION = '4.7.6';
+  const INSTALLER_VERSION = '4.8.0';
+  const EXPECTED_APP_VERSION = '4.8.0';
   const DOM_GUARD = 'data-r4g3-ra-v45-owner';
   const RA_ROOT_SELECTOR = '#ra-app,#ra-hover,#ra-context,#ra-help-popover';
   const SHELL_STYLE_ID = 'ra-v454-shell-css';
@@ -242,7 +242,7 @@
 #ra-app.ra-maximized{left:0!important;top:0!important;width:100vw!important;height:100vh!important;max-width:none!important;max-height:none!important;min-width:0!important;min-height:0!important;border-radius:0!important;resize:none!important}
 #ra-app.ra-maximized .ra-titlebar{cursor:default!important}
 #ra-app .ra-table thead th{color:var(--ra-text)!important}
-#ra-app .ra-table tbody td{color:var(--ra-accent2)!important}
+#ra-app .ra-table tbody td{color:var(--ra-text)!important}
 #ra-app .ra-table tbody td .ra-muted{color:var(--ra-muted)!important}
 #ra-app .ra-table tbody td .ra-btn,
 #ra-app .ra-table tbody td input,
@@ -255,7 +255,7 @@
 #ra-app .ra-settings .ra-field input,
 #ra-app .ra-settings .ra-field select,
 #ra-app .ra-settings .ra-field textarea,
-#ra-app .ra-settings .ra-field option{color:var(--ra-accent2)!important}
+#ra-app .ra-settings .ra-field option{color:var(--ra-text)!important}
 #ra-app .ra-settings .ra-muted{color:var(--ra-muted)!important}
 #ra-app .ra-settings .ra-danger-zone summary{color:var(--ra-danger)!important}
 `;
@@ -267,7 +267,7 @@
   }
 
   function syncPublicVersionLabel() {
-    const version = document.querySelector('#ra-titlebar b .ra-muted');
+    const version = document.querySelector('#ra-titlebar .ra-version, #ra-titlebar b .ra-muted');
     if (version) version.textContent = `v${INSTALLER_VERSION}`;
   }
 
