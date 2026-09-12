@@ -57,9 +57,11 @@
   });
   const DEFAULT_OPPORTUNITY_WEIGHTS=Object.freeze({match:30,fit:20,availability:15,activity:15,freshness:10,followUp:10,contactPenalty:10});
 
-  const runtime={app:null,observer:null,originalHandlers:new Map(),installed:false,compareSelection:new Set()};
+  const runtime={app:null,observer:null,originalHandlers:new Map(),installed:false,compareSelection:new Set(),searchFilters:{search:'',minEnd:'',minMan:'',minInt:''}};
   const text=value=>String(value??'').trim();
   const number=(value,fallback=0)=>{const n=Number(value);return Number.isFinite(n)?n:fallback;};
+  function parseThreshold(value){const raw=text(value).toLowerCase().replace(/,/g,'');if(!raw)return null;const match=raw.match(/^(\d+(?:\.\d+)?|\.\d+)\s*([kmb])?$/);if(!match)return null;const mult={k:1e3,m:1e6,b:1e9}[match[2]]||1;const out=Number(match[1])*mult;return Number.isFinite(out)?out:null;}
+  function filterRows(rows,filters={}){const search=text(filters.search).toLowerCase(),minEnd=parseThreshold(filters.minEnd),minMan=parseThreshold(filters.minMan),minInt=parseThreshold(filters.minInt);return (Array.isArray(rows)?rows:[]).filter(row=>{if(search&&!`${text(row.name).toLowerCase()} ${text(row.userId)}`.includes(search))return false;if(minEnd!==null&&(!Number.isFinite(Number(row.end))||Number(row.end)<minEnd))return false;if(minMan!==null&&(!Number.isFinite(Number(row.man))||Number(row.man)<minMan))return false;if(minInt!==null&&(!Number.isFinite(Number(row.int))||Number(row.int)<minInt))return false;return true;});}
   const makeId=prefix=>`${prefix}-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
   const terminalStage=stage=>['Hired','Rejected'].includes(text(stage));
 
@@ -98,15 +100,17 @@
 
   async function buildRows(app){
     const db=app._test.state.db;
-    const[companyRecords,players,config,vacancies]=await Promise.all([dbGetAll(db,'companyRecruitment'),dbGetAll(db,'playerIntelligence'),getConfig(app),getVacancies(app)]);
+    const[companyRecords,players,candidateLocals,config,vacancies]=await Promise.all([dbGetAll(db,'companyRecruitment'),dbGetAll(db,'playerIntelligence'),dbGetAll(db,'candidateLocal'),getConfig(app),getVacancies(app)]);
     const baseline=CompanyCore.normalizeBaseline(config.baseline||{});
     const rows=CompanyUI.buildCandidateRows(companyRecords,players,{eligibilityFor:(record,player)=>CompanyCore.evaluateCriteria(baseline.criteria,player,record.waivers||[])});
     const vacancyMap=new Map(vacancies.map(v=>[text(v.vacancyId),v]));
+    const candidateMap=new Map(candidateLocals.map(candidate=>[text(candidate?.userId??candidate?.id),candidate]));
     return rows.map(row=>{
       const result=evaluateCandidateVacancies(row,vacancies);
       const evaluationMap=new Map(result.evaluations.map(e=>[text(e.vacancyId),e]));
       const options=vacancies.filter(v=>text(v.status)==='Open').map(v=>({vacancyId:text(v.vacancyId),name:text(v.name)||text(v.role)||text(v.vacancyId),matchScore:evaluationMap.get(text(v.vacancyId))?.matchScore??null,eligible:evaluationMap.get(text(v.vacancyId))?.eligible===true}));
-      return{...row,talentPool:row.companyRecord?.talentPool===true,talentPoolReason:text(row.companyRecord?.talentPoolReason),vacancyEvaluations:result.evaluations,pinnedVacancyId:text(result.selection.pinnedVacancyId),suggestedVacancyId:text(result.selection.suggestedVacancyId),suggestedVacancyName:text(vacancyMap.get(text(result.selection.suggestedVacancyId))?.name),vacancyOptions:options};
+      const candidate=candidateMap.get(text(row.userId))||{};const stats=candidate.stats||{};
+      return{...row,man:stats.man??candidate.man??null,int:stats.int??candidate.int??null,end:stats.end??candidate.end??null,total:stats.total??candidate.total??null,talentPool:row.companyRecord?.talentPool===true,talentPoolReason:text(row.companyRecord?.talentPoolReason),vacancyEvaluations:result.evaluations,pinnedVacancyId:text(result.selection.pinnedVacancyId),suggestedVacancyId:text(result.selection.suggestedVacancyId),suggestedVacancyName:text(vacancyMap.get(text(result.selection.suggestedVacancyId))?.name),vacancyOptions:options};
     });
   }
 
@@ -143,6 +147,8 @@
 
   function bindContentControls(currentPage){
     const page=text(currentPage||runtime.app?._test?.state?.page);
+    document.getElementById('ra-company-search-apply')?.addEventListener('click',()=>{runtime.searchFilters={search:text(document.getElementById('ra-company-filter-search')?.value),minEnd:text(document.getElementById('ra-company-filter-end')?.value),minMan:text(document.getElementById('ra-company-filter-man')?.value),minInt:text(document.getElementById('ra-company-filter-int')?.value)};renderPage('company-candidates',{persist:false}).catch(reportError);});
+    document.getElementById('ra-company-search-clear')?.addEventListener('click',()=>{runtime.searchFilters={search:'',minEnd:'',minMan:'',minInt:''};renderPage('company-candidates',{persist:false}).catch(reportError);});
     document.querySelectorAll('#ra-content [data-go-page]').forEach(button=>{if(!isCompanyRoute(button.dataset.goPage))return;button.onclick=event=>{event?.preventDefault?.();navigate(button.dataset.goPage,true).catch(reportError);};});
     document.querySelectorAll('#ra-content [data-company-stage-select]').forEach(select=>{select.onchange=()=>changeCompanyStage(select.dataset.companyStageSelect,select.value).then(()=>renderPage(page,{persist:false})).catch(error=>{reportError(error);renderPage(page,{persist:false}).catch(reportError);});});
     document.querySelectorAll('#ra-content [data-company-vacancy-pin]').forEach(select=>{select.onchange=()=>setVacancyPin(select.dataset.companyVacancyPin,select.value).then(()=>renderPage('company-candidates',{persist:false})).catch(reportError);});
@@ -193,7 +199,7 @@
       const opportunities=Object.fromEntries(opportunityRows.map(row=>[row.userId,row.opportunity.score]));
       html=CompanyUI.renderToday(CompanyUI.buildTodayModel(rows,{now,stageThresholds:config.stageThresholds||{},opportunities}));
     }
-    else if(page==='company-candidates')html=CompanyUI.renderCandidates(rows);
+    else if(page==='company-candidates'){const filtered=filterRows(rows,runtime.searchFilters);html=CompanyUI.renderCandidates(filtered,{filters:runtime.searchFilters,total:rows.length});}
     else if(page==='company-pipeline')html=CompanyUI.renderPipeline(CompanyUI.buildPipelineModel(rows));
     else if(page==='company-vacancies')html=CompanyUI.renderVacanciesPage({config:await getConfig(app),vacancies:await getVacancies(app),rows});
     else if(page==='company-followups')html=CompanyUI.renderFollowUpsPage(rows,{now:Date.now()});

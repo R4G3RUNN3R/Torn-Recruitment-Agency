@@ -96,9 +96,9 @@ test('Company and Faction candidate actions are Recruit actions backed by fresh 
   const factionPlatform = read('src/v47-faction-platform.js');
 
   assert.match(companyUi, /data-company-recruit=/);
-  assert.match(companyUi, />Recruit</);
+  assert.match(companyUi, />Message</);
   assert.match(factionUi, /data-faction-recruit=/);
-  assert.match(factionUi, />Recruit</);
+  assert.match(factionUi, />Message</);
 
   assert.match(companyPlatform, /recruitCandidate\?\.\('company'/);
   assert.match(factionPlatform, /recruitCandidate\?\.\('faction'/);

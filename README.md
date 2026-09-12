@@ -1,8 +1,21 @@
 # Torn Recruitment Agency
 
-R4G3RUNN3R's Recruitment Agency **v4.7.6** is a modular Torn recruitment workspace with separate Company and Faction recruitment workflows over one shared Player Intelligence identity, plus official forum discovery, Scout intelligence, local-only Smart Match scoring, optional Global Intelligence, contextual help, and safe browser-local persistence.
+R4G3RUNN3R's Recruitment Agency **v4.8.0** is a streamlined Torn recruitment workspace built around a simple default flow: Search → Results → Last Online → Message. Company and Faction recruitment remain isolated workflows over one shared Player Intelligence identity, while the deeper pipeline, Scout, Smart Match, campaign, analytics, and operational workspaces are preserved as optional features that users can enable from Settings.
 
 The Scout, Results, Global Intelligence, Smart Match, Forum Discovery, Company Recruitment, and Faction Recruitment modules are clean-room implementations. They do not call, authenticate against, or depend on `rs.dnonetwork.com` or another proprietary Recruit Scout grading backend.
+
+## v4.8.0 simplified Recruitment Agency
+
+**v4.8.0** returns the default interface to the core recruitment job rather than exposing every advanced workflow at once.
+
+- Company and Faction each open on a dedicated **Search & Results** workspace.
+- Search keeps the practical **END / MAN / INT minimum filters** plus player name / ID.
+- Results show player identity, END, MAN, INT, the last known **Last Online** value from Player Intelligence, and a direct **Message** action.
+- Message preserves the existing safe private-chat workflow: it performs the fresh official Torn membership check, uses the separately configured Company or Faction message template, prepares Torn private chat, and leaves the final **Send** entirely manual.
+- Company and Faction use a compact mode switch instead of two permanently expanded navigation trees.
+- Existing advanced workspaces remain intact but are disabled from normal navigation by default. Settings → **Optional Features** controls which additional Company, Faction, Scout, Smart Match, Global Intelligence, Data, Logs, pipeline, campaign, follow-up, opportunity, timeline and related workspaces appear.
+- Existing IndexedDB stores and recruitment history are preserved. This release changes presentation and feature visibility rather than destructively migrating recruitment data.
+- The default shell now uses Voidsmith Industries graphite surfaces, restrained red accents, high-contrast text and a simplified branded title bar.
 
 ## v4.7.6 private-chat Recruit workflow
 

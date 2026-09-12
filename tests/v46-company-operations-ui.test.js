@@ -26,7 +26,7 @@ test('DNC candidate rendering suppresses ordinary Recruit and exposes a delibera
   const html=UI.renderCandidates([{...row,doNotContact:true,companyRecord:{...row.companyRecord,doNotContact:true}}]);
   assert.doesNotMatch(html,/data-company-recruit="101"/);
   assert.match(html,/data-company-recruit-override="101"/);
-  assert.match(html,/Override &amp; Recruit/);
+  assert.match(html,/Override &amp; Message/);
 });
 
 test('Stage Aging page is warning-only and does not expose automatic stage movement',()=>{
