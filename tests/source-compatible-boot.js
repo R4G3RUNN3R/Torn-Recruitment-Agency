@@ -5,11 +5,15 @@ const path=require('node:path');
 module.exports=function sourceCompatibleBoot(root){
   const boot=fs.readFileSync(path.join(root,'R4G3RUNN3R-Recruitment-Agency.user.js'),'utf8');
   const app=fs.readFileSync(path.join(root,'src','v45-app.js'),'utf8');
+  const shell=fs.readFileSync(path.join(root,'src','v48-shell.js'),'utf8');
   const sourceVersion=app.match(/SCRIPT_VERSION\s*=\s*'([^']+)'/)?.[1];
   assert.ok(sourceVersion,'local source runtime must declare SCRIPT_VERSION');
   assert.match(boot,/const INSTALLER_VERSION\s*=\s*'[^']+';/,'bootstrap must declare INSTALLER_VERSION');
   assert.match(boot,/const EXPECTED_APP_VERSION\s*=\s*'[^']+';/,'bootstrap must declare EXPECTED_APP_VERSION');
-  return boot
+  assert.match(shell,/const VERSION='[^']+';/,'simplified shell must declare VERSION');
+  const compatibleShell=shell.replace(/const VERSION='[^']+';/,`const VERSION='${sourceVersion}';`);
+  const compatibleBoot=boot
     .replace(/const INSTALLER_VERSION\s*=\s*'[^']+';/,`const INSTALLER_VERSION = '${sourceVersion}';`)
     .replace(/const EXPECTED_APP_VERSION\s*=\s*'[^']+';/,`const EXPECTED_APP_VERSION = '${sourceVersion}';`);
+  return `${compatibleShell}\n${compatibleBoot}`;
 };

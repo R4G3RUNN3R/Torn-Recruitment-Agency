@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         R4G3RUNN3R's Recruitment Agency
 // @namespace    r4g3runn3r.recruitment.agency
-// @version      4.7.6
-// @description  Company and Faction recruitment workflows with shared Player Intelligence, Scout, Smart Match and local-first persistence for Torn.
+// @version      4.8.0
+// @description  Premium Company and Faction recruitment search, results, activity and messaging for Torn, with advanced modules optional.
 // @author       R4G3RUNN3R[3877028]
 // @license      MIT
 // @match        https://www.torn.com/*
@@ -39,13 +39,14 @@
 // @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/9475f00745f81173a114bb87451f654769b3d32a/src/v47-faction-opportunity-ui.js
 // @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/9475f00745f81173a114bb87451f654769b3d32a/src/v47-faction-platform.js
 // @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/9475f00745f81173a114bb87451f654769b3d32a/src/v45-app.js
+// @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/5097269b1f4553311ab3972eca2b908f13708721/src/v48-shell.js
 // @downloadURL  https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/main/R4G3RUNN3R-Recruitment-Agency.user.js
 // @updateURL    https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/main/R4G3RUNN3R-Recruitment-Agency.user.js
 // ==/UserScript==
 
 (() => {
   'use strict';
-  const INSTALLER_VERSION = '4.7.6';
+  const INSTALLER_VERSION = '4.8.0';
   const EXPECTED_APP_VERSION = '4.7.6';
   const DOM_GUARD = 'data-r4g3-ra-v45-owner';
   const RA_ROOT_SELECTOR = '#ra-app,#ra-hover,#ra-context,#ra-help-popover';
@@ -226,7 +227,6 @@
       event.stopImmediatePropagation();
     }, true);
   }
-
   function injectShellStyles() {
     if (document.getElementById(SHELL_STYLE_ID)) return;
     const style = document.createElement('style');
@@ -436,10 +436,20 @@
     return;
   }
 
+  const simplifiedShell = window.RA_V48Shell;
+  if (!simplifiedShell || String(simplifiedShell.VERSION || '') !== INSTALLER_VERSION || typeof simplifiedShell.install !== 'function') {
+    clearDomGuard();
+    const message = `Recruitment Agency ${INSTALLER_VERSION} could not load its simplified premium shell. Update or reinstall the userscript before continuing.`;
+    console.error('[RA]', message);
+    alert(message);
+    return;
+  }
+
   const restoreResizeObserver = installShellResizeGuard();
   app.start().then(() => {
     restoreResizeObserver();
     enhanceShellUi(app);
+    simplifiedShell.install(app);
   }).catch(error => {
     restoreResizeObserver();
     clearDomGuard();
