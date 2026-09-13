@@ -1,0 +1,27 @@
+name: v4.8.2 baseline click geometry diagnostic
+
+on:
+  push:
+    branches:
+      - feature/v482-sort-filter-results
+    paths:
+      - .github/workflows/v482-click-baseline-diagnostic.yml
+
+jobs:
+  repeat-main-click-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout v4.8.1 main baseline
+        uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm install --no-audit --no-fund
+      - name: Repeat isolated physical-click regression against unchanged main
+        run: |
+          for i in 1 2 3; do
+            echo "MAIN BASELINE CLICK RUN $i"
+            node --test --test-concurrency=1 tests/v45-browser-isolated-world.test.js
+          done
