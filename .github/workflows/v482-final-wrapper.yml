@@ -1,0 +1,88 @@
+name: Finalize Recruitment Agency v4.8.2 wrapper
+
+on:
+  push:
+    branches:
+      - feature/v482-sort-filter-results
+    paths:
+      - .github/workflows/v482-final-wrapper.yml
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/v482-sort-filter-results
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Pin wrapper and release contracts
+        env:
+          SOURCE_SHA: 76a95ba6e009dc16682cc8ef2ef689394f65edf8
+        run: |
+          rm -f .github/workflows/v482-final-wrapper.yml
+          node <<'NODE'
+          const fs=require('fs');
+          const sha=process.env.SOURCE_SHA;
+          if(!/^[0-9a-f]{40}$/.test(sha||'')) throw new Error('Invalid source SHA');
+
+          const wrapperFile='R4G3RUNN3R-Recruitment-Agency.user.js';
+          let wrapper=fs.readFileSync(wrapperFile,'utf8');
+          wrapper=wrapper.replace('// @version      4.8.1','// @version      4.8.2');
+          wrapper=wrapper.replace('// @description  Active Company and Faction recruitment search across Torn forums and user search, with END/MAN/INT filtering, Last Online and safe messaging.','// @description  Sortable Company and Faction recruitment search with status, organisation, work-stat and Last Online filters plus safe messaging.');
+          wrapper=wrapper.replaceAll("const INSTALLER_VERSION = '4.8.1';","const INSTALLER_VERSION = '4.8.2';");
+          wrapper=wrapper.replaceAll("const EXPECTED_APP_VERSION = '4.8.1';","const EXPECTED_APP_VERSION = '4.8.2';");
+          wrapper=wrapper.replace(/R4G3RUNN3R\/Torn-Recruitment-Agency\/[0-9a-f]{40}\/src\//g,`R4G3RUNN3R/Torn-Recruitment-Agency/${sha}/src/`);
+          fs.writeFileSync(wrapperFile,wrapper);
+
+          const staticFile='tests/userscript-static.test.js';
+          let stat=fs.readFileSync(staticFile,'utf8');
+          stat=stat.replace(/const PINNED_RUNTIME='[0-9a-f]{40}';/,`const PINNED_RUNTIME='${sha}';`);
+          stat=stat.replaceAll('4\\.8\\.1','4\\.8\\.2').replaceAll('v4.8.1','v4.8.2').replaceAll('4.8.1','4.8.2');
+          fs.writeFileSync(staticFile,stat);
+
+          const contractFile='tests/v47-release-contract.test.js';
+          let contract=fs.readFileSync(contractFile,'utf8');
+          contract=contract.replace("const V481_PIN='a80b594603d414821b80a3a24587ed7002169686';",`const V482_PIN='${sha}';`);
+          contract=contract.replaceAll('V481_PIN','V482_PIN');
+          contract=contract.replaceAll('4\\.8\\.1','4\\.8\\.2').replaceAll('v4.8.1','v4.8.2').replaceAll('4.8.1','4.8.2');
+          fs.writeFileSync(contractFile,contract);
+
+          let readme=fs.readFileSync('README.md','utf8');
+          const oldIdentity='The public userscript metadata and runtime version are **4.8.1**. All **29** application modules are loaded through immutable commit-pinned `@require` URLs pointing to reviewed source commit `a80b594603d414821b80a3a24587ed7002169686`. The public wrapper\'s `INSTALLER_VERSION` and `EXPECTED_APP_VERSION`, the pinned application\'s `SCRIPT_VERSION`, and package metadata all report `4.8.1`. `@updateURL` and `@downloadURL` point to the stable Voidsmith Industries VPS endpoint; GitHub remains the source/history and immutable runtime origin.';
+          const newIdentity=`The public userscript metadata and runtime version are **4.8.2**. All **29** application modules are loaded through immutable commit-pinned \`@require\` URLs pointing to reviewed source commit \`${sha}\`. The public wrapper's \`INSTALLER_VERSION\` and \`EXPECTED_APP_VERSION\`, the pinned application's \`SCRIPT_VERSION\`, and package metadata all report \`4.8.2\`. \`@updateURL\` and \`@downloadURL\` point to the stable Voidsmith Industries VPS endpoint; GitHub remains the source/history and immutable runtime origin.`;
+          if(!readme.includes(oldIdentity)) throw new Error('README current release identity marker missing');
+          readme=readme.replace(oldIdentity,newIdentity);
+          const historyMarker='- **v4.8.1** - restores active Search:';
+          if(!readme.includes(historyMarker)) throw new Error('README history marker missing');
+          const history482=`- **v4.8.2** - adds local sortable Player/END/MAN/INT/Last Online results, Online/Idle/Offline and current organisation filters, explicit None vs Unknown membership semantics, Current Company/Faction visibility, and race-free active-route navigation; all 29 runtime modules pin to immutable v4.8.2 source \`${sha}\`\n`;
+          if(!readme.includes('- **v4.8.2** - adds local sortable')) readme=readme.replace(historyMarker,history482+historyMarker);
+          fs.writeFileSync('README.md',readme);
+          NODE
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add R4G3RUNN3R-Recruitment-Agency.user.js tests/userscript-static.test.js tests/v47-release-contract.test.js README.md .github/workflows/v482-final-wrapper.yml
+          git commit -m 'release: pin Recruitment Agency v4.8.2 runtime'
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --package-lock=false
+      - name: Verify exact final release
+        run: |
+          npm run syntax
+          npm run build
+          node --check dist/recruitment-agency.user.js
+          npm test
+          git diff --check
+          test -z "$(git status --porcelain --untracked-files=no)"
+          grep -q '^// @version      4.8.2$' dist/recruitment-agency.user.js
+          grep -q '^// @downloadURL  https://voidsmithindustries.com/torn/recruitment-agency/recruitment-agency.user.js$' dist/recruitment-agency.user.js
+          grep -q '^// @updateURL    https://voidsmithindustries.com/torn/recruitment-agency/recruitment-agency.user.js$' dist/recruitment-agency.user.js
+          test "$(grep -c '^// @require' dist/recruitment-agency.user.js || true)" -eq 0
+          sha256sum dist/recruitment-agency.user.js
+          wc -c dist/recruitment-agency.user.js
+      - name: Publish verified final branch
+        run: git push origin HEAD:feature/v482-sort-filter-results
