@@ -1,0 +1,105 @@
+name: Prepare verified Recruitment Agency v4.8.2 release
+
+on:
+  push:
+    branches:
+      - feature/v482-sort-filter-results
+    paths:
+      - .github/workflows/v482-release.yml
+
+permissions:
+  contents: write
+
+jobs:
+  prepare-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/v482-sort-filter-results
+          fetch-depth: 0
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Prepare v4.8.2 source and documentation
+        run: |
+          rm -f .github/workflows/v482-click-diagnostic.yml .github/workflows/v482-click-baseline-diagnostic.yml .github/workflows/v482-release.yml
+          node <<'NODE'
+          const fs=require('fs');
+          const pkg=JSON.parse(fs.readFileSync('package.json','utf8'));
+          pkg.version='4.8.2';
+          fs.writeFileSync('package.json',JSON.stringify(pkg,null,2)+'\n');
+
+          let app=fs.readFileSync('src/v45-app.js','utf8');
+          if(!app.includes("const SCRIPT_VERSION = '4.8.1';")) throw new Error('Expected v4.8.1 runtime version not found');
+          app=app.replace("const SCRIPT_VERSION = '4.8.1';","const SCRIPT_VERSION = '4.8.2';");
+          fs.writeFileSync('src/v45-app.js',app);
+
+          for(const file of ['tests/v48-bundled-release.test.js','tests/v47-runtime-version.test.js']){
+            let text=fs.readFileSync(file,'utf8');
+            text=text.replaceAll('4\\.8\\.1','4\\.8\\.2').replaceAll('4.8.1','4.8.2');
+            fs.writeFileSync(file,text);
+          }
+
+          let readme=fs.readFileSync('README.md','utf8');
+          readme=readme.replace("R4G3RUNN3R's Recruitment Agency **v4.8.1**","R4G3RUNN3R's Recruitment Agency **v4.8.2**");
+          const marker='## v4.8.1 active forum and API Search hotfix';
+          if(!readme.includes(marker)) throw new Error('README release insertion marker missing');
+          const section=`## v4.8.2 sortable results and recruitment filters\n\n**v4.8.2** keeps the simplified v4.8 Search & Results workflow while making the candidate list substantially faster to work.\n\n- Player, END, MAN, INT and Last Online headers are clickable and toggle their approved sort direction. Missing or unknown values remain at the bottom in either direction.\n- Search adds exact Online / Idle / Offline filtering plus partial, case-insensitive Current Company or Current Faction matching.\n- Company and Faction presence can be filtered as Any, None or Has. Missing membership facts remain Unknown rather than being falsely treated as None.\n- Results now show Current Company or Current Faction. Known IDs without names render as Company #ID or Faction #ID.\n- Sorting is local-only and never performs a Torn API or forum request. Search remains the explicit acquisition action.\n- Last Online continues to prefer an exact activity timestamp, falling back to Torn's Online / Idle / Offline state when no timestamp is available.\n- Repeated navigation to the already-active workspace is now idempotent, removing a userscript-world sidebar replacement race without adding timing sleeps.\n- Company/Faction workflow isolation, the shared Player Intelligence fact boundary, fresh membership verification and manual final Send remain unchanged.\n`;
+          readme=readme.replace(marker,section+'\n'+marker);
+          readme=readme.replace('The v4.8.1 core Search & Results surface shows:','The v4.8.2 core Search & Results surface shows:');
+          readme=readme.replace('`Player | END | MAN | INT | Last Online | Message`','`Player | END | MAN | INT | Last Online | Current Company/Faction | Message`');
+          readme=readme.replace('Its core filters are player name / ID plus minimum END, MAN and INT.','Its core filters are player name / ID, Online / Idle / Offline status, current Company/Faction and membership presence, plus minimum END, MAN and INT.');
+          fs.writeFileSync('README.md',readme);
+          NODE
+
+      - name: Commit immutable v4.8.2 source
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add package.json src/v45-app.js README.md tests/v48-bundled-release.test.js tests/v47-runtime-version.test.js .github/workflows
+          git commit -m 'release: prepare Recruitment Agency v4.8.2 source'
+          echo "SOURCE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Pin public wrapper to immutable v4.8.2 source
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const sha=process.env.SOURCE_SHA;
+          if(!/^[0-9a-f]{40}$/.test(sha||'')) throw new Error('Invalid source SHA');
+          const wrapperFile='R4G3RUNN3R-Recruitment-Agency.user.js';
+          let wrapper=fs.readFileSync(wrapperFile,'utf8');
+          wrapper=wrapper.replace('// @version      4.8.1','// @version      4.8.2');
+          wrapper=wrapper.replace('// @description  Active Company and Faction recruitment search across Torn forums and user search, with END/MAN/INT filtering, Last Online and safe messaging.','// @description  Sortable Company and Faction recruitment search with status, organisation, work-stat and Last Online filters plus safe messaging.');
+          wrapper=wrapper.replaceAll("const INSTALLER_VERSION = '4.8.1';","const INSTALLER_VERSION = '4.8.2';");
+          wrapper=wrapper.replaceAll("const EXPECTED_APP_VERSION = '4.8.1';","const EXPECTED_APP_VERSION = '4.8.2';");
+          wrapper=wrapper.replace(/R4G3RUNN3R\/Torn-Recruitment-Agency\/[0-9a-f]{40}\/src\//g,`R4G3RUNN3R/Torn-Recruitment-Agency/${sha}/src/`);
+          fs.writeFileSync(wrapperFile,wrapper);
+
+          const testFile='tests/userscript-static.test.js';
+          let test=fs.readFileSync(testFile,'utf8');
+          test=test.replace(/const PINNED_RUNTIME='[0-9a-f]{40}';/,`const PINNED_RUNTIME='${sha}';`);
+          test=test.replaceAll('4\\.8\\.1','4\\.8\\.2').replaceAll('v4.8.1','v4.8.2').replaceAll('4.8.1','4.8.2');
+          fs.writeFileSync(testFile,test);
+          NODE
+          git add R4G3RUNN3R-Recruitment-Agency.user.js tests/userscript-static.test.js
+          git commit -m 'release: pin Recruitment Agency v4.8.2 runtime'
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Full verification
+        run: |
+          npm run syntax
+          npm run build
+          node --check dist/recruitment-agency.user.js
+          npm test
+          git diff --check
+          test -z "$(git status --porcelain --untracked-files=no)"
+
+      - name: Push verified release commits
+        run: git push origin HEAD:feature/v482-sort-filter-results
