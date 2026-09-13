@@ -3,6 +3,7 @@ const assert=require('node:assert/strict');
 const {JSDOM}=require('jsdom');
 const {indexedDB}=require('fake-indexeddb');
 const App=require('../src/v45-app');
+const ForumCore=require('../src/forum-core');
 const CompanyPlatform=require('../src/v46-company-platform');
 const FactionPlatform=require('../src/v47-faction-platform');
 
@@ -132,4 +133,19 @@ test('Search results show Torn online state when an exact last-action timestamp 
   const row={userId:'902',name:'Live State',man:null,int:null,end:null,lastActive:null,onlineStatus:'Online',doNotContact:false};
   assert.match(CompanyUI.renderCandidates([row],{filters:{},total:1}),/<td>Online<\/td>/);
   assert.match(FactionUI.renderCandidates([row],{filters:{},total:1}),/<td>Online<\/td>/);
+});
+
+
+test('older faction forum posts cannot downgrade newer shared work stats',async()=>{
+  const db=await App.openDB(indexedDB);App._test.state.db=db;
+  await App._test.clearRecruitmentData();
+  await App._test.repositories.faction.ensure('990',{pipelineStage:'Prospect',discoverySources:['FACTION FORUM']},{sharedPatch:{name:'Newest Stats',man:500000,int:600000,end:700000,total:1800000},source:'newer-observation',observedAt:2000});
+  const existing=await App._test.getDiscoveryCandidate('faction','990');
+  assert.deepEqual(existing.stats,{man:500000,int:600000,end:700000,total:1800000});
+  const merged=ForumCore.mergeCandidateFromSource(existing,{sourceType:'FACTION FORUM',threadId:'15909136',postId:'older',userId:990,postedAt:1000,observedAt:1000,parsed:{workStats:{man:100000,int:200000,end:300000,total:600000}}});
+  await App._test.persistDiscoveredCandidate({feedId:'faction',sourceType:'FACTION FORUM'},merged,{sourceType:'FACTION FORUM',sourceId:'FACTION FORUM:15909136:older:990',observedAt:1000,postedAt:1000});
+  const read=(store,key)=>new Promise((resolve,reject)=>{const req=db.transaction(store,'readonly').objectStore(store).get(key);req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});
+  const player=await read('playerIntelligence','990');
+  assert.equal(player.man,500000);assert.equal(player.int,600000);assert.equal(player.end,700000);assert.equal(player.total,1800000);
+  db.close();
 });
