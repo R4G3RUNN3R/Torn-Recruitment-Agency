@@ -465,19 +465,20 @@
   async function route(page,persist=true){
     const requested=String(page||'').trim().toLowerCase();
     if(!V46Navigation.ROUTES.includes(requested)||(requested!=='settings'&&!visibleRouteSet().has(requested))||(requested==='logs'&&state.settings.complexity!=='advanced'))return false;
+    if(requested===state.page&&persist)return true;
     state.page=requested;
     if(persist)await saveSettings({activePage:state.page});
     if(V46CompanyPlatform._test.IMPLEMENTED_ROUTES.has(state.page)){
-      await V46CompanyPlatform.renderPage(state.page,{persist:false});
       rebuildNav();
+      await V46CompanyPlatform.renderPage(state.page,{persist:false});
       bindHelp();
       document.querySelector('.ra-shell')?.classList.remove('sidebar-open');
       stopLogRefresh();
       return;
     }
     if(V47FactionPlatform._test.IMPLEMENTED_ROUTES.has(state.page)){
-      await V47FactionPlatform.renderPage(state.page,{persist:false});
       rebuildNav();
+      await V47FactionPlatform.renderPage(state.page,{persist:false});
       bindHelp();
       document.querySelector('.ra-shell')?.classList.remove('sidebar-open');
       stopLogRefresh();
