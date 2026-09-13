@@ -73,3 +73,20 @@ test('Fill Companies plan only includes candidates missing current company', () 
     {userId:1,status:'pending',error:''},{userId:3,status:'pending',error:''}
   ]);
 });
+
+test('forum discovery carries explicit work stats from post text into the merged candidate', async () => {
+  let saved=null;
+  await D.processDiscoveryPage({
+    feed:{feedId:'company',sourceType:'COMPANY FORUM',threadId:'77'},
+    posts:[{id:10,author:{id:456,username:'StatUser'},created_time:1000,content:'Looking for work. MAN 120k, INT: 250,000, END = 1.5m'}],
+    continuation:'',
+    observedAt:2000000,
+    persistSource:async()=>{},
+    getCandidate:async()=>null,
+    persistCandidate:async candidate=>{saved=candidate;},
+    persistCounters:async()=>{},
+    persistCheckpoint:async()=>{}
+  });
+  assert.deepEqual(saved.stats,{man:120000,int:250000,end:1500000,total:1870000});
+  assert.deepEqual(saved.forumParsed.workStats,{man:120000,int:250000,end:1500000,total:1870000});
+});

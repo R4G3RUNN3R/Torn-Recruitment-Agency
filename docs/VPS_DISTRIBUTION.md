@@ -1,12 +1,12 @@
 # Recruitment Agency VPS Distribution
 
-Recruitment Agency v4.8.0 uses GitHub as the source/history and migration bridge while the stable end-user update authority is hosted by Voidsmith Industries.
+Recruitment Agency v4.8.1 continues the VPS-first distribution model introduced by v4.8.0: GitHub is the source/history and immutable runtime origin, while the stable end-user update authority is hosted by Voidsmith Industries.
 
 ## Stable production URL
 
 `https://voidsmithindustries.com/torn/recruitment-agency/recruitment-agency.user.js`
 
-Both `@updateURL` and `@downloadURL` point to this stable HTTPS endpoint. Existing installations that still check the GitHub `main` userscript receive v4.8.0 as the migration release, after which their userscript manager checks the Voidsmith endpoint for later versions.
+Both `@updateURL` and `@downloadURL` point to this stable HTTPS endpoint. v4.8.0 served as the migration release for older installations that still checked GitHub `main`; v4.8.1 and later releases are promoted through the Voidsmith stable endpoint after verification.
 
 ## Release model
 

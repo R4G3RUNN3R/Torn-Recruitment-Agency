@@ -46,7 +46,7 @@
       observedAt,
       authorName:text(post.author?.username ?? post.author?.name ?? post.name),
       body,
-      parsed:ForumCore.parseForumIntent(body),
+      parsed:{...ForumCore.parseForumIntent(body),workStats:ForumCore.parseWorkStats(body)},
       url:text(post.url || feed.url)
     });
     source.body = body;

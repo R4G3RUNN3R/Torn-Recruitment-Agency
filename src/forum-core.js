@@ -53,6 +53,45 @@
     return found || 'Not Contacted';
   }
 
+  function parseCompactStatNumber(value) {
+    const raw = String(value == null ? '' : value).trim().replace(/,/g, '').replace(/\s+/g, '');
+    const match = raw.match(/^([0-9]+(?:\.[0-9]+)?)([kmb])?$/i);
+    if (!match) return null;
+    const multiplier = {k:1e3,m:1e6,b:1e9}[String(match[2] || '').toLowerCase()] || 1;
+    const out = Number(match[1]) * multiplier;
+    return Number.isFinite(out) ? Math.round(out) : null;
+  }
+
+  function normalizeWorkStats(input = {}) {
+    const man = finite(input.man);
+    const int = finite(input.int);
+    const end = finite(input.end);
+    return {man,int,end,total:man !== null && int !== null && end !== null ? man + int + end : null};
+  }
+
+  function parseWorkStats(value) {
+    const raw = String(value == null ? '' : value).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    const number = '([0-9]+(?:[,.][0-9]+)*(?:\s*[kKmMbB])?)';
+    const read = (fullPattern, abbreviation) => {
+      const patterns = [
+        new RegExp('\\b(?:' + fullPattern + ')\\b\\s*(?:[:=\\-]\\s*|\\s+)' + number, 'i'),
+        new RegExp('\\b' + abbreviation + '\\b\\s*[:=\\-]\\s*' + number, 'i'),
+        new RegExp('\\b' + abbreviation + '\\b\\s+' + '([0-9]+(?:[,.][0-9]+)*\\s*[kKmMbB])', 'i'),
+        new RegExp('\\b' + abbreviation.toUpperCase() + '\\b\\s+' + number)
+      ];
+      for (const pattern of patterns) {
+        const match = raw.match(pattern);
+        if (match) return parseCompactStatNumber(match[1]);
+      }
+      return null;
+    };
+    return normalizeWorkStats({
+      man:read('manual\\s+labou?r','man'),
+      int:read('intelligence','int'),
+      end:read('endurance','end')
+    });
+  }
+
   function normalizeAvailability(value) {
     const raw = text(value).toLowerCase().replace(/[_-]+/g, ' ');
     if (!raw) return 'Unknown';
@@ -88,7 +127,8 @@
         trainAmountMin: finite(parsed.trainAmountMin),
         trainAmountMax: finite(parsed.trainAmountMax),
         primaryWorkStat: text(parsed.primaryWorkStat).toUpperCase(),
-        availability: normalizeAvailability(parsed.availability)
+        availability: normalizeAvailability(parsed.availability),
+        workStats: normalizeWorkStats(parsed.workStats)
       },
       importedAt: text(source.importedAt) || new Date().toISOString()
     };
@@ -202,6 +242,15 @@
       else out.availability = current;
     }
 
+    const parsedStats = normalizeWorkStats(parsed.workStats);
+    const existingStats = candidate.stats && typeof candidate.stats === 'object' ? {...candidate.stats} : {};
+    const mergedStats = {...existingStats};
+    for (const key of ['man','int','end']) if (finite(mergedStats[key]) === null && parsedStats[key] !== null) mergedStats[key] = parsedStats[key];
+    const known = ['man','int','end'].map(key => finite(mergedStats[key]));
+    if (known.every(value => value !== null)) mergedStats.total = known.reduce((sum,value) => sum + value,0);
+    else if (finite(existingStats.total) === null) delete mergedStats.total;
+    if (Object.keys(mergedStats).length) out.stats = mergedStats;
+
     out.forumParsed = {
       ...(candidate.forumParsed && typeof candidate.forumParsed === 'object' ? candidate.forumParsed : {}),
       desiredCompany: parsed.desiredCompany || '',
@@ -211,7 +260,8 @@
       trainAmountMin: parsed.trainAmountMin,
       trainAmountMax: parsed.trainAmountMax,
       primaryWorkStat: parsed.primaryWorkStat || '',
-      availability: parsed.availability || 'Unknown'
+      availability: parsed.availability || 'Unknown',
+      workStats: parsedStats
     };
     return out;
   }
@@ -258,6 +308,7 @@
     normalizeStage,
     normalizeAvailability,
     parseForumIntent,
+    parseWorkStats,
     mergeCandidateFromSource,
     sanitizeContinuation,
     substituteMessage

@@ -123,3 +123,29 @@ test('message substitution uses only approved placeholders and cleans unknowns',
     'Player Alice [123] - Match 92 / Fit 81'
   );
 });
+
+test('forum work-stat parser restores explicit MAN INT END extraction with compact suffixes', () => {
+  assert.deepEqual(
+    ForumCore.parseWorkStats('Looking for work. MAN 120,000 | INT: 250k | Endurance = 1.5m'),
+    {man:120000,int:250000,end:1500000,total:1870000}
+  );
+});
+
+test('forum work-stat parser stays conservative around ordinary prose and unrelated numbers', () => {
+  assert.deepEqual(
+    ForumCore.parseWorkStats('I am a man, level 39, looking for work. Message me.'),
+    {man:null,int:null,end:null,total:null}
+  );
+});
+
+test('forum source merge fills missing parsed work stats without overwriting existing known values', () => {
+  const merged=ForumCore.mergeCandidateFromSource({
+    userId:123,
+    stats:{man:500000,int:null,end:null}
+  },{
+    sourceType:'COMPANY FORUM',threadId:'15907925',postId:'77',userId:123,
+    parsed:{workStats:{man:120000,int:250000,end:1500000,total:1870000}}
+  });
+  assert.deepEqual(merged.stats,{man:500000,int:250000,end:1500000,total:2250000});
+  assert.deepEqual(merged.forumParsed.workStats,{man:120000,int:250000,end:1500000,total:1870000});
+});

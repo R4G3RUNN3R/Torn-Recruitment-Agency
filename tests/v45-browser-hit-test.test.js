@@ -61,6 +61,15 @@ function serve() {
 
 async function physicalClick(page, selector) {
   await page.waitForSelector(selector, { visible: true });
+  await page.waitForFunction(sel => {
+    const el = document.querySelector(sel);
+    if (!el) return false;
+    el.scrollIntoView({ block: 'center', inline: 'nearest' });
+    const r = el.getBoundingClientRect();
+    if (r.width <= 0 || r.height <= 0) return false;
+    const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    return hit === el || !!(hit && el.contains(hit));
+  }, { timeout: 10000 }, selector);
   const info = await page.$eval(selector, el => {
     el.scrollIntoView({block:'center',inline:'nearest'});
     const r = el.getBoundingClientRect();
@@ -129,6 +138,7 @@ test('real Chrome hit-testing and physical clicks can navigate the public v4.8 c
     await page.waitForFunction(() => document.getElementById('ra-page-title')?.textContent === 'Settings', { timeout: 10000 });
 
     await physicalClick(page, '#ra-mobile-menu');
+    await page.waitForFunction(() => document.querySelector('.ra-shell')?.classList.contains('sidebar-open'), { timeout: 5000 });
     assert.equal(await page.$eval('.ra-shell', el => el.classList.contains('sidebar-open')), true);
 
     await physicalClick(page, '#ra-close');
