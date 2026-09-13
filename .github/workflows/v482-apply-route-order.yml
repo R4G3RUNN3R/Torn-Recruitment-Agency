@@ -1,0 +1,65 @@
+name: Apply v4.8.2 route completion ordering fix
+
+on:
+  push:
+    branches:
+      - feature/v482-sort-filter-results
+    paths:
+      - .github/workflows/v482-apply-route-order.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/v482-sort-filter-results
+          fetch-depth: 0
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Download approved route-order patch
+        run: curl -fsSL https://voidsmithindustries.com/torn/recruitment-agency/testing/v482-route-order.patch -o /tmp/v482-route-order.patch
+
+      - name: Verify patch checksum
+        run: echo '0014254ebfb12d794f07ace0bcc93a85d3334165aa5e143668c30bd2ea7faf5d  /tmp/v482-route-order.patch' | sha256sum -c -
+
+      - name: Apply patch
+        run: |
+          git apply --check /tmp/v482-route-order.patch
+          git apply /tmp/v482-route-order.patch
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Verify route ordering and v4.8.2 contracts
+        run: node --test --test-concurrency=1 tests/v482-route-completion-order.test.js tests/v482-results-sorting-filters.test.js tests/v482-browser-controls.test.js tests/v481-active-search.test.js
+
+      - name: Repeat physical-click route regressions
+        run: |
+          for i in 1 2 3; do
+            echo "ROUTE ORDER CLICK RUN $i"
+            node --test --test-concurrency=1 tests/v45-browser-hit-test.test.js tests/v45-browser-isolated-world.test.js
+          done
+
+      - name: Verify syntax and formatting
+        run: |
+          npm run syntax
+          git diff --check
+
+      - name: Commit verified fix and remove one-shot workflow
+        run: |
+          rm .github/workflows/v482-apply-route-order.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/v45-app.js
+          git add -u .github/workflows/v482-apply-route-order.yml
+          git commit -m 'fix: complete recruitment route after sidebar rebuild'
+          git push origin HEAD:feature/v482-sort-filter-results
