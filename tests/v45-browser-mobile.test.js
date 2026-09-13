@@ -83,6 +83,12 @@ test('421px mobile shell keeps hamburger sidebar open and routes Discover by phy
     await physicalClick(page,'#ra-mobile-menu');
     await page.waitForFunction(()=>document.querySelector('.ra-shell')?.classList.contains('sidebar-open'),{timeout:5000});
     assert.equal(await page.$eval('.ra-shell',e=>e.classList.contains('sidebar-open')),true,'hamburger sidebar class must persist after transition');
+    await page.waitForFunction(()=>{
+      const e=document.querySelector('[data-page="company-candidates"]');if(!e)return false;
+      const r=e.getBoundingClientRect();if(r.x<0||r.width<=0||r.height<=0)return false;
+      const hit=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);
+      return hit===e||!!(hit&&e.contains(hit));
+    },{timeout:5000});
 
     const after=await page.$eval('[data-page="company-candidates"]',e=>{const r=e.getBoundingClientRect();const x=r.left+r.width/2,y=r.top+r.height/2,hit=document.elementFromPoint(x,y);return{x:r.x,right:r.right,width:r.width,hit:hit&&(hit.id||hit.className||hit.tagName),clickable:hit===e||!!(hit&&e.contains(hit))}});
     assert.ok(after.x>=0,`Discover should be on-screen after hamburger: ${JSON.stringify(after)}`);
