@@ -1,0 +1,130 @@
+diff --git a/src/v45-app.js b/src/v45-app.js
+index 9ca8033..dd2f15e 100644
+--- a/src/v45-app.js
++++ b/src/v45-app.js
+@@ -60,7 +60,7 @@
+     throw new Error('Recruitment Agency v4.5 core modules are required.');
+   }
+ 
+-  const SCRIPT_VERSION = '4.8.0';
++  const SCRIPT_VERSION = '4.8.1';
+   const DB_NAME = 'tornWorkerDB';
+   const DB_VERSION = V47FactionStorage.DB_VERSION;
+   const API_BASE = 'https://api.torn.com/v2';
+@@ -150,7 +150,7 @@
+   const repositories=V46Storage.createRepositories(idb);
+   const companyRepositories=V46CompanyStorage.createRepositories(idb,V46CompanyCore);
+   const factionRepositories=V47FactionStorage.createRepositories(idb,V47FactionCore);
+-  const companyPlatformApp={navigate:(page,persist=true)=>route(page,persist),recruitCandidate:(domain,userId,name)=>recruitCandidate(domain,userId,name),_test:{state,repositories,companyRepositories,factionRepositories}};
++  const companyPlatformApp={navigate:(page,persist=true)=>route(page,persist),recruitCandidate:(domain,userId,name)=>recruitCandidate(domain,userId,name),searchCandidates:(domain,filters)=>searchCandidates(domain,filters),_test:{state,repositories,companyRepositories,factionRepositories}};
+ 
+   function mergeSettings(raw={}) {
+     const base=defaultSettings();
+@@ -299,6 +299,94 @@
+   async function fetchForumPage(feed,checkpoint,from,to){if(checkpoint?.next)return tornContinuation(checkpoint.next);return tornRequest(`forum/${feed.threadId}/posts`,{limit:PAGE_SIZE,sort:'DESC',from,to});}
+   async function syncFeed(feed){let checkpoint=await idb.get('forumSyncState',feed.feedId);let counters=Discovery.initialCounters(checkpoint?.counters||{});const recentCutoff=Date.now()-state.settings.recruitment.recentImportDays*86400000;const from=Math.floor(recentCutoff/1000),to=Math.floor(Date.now()/1000);const maxPages=state.settings.recruitment.maxPagesPerFeed;const domain=recruitmentDomainForFeed(feed);for(let page=0;page<maxPages&&!state.sync.cancelled;page++){state.sync.feed=feed.feedId;state.sync.pages=page+1;refreshDiscoverRuntimeUi(counters,feed);const data=await fetchForumPage(feed,checkpoint,from,to);const posts=Array.isArray(data?.posts)?data.posts:[];if(!posts.length)break;const continuation=data?._metadata?.links?.next||'';const result=await Discovery.processDiscoveryPage({feed,posts,continuation,counters,recentCutoff,observedAt:Date.now(),persistSource:async source=>{if(!source.postUrl)source.postUrl=forumThreadUrl(feed.threadId);await idb.put('forumSources',source);},getCandidate:async userId=>domain==='faction'?await idb.get('factionRecruitment',String(userId)):await idb.get('candidateLocal',String(userId))||await idb.get('candidateLocal',Number(userId)),persistCandidate:async(candidate,source)=>persistDiscoveredCandidate(feed,candidate,source),persistCounters:async next=>{counters=next;},persistCheckpoint:async cp=>{checkpoint=cp;await idb.put('forumSyncState',cp);}});counters=result.counters;await logEvent('forum','Forum page imported',{feedId:feed.feedId,pagesChecked:counters.pagesChecked,postsExamined:counters.postsExamined,candidatesCreated:counters.candidatesCreated,candidatesUpdated:counters.candidatesUpdated});if(!result.safeContinuation)break;}return counters;}
+   async function syncForums(){if(state.sync.running)throw new Error('Forum sync is already running.');state.sync={running:true,cancelled:false,feed:'',pages:0};let aggregate=Discovery.initialCounters();try{for(const feed of Discovery.feedDefinitions(state.settings.recruitment).filter(f=>f.enabled)){if(state.sync.cancelled)break;const counters=await syncFeed(feed);for(const key of Object.keys(aggregate))aggregate[key]=Math.max(aggregate[key],Number(counters[key]||0));}toast(state.sync.cancelled?'Forum sync stopped. Resume available.':'Forum sync complete.');}catch(error){toast(`Forum sync stopped: ${error.message}`,true);await logEvent('error','Forum sync failed',{feedId:state.sync.feed,error:text(error.message)});}finally{state.sync.running=false;refreshDiscoverRuntimeUi(aggregate);if(state.page==='company-discover'||state.page==='company-candidates'||state.page==='company-overview')await route(state.page,false);}return aggregate;}
++  async function syncDomainForums(domain){
++    const normalized=text(domain).toLowerCase()==='faction'?'faction':'company';
++    if(state.sync.running)throw new Error('Forum sync is already running.');
++    state.sync={running:true,cancelled:false,feed:'',pages:0};
++    let aggregate=Discovery.initialCounters();
++    try{
++      const feeds=Discovery.feedDefinitions(state.settings.recruitment).filter(feed=>feed.enabled&&recruitmentDomainForFeed(feed)===normalized);
++      for(const feed of feeds){
++        if(state.sync.cancelled)break;
++        const counters=await syncFeed(feed);
++        for(const key of Object.keys(aggregate))aggregate[key]=Math.max(Number(aggregate[key]||0),Number(counters[key]||0));
++      }
++      return aggregate;
++    }finally{
++      state.sync.running=false;
++      refreshDiscoverRuntimeUi(aggregate);
++    }
++  }
++
++  function normalizeApiSearchCandidate(raw={}){
++    const value=raw?.profile||raw||{};
++    const userId=V46Domain.normalizeUserId(value.id??value.user_id??value.userId);
++    const lastAction=value.last_action||{};
++    const lastActionTs=Number(lastAction.timestamp);
++    const factionRaw=value.faction_id??value.factionId;
++    const factionId=factionRaw===null||factionRaw===undefined||factionRaw===''?null:Number(factionRaw);
++    return{
++      id:Number(userId),userId,name:text(value.name)||`User ${userId}`,level:finite(value.level),
++      factionId:Number.isFinite(factionId)?factionId:null,
++      onlineStatus:text(value.online??lastAction.status),
++      lastActive:Number.isFinite(lastActionTs)&&lastActionTs>0?lastActionTs*1000:null
++    };
++  }
++
++  async function persistApiSearchCandidate(domain,raw){
++    const normalizedDomain=text(domain).toLowerCase()==='faction'?'faction':'company';
++    const candidate=normalizeApiSearchCandidate(raw);
++    const observedAt=Date.now();
++    const store=normalizedDomain==='faction'?'factionRecruitment':'companyRecruitment';
++    const existing=await idb.get(store,candidate.userId);
++    const discoverySources=[...new Set([...(Array.isArray(existing?.discoverySources)?existing.discoverySources:[]),'TORN API SEARCH'])];
++    const sharedPatch={name:candidate.name};
++    if(candidate.level!==null)sharedPatch.level=candidate.level;
++    if(candidate.factionId!==null)sharedPatch.factionId=candidate.factionId;
++    if(candidate.onlineStatus)sharedPatch.onlineStatus=candidate.onlineStatus;
++    if(candidate.lastActive!==null)sharedPatch.lastActive=candidate.lastActive;
++    const patch={
++      pipelineStage:existing?.pipelineStage||(normalizedDomain==='faction'?'Prospect':'Not Contacted'),
++      availability:existing?.availability||'Unknown',
++      recruiterNote:existing?.recruiterNote||'',
++      discoverySources,
++      updatedAt:observedAt
++    };
++    return repositories[normalizedDomain].ensure(candidate.userId,patch,{sharedPatch,source:'api-search',observedAt});
++  }
++
++  async function searchCandidates(domain,filters={},deps={}){
++    const normalizedDomain=text(domain).toLowerCase()==='faction'?'faction':'company';
++    const sync=deps.syncDomainForums||syncDomainForums;
++    const request=deps.tornRequest||tornRequest;
++    const persist=deps.persistApiCandidate||persistApiSearchCandidate;
++    const injected=Object.keys(deps).length>0;
++    const warnings=[];
++    let forum=Discovery.initialCounters();
++    let apiCount=0;
++    try{forum=await sync(normalizedDomain);}catch(error){warnings.push(`Forum: ${text(error.message||error)}`);}
++    try{
++      const query=text(filters.search);
++      let response;
++      let candidates=[];
++      if(/^\d+$/.test(query)){
++        response=await request(`user/${query}/profile`,{});
++        if(response?.profile)candidates=[response.profile];
++      }else{
++        const params=query?{name:query}:{filters:'lastActionRecent'};
++        response=await request('user/search',params);
++        candidates=Array.isArray(response?.search)?response.search:[];
++      }
++      for(const candidate of candidates){await persist(normalizedDomain,candidate);apiCount++;}
++    }catch(error){warnings.push(`Torn API: ${text(error.message||error)}`);}
++    if(warnings.length>=2)throw new Error(`Candidate search failed. ${warnings.join(' | ')}`);
++    if(!injected){
++      await logEvent('search','Active candidate search completed',{domain:normalizedDomain,forumPosts:Number(forum.postsExamined||0),forumCreated:Number(forum.candidatesCreated||0),apiCount,warnings});
++      const summary=`Search complete: forum ${Number(forum.postsExamined||0)} post(s), Torn API ${apiCount} user(s).`;
++      toast(warnings.length?`${summary} ${warnings.join(' | ')}`:summary,warnings.length>0);
++    }
++    return{domain:normalizedDomain,forum,apiCount,warnings};
++  }
+   function cancelSync(){if(state.sync.running){state.sync.cancelled=true;toast('Cancelling forum sync after the current safe page.');}}
+ 
+   async function fillCompanies(){if(state.fill.running)throw new Error('Company fill is already running.');const views=await candidateViews();const plan=Discovery.fillCompaniesPlan(views.map(v=>({...v.candidate,currentCompany:v.currentCompany})));state.fill={running:true,cancelled:false,done:0,total:plan.length,errors:[]};refreshDiscoverRuntimeUi();try{for(const item of plan){if(state.fill.cancelled)break;try{const data=await tornRequest(`user/${item.userId}/job`);const job=data?.job||data?.user?.job||null;const candidate=await idb.get('candidateLocal',String(item.userId))||await idb.get('candidateLocal',Number(item.userId));if(candidate){const company=job&&String(job.type||'').toLowerCase()==='company'?job:null;candidate.currentCompany=company?.name||'';candidate.currentCompanyId=company?.id??null;candidate.currentCompanyRating=company?.rating??null;candidate.currentCompanyPosition=company?.position||'';candidate.companyCheckedAt=Date.now();candidate.updatedAt=new Date().toISOString();await idb.put('candidateLocal',candidate);await repositories.players.ensure(String(item.userId),{name:candidate.name,ee:candidate.ee,currentCompany:candidate.currentCompany,currentCompanyId:candidate.currentCompanyId,currentCompanyRating:candidate.currentCompanyRating,currentCompanyPosition:candidate.currentCompanyPosition,companyCheckedAt:candidate.companyCheckedAt},'company-enrichment',candidate.companyCheckedAt);}}catch(error){state.fill.errors.push({userId:item.userId,error:text(error.message)});}finally{state.fill.done++;refreshDiscoverRuntimeUi();}}await logEvent('company-fill','Fill Companies completed',{checked:state.fill.done,errors:state.fill.errors.length});toast(state.fill.cancelled?'Company fill stopped.':`Company fill complete: ${state.fill.done}/${state.fill.total}.`,state.fill.errors.length>0);}finally{state.fill.running=false;if(state.page==='company-discover'||state.page==='company-candidates')await route(state.page,false);}}
+@@ -516,10 +604,10 @@
+     void restorePendingPrivateChatDraft().catch(error=>toast(error.message,true));
+     const observer=new MutationObserver(()=>{if(!document.getElementById('ra-sidebar-launcher'))ensureTornLauncher();});
+     observer.observe(document.documentElement,{childList:true,subtree:true});
+-    await logEvent('startup','Recruitment Agency v4.8 source started',{version:SCRIPT_VERSION,dbVersion:DB_VERSION});
++    await logEvent('startup',`Recruitment Agency v${SCRIPT_VERSION} source started`,{version:SCRIPT_VERSION,dbVersion:DB_VERSION});
+     if(state.settings.global.enabled&&globalEndpoint())void flushGlobalQueue(false);
+     return true;
+   }
+ 
+-  return Object.freeze({SCRIPT_VERSION,DB_VERSION,HARD_API_RATE,MIN_API_GAP_MS,DEFAULT_VISIBLE_COLUMNS,OPTIONAL_COLUMNS,openDB,mergeSettings,start,_test:{navigate:route,state,repositories,companyRepositories,factionRepositories,recruitmentDomainForFeed,persistDiscoveredCandidate,deleteCompanyCandidateData,clearRecruitmentData,applyCandidateFilters,candidateCsvRow,matchAvailability,forumThreadUrl,recruitCandidate,restorePendingPrivateChatDraft,findPrivateChatInput,setPrivateChatInputValue,currentProfileUserId}});
++  return Object.freeze({SCRIPT_VERSION,DB_VERSION,HARD_API_RATE,MIN_API_GAP_MS,DEFAULT_VISIBLE_COLUMNS,OPTIONAL_COLUMNS,openDB,mergeSettings,start,_test:{navigate:route,state,repositories,companyRepositories,factionRepositories,recruitmentDomainForFeed,persistDiscoveredCandidate,syncDomainForums,normalizeApiSearchCandidate,persistApiSearchCandidate,searchCandidates,deleteCompanyCandidateData,clearRecruitmentData,applyCandidateFilters,candidateCsvRow,matchAvailability,forumThreadUrl,recruitCandidate,restorePendingPrivateChatDraft,findPrivateChatInput,setPrivateChatInputValue,currentProfileUserId}});
+ });
