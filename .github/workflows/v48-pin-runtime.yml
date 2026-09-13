@@ -1,0 +1,56 @@
+name: Pin v4.8 runtime to verified commit
+
+on:
+  push:
+    branches:
+      - feature/v48-simplified-recruitment-ui-clean
+    paths:
+      - .github/workflows/v48-pin-runtime.yml
+
+permissions:
+  contents: write
+
+jobs:
+  pin-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out candidate branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/v48-simplified-recruitment-ui-clean
+          fetch-depth: 0
+
+      - name: Pin all runtime modules to verified implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          old='ae424579d7b18c4e2b04e944e7f82931fcbe1e16'
+          new='bf9ea64a64df23c5426f4be1a1e75f1cb392f2fd'
+          file='R4G3RUNN3R-Recruitment-Agency.user.js'
+          count=$(grep -c "${old}" "${file}")
+          test "${count}" -eq 29
+          sed -i "s/${old}/${new}/g" "${file}"
+          test "$(grep -c "${new}" "${file}")" -eq 29
+          ! grep -q "${old}" "${file}"
+
+      - name: Verify pinned bridge
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --ignore-scripts --no-audit --no-fund
+          npm run build
+          node --check dist/recruitment-agency.user.js
+          npm test
+          git diff --check
+
+      - name: Commit runtime pins and remove one-shot workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf dist package-lock.json
+          git rm .github/workflows/v48-pin-runtime.yml
+          git add R4G3RUNN3R-Recruitment-Agency.user.js
+          git config user.name "Voidsmith Release Automation"
+          git config user.email "actions@users.noreply.github.com"
+          git commit -m "release: pin v4.8 runtime to verified candidate"
+          git push origin HEAD:feature/v48-simplified-recruitment-ui-clean
