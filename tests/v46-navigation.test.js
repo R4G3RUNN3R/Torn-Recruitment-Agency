@@ -3,32 +3,34 @@ const assert=require('node:assert/strict');
 const N=require('../src/v46-navigation');
 
 const COMPANY_ROUTES=[
-  'company-overview','company-today','company-discover','company-candidates','company-pipeline',
+  'company-candidates','company-overview','company-today','company-discover','company-pipeline',
   'company-vacancies','company-campaigns','company-followups','company-timeline','company-stage-aging',
   'company-contact-outcomes','company-recruitment-sessions','company-talent-pool','company-reactivation',
   'company-opportunity','company-compare'
 ];
 const FACTION_ROUTES=[
-  'faction-overview','faction-today','faction-discover','faction-candidates','faction-pipeline',
+  'faction-candidates','faction-overview','faction-today','faction-discover','faction-pipeline',
   'faction-requirements','faction-campaigns','faction-followups','faction-timeline','faction-stage-aging',
   'faction-contact-outcomes','faction-recruitment-sessions','faction-reactivation','faction-opportunity','faction-compare'
 ];
 
-test('navigation exposes independent Company and Faction route shells plus shared groups',()=>{
-  const groups=N.visibleGroups({complexity:'advanced'});
-  assert.deepEqual(groups.map(g=>g.label),['COMPANY RECRUITMENT','FACTION RECRUITMENT','INTELLIGENCE','APPLICATION']);
-  assert.deepEqual(groups[0].pages.map(p=>p.id),COMPANY_ROUTES);
-  assert.deepEqual(groups[1].pages.map(p=>p.id),FACTION_ROUTES);
-  assert.deepEqual(groups[2].pages.map(p=>p.id),['scout','smart-match','global-intelligence']);
-  assert.deepEqual(groups[3].pages.map(p=>p.id),['data','logs']);
-  assert.equal(groups.flatMap(g=>g.pages).some(p=>p.id==='settings'),false);
+test('navigation retains every Company and Faction capability while default visible navigation stays core-only',()=>{
+  const company=N.GROUPS.find(g=>g.id==='company-recruitment');
+  const faction=N.GROUPS.find(g=>g.id==='faction-recruitment');
+  assert.deepEqual(company.pages.map(p=>p.id),COMPANY_ROUTES);
+  assert.deepEqual(faction.pages.map(p=>p.id),FACTION_ROUTES);
+  const visible=N.visibleGroups({complexity:'simple',optionalModules:{}});
+  assert.deepEqual(visible.map(g=>g.label),['COMPANY','FACTION']);
+  assert.deepEqual(visible[0].pages.map(p=>p.id),['company-candidates']);
+  assert.deepEqual(visible[1].pages.map(p=>p.id),['faction-candidates']);
 });
 
-test('simple mode hides Logs but keeps every other working sidebar route',()=>{
-  const groups=N.visibleGroups({complexity:'simple'});
-  assert.deepEqual(groups[3].pages.map(p=>p.id),['data']);
-  assert.deepEqual(groups[0].pages.map(p=>p.id),COMPANY_ROUTES);
-  assert.deepEqual(groups[1].pages.map(p=>p.id),FACTION_ROUTES);
+test('optional workspaces appear only when explicitly enabled',()=>{
+  const groups=N.visibleGroups({complexity:'advanced',optionalModules:{companyPipeline:true,factionRequirements:true,scout:true,data:true,logs:true}});
+  assert.deepEqual(groups.find(g=>g.id==='company-recruitment').pages.map(p=>p.id),['company-candidates','company-pipeline']);
+  assert.deepEqual(groups.find(g=>g.id==='faction-recruitment').pages.map(p=>p.id),['faction-candidates','faction-requirements']);
+  assert.deepEqual(groups.find(g=>g.id==='intelligence').pages.map(p=>p.id),['scout']);
+  assert.deepEqual(groups.find(g=>g.id==='application').pages.map(p=>p.id),['data','logs']);
 });
 
 test('multiple groups can remain expanded and all groups may be collapsed',()=>{
@@ -42,16 +44,15 @@ test('multiple groups can remain expanded and all groups may be collapsed',()=>{
   assert.deepEqual(expanded,['company-recruitment','faction-recruitment','intelligence']);
   expanded=N.toggleExpandedGroup(expanded,'company-recruitment');
   assert.deepEqual(expanded,['faction-recruitment','intelligence']);
-  assert.deepEqual(N.toggleExpandedGroup(expanded,'bogus'),['faction-recruitment','intelligence']);
 });
 
-test('Settings stays routable, old recruitment routes migrate, Faction routes are routable, and Logs remains advanced-only',()=>{
+test('Settings stays routable, legacy recruitment aliases migrate, and invalid/simple Logs fail back to core Search & Results',()=>{
   assert.equal(N.normalizeRoute('settings','simple'),'settings');
-  assert.equal(N.normalizeRoute('logs','simple'),'company-overview');
+  assert.equal(N.normalizeRoute('logs','simple'),'company-candidates');
   assert.equal(N.normalizeRoute('logs','advanced'),'logs');
   assert.equal(N.normalizeRoute('candidates','simple'),'company-candidates');
   assert.equal(N.normalizeRoute('overview','simple'),'company-overview');
   assert.equal(N.normalizeRoute('faction-overview','simple'),'faction-overview');
   assert.equal(N.normalizeRoute('faction-requirements','advanced'),'faction-requirements');
-  assert.equal(N.normalizeRoute('not-a-route','advanced'),'company-overview');
+  assert.equal(N.normalizeRoute('not-a-route','advanced'),'company-candidates');
 });

@@ -75,9 +75,9 @@ test('dark theme keeps Recruitment Agency tables and settings readable against h
       muted:getComputedStyle(document.getElementById('ra-readability-muted')).color,
       control:getComputedStyle(document.getElementById('ra-readability-control')).color
     }));
-    assert.equal(tableColors.cell,rgb('#67e38c'),'table body text should use the neon-green dark-theme accent');
-    assert.equal(tableColors.muted,rgb('#9aaa9f'),'secondary table text should remain muted but readable');
-    assert.equal(tableColors.control,rgb('#edf4ef'),'table controls should retain bright readable text');
+    assert.equal(tableColors.cell,rgb('#f0f0f3'),'table body text should use the v4.8 high-contrast text token');
+    assert.equal(tableColors.muted,rgb('#a3a3ad'),'secondary table text should remain muted but readable');
+    assert.equal(tableColors.control,rgb('#f0f0f3'),'table controls should retain high-contrast text');
 
     await page.click('#ra-settings-button');
     await page.waitForFunction(()=>document.getElementById('ra-page-title')?.textContent==='Settings',{timeout:5000});
@@ -89,10 +89,10 @@ test('dark theme keeps Recruitment Agency tables and settings readable against h
       value:getComputedStyle(document.querySelector('.ra-settings .ra-field select, .ra-settings .ra-field input, .ra-settings .ra-field textarea')).color,
       danger:getComputedStyle(document.querySelector('.ra-settings .ra-danger-zone summary')).color
     }));
-    assert.equal(settingsColors.summary,rgb('#67e38c'),'settings section headings should be neon green');
-    assert.equal(settingsColors.label,rgb('#67e38c'),'settings labels should be neon green');
-    assert.equal(settingsColors.value,rgb('#67e38c'),'settings form values should be neon green');
-    assert.equal(settingsColors.danger,rgb('#e65d62'),'Danger Zone heading should remain red');
+    assert.equal(settingsColors.summary,rgb('#d86a6a'),'settings section headings should use the v4.8 restrained accent');
+    assert.equal(settingsColors.label,rgb('#d86a6a'),'settings labels should use the v4.8 restrained accent');
+    assert.equal(settingsColors.value,rgb('#f0f0f3'),'settings form values should retain high-contrast text');
+    assert.equal(settingsColors.danger,rgb('#e25d63'),'Danger Zone heading should remain red');
   }finally{
     await browser.close();
     await new Promise(resolve=>server.close(resolve));

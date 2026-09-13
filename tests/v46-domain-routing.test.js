@@ -2,6 +2,7 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const {indexedDB}=require('fake-indexeddb');
 const App=require('../src/v45-app');
+const FactionPlatform=require('../src/v47-faction-platform');
 
 function get(db,store,key){return new Promise((resolve,reject)=>{const q=db.transaction(store,'readonly').objectStore(store).get(key);q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(q.error);});}
 
@@ -22,7 +23,9 @@ test('discovery persistence creates only the matching recruitment domain',async(
   const companyFeed={feedId:'company',sourceType:'COMPANY FORUM'};
   const factionFeed={feedId:'faction',sourceType:'FACTION FORUM'};
   await App._test.persistDiscoveredCandidate(companyFeed,candidate('111','Company Alice','COMPANY FORUM'),source('COMPANY FORUM','111',1000));
-  await App._test.persistDiscoveredCandidate(factionFeed,candidate('222','Faction Bob','FACTION FORUM'),source('FACTION FORUM','222',2000));
+  const factionCandidate=candidate('222','Faction Bob','FACTION FORUM');
+  factionCandidate.stats={man:120000,int:90000,end:150000,total:360000};
+  await App._test.persistDiscoveredCandidate(factionFeed,factionCandidate,source('FACTION FORUM','222',2000));
 
   assert.ok(await get(db,'companyRecruitment','111'));
   assert.equal(await get(db,'factionRecruitment','111'),undefined);
@@ -34,6 +37,15 @@ test('discovery persistence creates only the matching recruitment domain',async(
 
   assert.equal((await get(db,'playerIntelligence','111')).name,'Company Alice');
   assert.equal((await get(db,'playerIntelligence','222')).name,'Faction Bob');
+  const factionPlayer=await get(db,'playerIntelligence','222');
+  assert.equal(factionPlayer.man,120000);
+  assert.equal(factionPlayer.int,90000);
+  assert.equal(factionPlayer.end,150000);
+  const factionRows=await FactionPlatform._test.buildRows({_test:{state:App._test.state,repositories:App._test.repositories,factionRepositories:App._test.factionRepositories}});
+  const factionRow=factionRows.find(row=>row.userId==='222');
+  assert.equal(factionRow.man,120000);
+  assert.equal(factionRow.int,90000);
+  assert.equal(factionRow.end,150000);
   db.close();
 });
 

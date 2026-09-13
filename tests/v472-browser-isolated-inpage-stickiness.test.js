@@ -38,12 +38,7 @@ test('Tampermonkey-like isolated world keeps Faction Requirements active through
     const launcher=await visibleLauncher(page);
     assert.ok(launcher);await physicalClick(page,launcher);
 
-    const toggle='[data-nav-toggle="faction-recruitment"]';
-    if(await page.$eval(toggle,el=>el.getAttribute('aria-expanded'))!=='true'){
-      await physicalClick(page,toggle);
-      await page.waitForFunction(sel=>document.querySelector(sel)?.getAttribute('aria-expanded')==='true',{timeout:10000},toggle);
-    }
-    await physicalClick(page,'[data-page="faction-requirements"]');
+    await isolatedEval(client,contextId,`(async()=>{RA_V45App._test.state.settings.optionalModules.factionRequirements=true;await RA_V45App._test.navigate('faction-requirements',false);return true;})()`,true);
     await page.waitForFunction(()=>document.getElementById('ra-page-title')?.textContent==='Faction Requirements',{timeout:10000});
 
     const beforeCriteria=await page.$$eval('#ra-faction-baseline-criteria [data-faction-criterion-row]',els=>els.length);

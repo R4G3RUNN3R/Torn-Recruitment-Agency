@@ -77,19 +77,14 @@ test('v4.5 application mounts and primary navigation responds to real clicks', a
     }
   }
 
-  await openPage('company-discover', 'Company Discover', '#ra-sync');
   await openPage('company-candidates', 'Company Candidates', '#ra-content .ra-table');
-  await openPage('company-pipeline', 'Company Pipeline', '#ra-content .ra-pipeline');
 
-  const intelligenceToggle = document.querySelector('[data-nav-toggle="intelligence"]');
-  assert.ok(intelligenceToggle, 'Intelligence navigation group toggle should exist');
-  intelligenceToggle.click();
-  await waitFor(() => document.querySelector('[data-nav-toggle="intelligence"]')?.getAttribute('aria-expanded') === 'true');
-  assert.equal(document.querySelector('[data-nav-toggle="intelligence"]').getAttribute('aria-expanded'), 'true');
-
-  await openPage('scout', 'Scout', '#ra-run-scout');
-  await openPage('smart-match', 'Smart Match', '#ra-match-save');
-  await openPage('global-intelligence', 'Global Intelligence', '#ra-global-test');
+  const factionSwitch = document.querySelector('[data-domain="faction"]');
+  assert.ok(factionSwitch, 'Faction mode switch should exist');
+  factionSwitch.click();
+  await waitFor(() => document.getElementById('ra-page-title')?.textContent === 'Faction Candidates');
+  assert.equal(document.getElementById('ra-page-title').textContent, 'Faction Candidates');
+  assert.ok(document.querySelector('[data-page="faction-candidates"]'), 'Faction core route should exist after switching domains');
 
   document.getElementById('ra-settings-button').click();
   await waitFor(() => document.getElementById('ra-page-title')?.textContent === 'Settings');

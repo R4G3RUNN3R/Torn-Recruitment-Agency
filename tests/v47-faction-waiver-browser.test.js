@@ -21,10 +21,9 @@ function freshApp(){const path=require.resolve('../src/v45-app');delete require.
 function deleteDb(){return new Promise((resolve,reject)=>{const req=indexedDB.deleteDatabase('tornWorkerDB');req.onsuccess=()=>resolve();req.onerror=()=>reject(req.error);req.onblocked=()=>resolve();});}
 function dbGet(db,store,key){return new Promise((resolve,reject)=>{const q=db.transaction(store,'readonly').objectStore(store).get(key);q.onsuccess=()=>resolve(q.result||null);q.onerror=()=>reject(q.error);});}
 
-async function openFactionRequirements(){
-  document.querySelector('[data-nav-toggle="faction-recruitment"]').click();
-  await tick();
-  document.querySelector('[data-page="faction-requirements"]').click();
+async function openFactionRequirements(App){
+  App._test.state.settings.optionalModules.factionRequirements=true;
+  await App._test.navigate('faction-requirements',false);
   await tick();
 }
 
@@ -38,7 +37,7 @@ test('Faction waiver UI persists an individual baseline exception, preserves fai
   await App._test.repositories.faction.ensure('123',{pipelineStage:'Evaluating',waivers:[]},{source:'waiver-browser-test',observedAt:100});
   await App._test.factionRepositories.config.save({baseline:{criteria:[{id:'level',label:'Level 50+',field:'level',operator:'gte',value:50,kind:'Hard',weight:1}]}});
 
-  await openFactionRequirements();
+  await openFactionRequirements(App);
   assert.equal(document.getElementById('ra-page-title').textContent,'Faction Requirements');
   document.getElementById('ra-faction-waiver-player').value='123';
   document.getElementById('ra-faction-waiver-context').value='baseline';

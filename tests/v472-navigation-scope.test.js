@@ -35,7 +35,7 @@ test('Recruitment Agency navigation never hijacks foreign Torn data-page control
   try{
     assert.equal(await App.start({indexedDB}),true);
 
-    document.querySelector('[data-page="faction-candidates"]').click();
+    document.querySelector('[data-domain="faction"]').click();
     await settle(180);
     assert.equal(App._test.state.page,'faction-candidates');
     assert.equal(document.getElementById('ra-page-title').textContent,'Faction Candidates');
@@ -60,7 +60,7 @@ test('invalid live navigation is rejected instead of falling back to Company Ove
   const App=freshApp();
   try{
     assert.equal(await App.start({indexedDB}),true);
-    document.querySelector('[data-page="faction-candidates"]').click();
+    document.querySelector('[data-domain="faction"]').click();
     await settle(180);
     assert.equal(App._test.state.page,'faction-candidates');
     assert.equal(document.getElementById('ra-page-title').textContent,'Faction Candidates');

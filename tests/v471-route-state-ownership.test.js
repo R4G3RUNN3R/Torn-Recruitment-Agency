@@ -26,7 +26,7 @@ async function withApp(run){
   const App=freshApp();
   try{
     assert.equal(await App.start({indexedDB}),true);
-    assert.equal(App._test.state.page,'company-overview');
+    assert.equal(App._test.state.page,'company-candidates');
     await run(App,dom);
   }finally{
     await settle(200);
@@ -46,10 +46,11 @@ test('Company sidebar navigation commits canonical route before asynchronous ren
   });
 });
 
-test('Faction sidebar navigation commits canonical route before asynchronous rendering',async()=>{
+test('Faction mode switch commits the canonical core route before rendering completes',async()=>{
   await withApp(async App=>{
-    document.querySelector('[data-page="faction-candidates"]').click();
-    assert.equal(App._test.state.page,'faction-candidates','Faction route state must change in the same click turn');
+    document.querySelector('[data-domain="faction"]').click();
+    await settle(20);
+    assert.equal(App._test.state.page,'faction-candidates','Faction switch must select the Faction core route');
     await settle(180);
     assert.equal(document.getElementById('ra-page-title').textContent,'Faction Candidates');
     assert.equal(App._test.state.page,'faction-candidates');
@@ -60,8 +61,7 @@ test('a newer route wins over an older asynchronous render',async()=>{
   await withApp(async App=>{
     document.querySelector('[data-page="company-candidates"]').click();
     assert.equal(App._test.state.page,'company-candidates');
-    document.querySelector('[data-page="faction-candidates"]').click();
-    assert.equal(App._test.state.page,'faction-candidates');
+    document.querySelector('[data-domain="faction"]').click();
     await settle(250);
     assert.equal(App._test.state.page,'faction-candidates');
     assert.equal(document.getElementById('ra-page-title').textContent,'Faction Candidates');
