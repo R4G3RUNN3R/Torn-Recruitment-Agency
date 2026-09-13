@@ -46,7 +46,7 @@ test('Company Search actively acquires forum/API candidates before rendering fil
   await tick();await tick();
   assert.equal(calls.length,1);
   assert.equal(calls[0].domain,'company');
-  assert.deepEqual(calls[0].filters,{search:'Alice',minEnd:'100k',minMan:'',minInt:''});
+  assert.deepEqual(calls[0].filters,{search:'Alice',minEnd:'100k',minMan:'',minInt:'',onlineStatus:'',organization:'',organizationPresence:'any'});
   CompanyPlatform.uninstall();db.close();dom.window.close();
 });
 
@@ -62,7 +62,7 @@ test('Faction Search actively acquires forum/API candidates before rendering fil
   await tick();await tick();
   assert.equal(calls.length,1);
   assert.equal(calls[0].domain,'faction');
-  assert.deepEqual(calls[0].filters,{search:'Bob',minEnd:'',minMan:'50k',minInt:''});
+  assert.deepEqual(calls[0].filters,{search:'Bob',minEnd:'',minMan:'50k',minInt:'',onlineStatus:'',organization:'',organizationPresence:'any'});
   FactionPlatform.uninstall();db.close();dom.window.close();
 });
 
@@ -131,8 +131,8 @@ test('Search results show Torn online state when an exact last-action timestamp 
   const CompanyUI=require('../src/v46-company-ui');
   const FactionUI=require('../src/v47-faction-ui');
   const row={userId:'902',name:'Live State',man:null,int:null,end:null,lastActive:null,onlineStatus:'Online',doNotContact:false};
-  assert.match(CompanyUI.renderCandidates([row],{filters:{},total:1}),/<td>Online<\/td>/);
-  assert.match(FactionUI.renderCandidates([row],{filters:{},total:1}),/<td>Online<\/td>/);
+  assert.match(CompanyUI.renderCandidates([row],{filters:{},total:1}),/ra-online-live[^>]*>Online/);
+  assert.match(FactionUI.renderCandidates([row],{filters:{},total:1}),/ra-online-live[^>]*>Online/);
 });
 
 
