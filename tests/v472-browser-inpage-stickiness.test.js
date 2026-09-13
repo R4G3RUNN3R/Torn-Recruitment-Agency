@@ -103,13 +103,10 @@ test('public bootstrap keeps Faction Requirements active while its own in-page c
     assert.ok(launcher, 'a Recruitment Agency launcher should be visible');
     await physicalClick(page, launcher);
 
-    const factionToggle = '[data-nav-toggle="faction-recruitment"]';
-    if (await page.$eval(factionToggle, el => el.getAttribute('aria-expanded')) !== 'true') {
-      await physicalClick(page, factionToggle);
-      await page.waitForFunction(sel => document.querySelector(sel)?.getAttribute('aria-expanded') === 'true', { timeout: 10000 }, factionToggle);
-    }
-
-    await physicalClick(page, '[data-page="faction-requirements"]');
+    await page.evaluate(async()=>{
+      RA_V45App._test.state.settings.optionalModules.factionRequirements=true;
+      await RA_V45App._test.navigate('faction-requirements',false);
+    });
     await page.waitForFunction(() => document.getElementById('ra-page-title')?.textContent === 'Faction Requirements', { timeout: 10000 });
     assert.equal(await title(page), 'Faction Requirements');
 

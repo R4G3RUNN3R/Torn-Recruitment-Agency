@@ -39,8 +39,8 @@
 // @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/ae424579d7b18c4e2b04e944e7f82931fcbe1e16/src/v47-faction-opportunity-ui.js
 // @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/ae424579d7b18c4e2b04e944e7f82931fcbe1e16/src/v47-faction-platform.js
 // @require      https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/ae424579d7b18c4e2b04e944e7f82931fcbe1e16/src/v45-app.js
-// @downloadURL  https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/main/R4G3RUNN3R-Recruitment-Agency.user.js
-// @updateURL    https://raw.githubusercontent.com/R4G3RUNN3R/Torn-Recruitment-Agency/main/R4G3RUNN3R-Recruitment-Agency.user.js
+// @downloadURL  https://voidsmithindustries.com/torn/recruitment-agency/recruitment-agency.user.js
+// @updateURL    https://voidsmithindustries.com/torn/recruitment-agency/recruitment-agency.user.js
 // ==/UserScript==
 
 (() => {

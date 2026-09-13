@@ -83,7 +83,7 @@ async function physicalClick(page, selector) {
   await page.mouse.click(info.x, info.y);
 }
 
-test('real Chrome hit-testing and physical clicks can navigate the public v4.7.2 UI', { timeout: 60000 }, async () => {
+test('real Chrome hit-testing and physical clicks can navigate the public v4.8 core UI', { timeout: 60000 }, async () => {
   const server = await serve();
   const port = server.address().port;
   const browser = await puppeteer.launch({
@@ -118,21 +118,12 @@ test('real Chrome hit-testing and physical clicks can navigate the public v4.7.2
     await physicalClick(page, launcher);
     assert.equal(await page.$eval('#ra-app', el => getComputedStyle(el).display), 'block');
 
-    await physicalClick(page, '[data-nav-toggle="intelligence"]');
-    await page.waitForFunction(() => document.querySelector('[data-nav-toggle="intelligence"]')?.getAttribute('aria-expanded') === 'true', { timeout: 10000 });
-
-    const routes = [
-      ['company-discover', 'Company Discover'],
-      ['company-candidates', 'Company Candidates'],
-      ['company-pipeline', 'Company Pipeline'],
-      ['scout', 'Scout'],
-      ['smart-match', 'Smart Match'],
-      ['global-intelligence', 'Global Intelligence']
-    ];
-    for (const [route, title] of routes) {
-      await physicalClick(page, `[data-page="${route}"]`);
-      await page.waitForFunction(expected => document.getElementById('ra-page-title')?.textContent === expected, { timeout: 10000 }, title);
-    }
+    await physicalClick(page, '[data-page="company-candidates"]');
+    await page.waitForFunction(() => document.getElementById('ra-page-title')?.textContent === 'Company Candidates', { timeout: 10000 });
+    await physicalClick(page, '[data-domain="faction"]');
+    await page.waitForFunction(() => document.getElementById('ra-page-title')?.textContent === 'Faction Candidates', { timeout: 10000 });
+    await physicalClick(page, '[data-domain="company"]');
+    await page.waitForFunction(() => document.getElementById('ra-page-title')?.textContent === 'Company Candidates', { timeout: 10000 });
 
     await physicalClick(page, '#ra-settings-button');
     await page.waitForFunction(() => document.getElementById('ra-page-title')?.textContent === 'Settings', { timeout: 10000 });

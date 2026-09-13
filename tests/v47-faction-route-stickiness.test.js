@@ -35,25 +35,25 @@ test('Faction controls stay on the route the recruiter navigated to',async()=>{
   await App._test.repositories.players.ensure('123',{name:'Alpha',level:75,fit:90},'route-stickiness-test',100);
   await App._test.repositories.faction.ensure('123',{pipelineStage:'Prospect',waivers:[]},{source:'route-stickiness-test',observedAt:100});
 
-  document.querySelector('[data-nav-toggle="faction-recruitment"]').click();
-  await tick();
-  await clickFactionRoute('faction-overview');
-  assert.equal(document.getElementById('ra-page-title').textContent,'Faction Overview');
-  assert.equal(App._test.state.page,'faction-overview');
+  assert.equal(App._test.state.page,'company-candidates');
+  document.querySelector('[data-domain="faction"]').click();
+  await tick(120);
+  assert.equal(document.getElementById('ra-page-title').textContent,'Faction Candidates');
+  assert.equal(App._test.state.page,'faction-candidates');
 
   await clickFactionRoute('faction-candidates');
   assert.equal(document.getElementById('ra-page-title').textContent,'Faction Candidates');
   assert.equal(App._test.state.page,'faction-candidates');
 
-  const stage=document.querySelector('[data-faction-stage-select="123"]');
-  assert.ok(stage,'Faction Candidates should expose the stage selector');
-  stage.value='Contacted';
-  stage.dispatchEvent(new dom.window.Event('change',{bubbles:true}));
+  const search=document.getElementById('ra-faction-filter-search');
+  assert.ok(search,'Faction Candidates should expose the core search input');
+  search.value='Alpha';
+  document.getElementById('ra-faction-search-apply').click();
   await tick(120);
 
-  assert.equal(document.getElementById('ra-page-title').textContent,'Faction Candidates','interacting with the selected route must not snap back to the prior Faction route');
+  assert.equal(document.getElementById('ra-page-title').textContent,'Faction Candidates','interacting with the selected core route must not snap back to another route');
   assert.equal(App._test.state.page,'faction-candidates');
-  assert.equal((await dbGet(App._test.state.db,'factionRecruitment','123')).pipelineStage,'Contacted');
+  assert.equal((await dbGet(App._test.state.db,'factionRecruitment','123')).pipelineStage,'Prospect','core search must not mutate Faction workflow state');
 
   App._test.state.db.close();
   dom.window.close();

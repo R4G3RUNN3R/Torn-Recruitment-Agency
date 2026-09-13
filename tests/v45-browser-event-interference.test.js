@@ -71,30 +71,17 @@ test('primary navigation and in-page controls survive a hostile document-capture
     await physicalClick(page,launcher);
     assert.equal(await page.$eval('#ra-app',e=>getComputedStyle(e).display),'block');
 
-    await physicalClick(page,'[data-page="company-discover"]');
-    await page.waitForFunction(()=>document.getElementById('ra-page-title')?.textContent==='Company Discover',{timeout:5000});
-    await page.waitForSelector('#ra-discover-menu',{visible:true});
-    await page.waitForSelector('#ra-discover-more');
-    assert.equal(await page.$eval('#ra-discover-more',e=>e.hidden),true,'Discover More starts closed');
-    await physicalClick(page,'#ra-discover-menu');
-    await page.waitForFunction(()=>document.getElementById('ra-discover-more')?.hidden===false,{timeout:5000});
-    assert.equal(await page.$eval('#ra-page-title',e=>e.textContent),'Company Discover','in-page Discover control must not change route');
-
-    await physicalClick(page,'[data-page="company-overview"]');
-    await page.waitForFunction(()=>document.getElementById('ra-page-title')?.textContent==='Company Overview',{timeout:5000});
-    await page.waitForSelector('[data-go-page="company-candidates"]',{visible:true});
-    await physicalClick(page,'[data-go-page="company-candidates"]');
+    await physicalClick(page,'[data-page="company-candidates"]');
     await page.waitForFunction(()=>document.getElementById('ra-page-title')?.textContent==='Company Candidates',{timeout:5000});
-    await page.waitForSelector('#ra-content .ra-table',{visible:true});
-    assert.equal(await page.$eval('#ra-page-title',e=>e.textContent),'Company Candidates','v4.6 Company in-page route control must survive capture blocker');
+    await page.waitForSelector('#ra-company-filter-search',{visible:true});
+    await physicalClick(page,'#ra-company-search-apply');
+    assert.equal(await page.$eval('#ra-page-title',e=>e.textContent),'Company Candidates','core Company search control must not change route');
 
-    await physicalClick(page,'[data-nav-toggle="intelligence"]');
-    await page.waitForFunction(()=>document.querySelector('[data-nav-toggle="intelligence"]')?.getAttribute('aria-expanded')==='true',{timeout:5000});
-
-    for(const [route,title] of [['company-pipeline','Company Pipeline'],['scout','Scout'],['smart-match','Smart Match'],['global-intelligence','Global Intelligence']]){
-      await physicalClick(page,`[data-page="${route}"]`);
-      await page.waitForFunction(t=>document.getElementById('ra-page-title')?.textContent===t,{timeout:5000},title);
-    }
+    await physicalClick(page,'[data-domain="faction"]');
+    await page.waitForFunction(()=>document.getElementById('ra-page-title')?.textContent==='Faction Candidates',{timeout:5000});
+    await page.waitForSelector('#ra-faction-filter-search',{visible:true});
+    await physicalClick(page,'#ra-faction-search-apply');
+    assert.equal(await page.$eval('#ra-page-title',e=>e.textContent),'Faction Candidates','core Faction search control must survive capture blocker');
 
     await physicalClick(page,'#ra-settings-button');
     await page.waitForFunction(()=>document.getElementById('ra-page-title')?.textContent==='Settings',{timeout:5000});

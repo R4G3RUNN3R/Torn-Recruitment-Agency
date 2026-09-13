@@ -28,66 +28,36 @@ function freshApp(){
   return require('../src/v45-app');
 }
 
-test('navigation groups independently collapse and persist separately from the currently integrated route',async()=>{
+test('v4.8 domain switch and core route persist without exposing optional navigation by default',async()=>{
   const dom1=installDom();
   const App1=freshApp();
   assert.equal(await App1.start({indexedDB}),true);
 
-  assert.ok(document.querySelector('[data-nav-group="company-recruitment"]'));
-  assert.ok(document.querySelector('[data-nav-toggle="company-recruitment"]'));
-  assert.ok(document.querySelector('[data-nav-group="faction-recruitment"]'));
-  assert.ok(document.querySelector('[data-nav-toggle="faction-recruitment"]'));
+  assert.equal(document.querySelector('[data-nav-toggle="company-recruitment"]'),null);
+  assert.equal(document.querySelector('[data-nav-toggle="faction-recruitment"]'),null);
+  assert.equal(document.querySelector('[data-nav-toggle="intelligence"]'),null);
+  assert.ok(document.querySelector('[data-page="company-candidates"]'));
+  assert.ok(document.querySelector('[data-domain="faction"]'));
   assert.equal(document.querySelector('[data-page="settings"]'),null);
   assert.ok(document.getElementById('ra-settings-button'));
 
-  const company=document.querySelector('[data-nav-toggle="company-recruitment"]');
-  const faction=document.querySelector('[data-nav-toggle="faction-recruitment"]');
-  const intelligence=document.querySelector('[data-nav-toggle="intelligence"]');
-  assert.equal(company.getAttribute('aria-expanded'),'true');
-  assert.equal(faction.getAttribute('aria-expanded'),'false');
-  assert.equal(intelligence.getAttribute('aria-expanded'),'false');
-
-  faction.click();
-  await tick();
+  document.querySelector('[data-domain="faction"]').click();
+  await tick(80);
   let meta=await readMeta(App1._test.state.db);
-  assert.deepEqual(meta.settings.navigation.expandedGroups,['company-recruitment','faction-recruitment']);
-  assert.equal(document.querySelector('[data-nav-group="faction-recruitment"]').hidden,false);
-
-  intelligence.click();
-  await tick();
-  meta=await readMeta(App1._test.state.db);
-  assert.deepEqual(meta.settings.navigation.expandedGroups,['company-recruitment','faction-recruitment','intelligence']);
-
-  document.querySelector('[data-nav-toggle="company-recruitment"]').click();
-  await tick();
-  document.querySelector('[data-nav-toggle="faction-recruitment"]').click();
-  await tick();
-  document.querySelector('[data-nav-toggle="intelligence"]').click();
-  await tick();
-  meta=await readMeta(App1._test.state.db);
-  assert.deepEqual(meta.settings.navigation.expandedGroups,[]);
-  assert.equal(document.querySelector('[data-nav-group="company-recruitment"]').hidden,true);
-  assert.equal(document.querySelector('[data-nav-group="faction-recruitment"]').hidden,true);
-  assert.equal(document.querySelector('[data-nav-group="intelligence"]').hidden,true);
-
-  document.querySelector('[data-nav-toggle="faction-recruitment"]').click();
-  await tick();
-  document.querySelector('[data-page="company-candidates"]').click();
-  await tick();
-  meta=await readMeta(App1._test.state.db);
-  assert.equal(meta.settings.activePage,'company-candidates');
-  assert.deepEqual(meta.settings.navigation.expandedGroups,['faction-recruitment']);
+  assert.equal(meta.settings.activeDomain,'faction');
+  assert.equal(meta.settings.activePage,'faction-candidates');
+  assert.equal(document.getElementById('ra-page-title').textContent,'Faction Candidates');
   App1._test.state.db.close();
   dom1.window.close();
 
   const dom2=installDom();
   const App2=freshApp();
   assert.equal(await App2.start({indexedDB}),true);
-  assert.equal(document.getElementById('ra-page-title').textContent,'Company Candidates');
-  assert.deepEqual((await readMeta(App2._test.state.db)).settings.navigation.expandedGroups,['faction-recruitment']);
-  assert.equal(document.querySelector('[data-nav-toggle="company-recruitment"]').getAttribute('aria-expanded'),'false');
-  assert.equal(document.querySelector('[data-nav-toggle="faction-recruitment"]').getAttribute('aria-expanded'),'true');
-  assert.equal(document.querySelector('[data-nav-group="intelligence"]').hidden,true);
+  await tick(80);
+  meta=await readMeta(App2._test.state.db);
+  assert.equal(meta.settings.activeDomain,'faction');
+  assert.equal(meta.settings.activePage,'faction-candidates');
+  assert.equal(document.getElementById('ra-page-title').textContent,'Faction Candidates');
   App2._test.state.db.close();
   dom2.window.close();
 });

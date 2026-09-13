@@ -31,14 +31,11 @@ test('real app upgrades to DB15, exposes Faction repositories, renders Faction r
   assert.ok(App1._test.factionRepositories);
   assert.equal(typeof App1._test.factionRepositories.config.get,'function');
 
-  document.querySelector('[data-nav-toggle="faction-recruitment"]').click();
-  await tick();
-  document.querySelector('[data-page="faction-candidates"]').click();
-  await tick();
+  document.querySelector('[data-domain="faction"]').click();
+  await tick(80);
   assert.equal(document.getElementById('ra-page-title').textContent,'Faction Candidates');
   let meta=await readMeta(App1._test.state.db);
   assert.equal(meta.settings.activePage,'faction-candidates');
-  assert.ok(meta.settings.navigation.expandedGroups.includes('faction-recruitment'));
   App1._test.state.db.close();
   dom1.window.close();
 
@@ -49,7 +46,7 @@ test('real app upgrades to DB15, exposes Faction repositories, renders Faction r
   assert.equal(document.getElementById('ra-page-title').textContent,'Faction Candidates');
   meta=await readMeta(App2._test.state.db);
   assert.equal(meta.settings.activePage,'faction-candidates');
-  assert.equal(document.querySelector('[data-nav-toggle="faction-recruitment"]').getAttribute('aria-expanded'),'true');
+  assert.equal(document.querySelector('[data-domain="faction"]').getAttribute('aria-pressed'),'true');
   App2._test.state.db.close();
   dom2.window.close();
   await deleteDb();
