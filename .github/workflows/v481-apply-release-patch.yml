@@ -40,4 +40,4 @@ jobs:
           git commit -m "release: prepare Recruitment Agency 4.8.1"
           git push origin HEAD:fix/v481-active-search
 
-# Registered trigger commit.
+# Final registered trigger. No branch writes after this commit until the job finishes.
