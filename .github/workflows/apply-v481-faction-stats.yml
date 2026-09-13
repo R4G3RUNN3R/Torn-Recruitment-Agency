@@ -22,7 +22,7 @@ jobs:
         run: |
           python3 .github/scripts/apply-v481-faction-fix.py
           node --check src/v45-app.js
-          npm ci
+          npm install --ignore-scripts --no-audit --no-fund
           node --test --test-concurrency=1 tests/v481-active-search.test.js
           git diff --check
           git rm .github/workflows/apply-v481-faction-stats.yml .github/scripts/apply-v481-faction-fix.py
