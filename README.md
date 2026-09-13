@@ -1,8 +1,20 @@
 # Torn Recruitment Agency
 
-R4G3RUNN3R's Recruitment Agency **v4.8.0** is a streamlined Torn recruitment workspace built around a simple default flow: Search → Results → Last Online → Message. Company and Faction recruitment remain isolated workflows over one shared Player Intelligence identity, while the deeper pipeline, Scout, Smart Match, campaign, analytics, and operational workspaces are preserved as optional features that users can enable from Settings.
+R4G3RUNN3R's Recruitment Agency **v4.8.1** is a streamlined Torn recruitment workspace built around a simple default flow: Search → Results → Last Online → Message. Search now actively acquires candidates from configured Torn recruitment forum feeds and Torn's official v2 user search instead of merely filtering browser-local rows. Company and Faction recruitment remain isolated workflows over one shared Player Intelligence identity, while the deeper pipeline, Scout, Smart Match, campaign, analytics, and operational workspaces remain optional features that users can enable from Settings.
 
 The Scout, Results, Global Intelligence, Smart Match, Forum Discovery, Company Recruitment, and Faction Recruitment modules are clean-room implementations. They do not call, authenticate against, or depend on `rs.dnonetwork.com` or another proprietary Recruit Scout grading backend.
+
+## v4.8.1 active forum and API Search hotfix
+
+**v4.8.1** restores Search as an acquisition action rather than a local-list filter.
+
+- Company Search synchronizes the configured Company Forum and Train Buyer feeds; Faction Search synchronizes the configured Faction Forum feed.
+- Name searches call Torn v2 `user/search`; numeric player IDs resolve through the exact Torn v2 player profile endpoint. An empty search uses Torn's recent-last-action search filter to seed active public users.
+- Torn user-search observations are stored only in the selected recruitment domain while public identity facts are merged into shared Player Intelligence. Company and Faction workflow state remains isolated.
+- Explicit MAN, INT and END values written in forum posts are parsed again, including comma-separated values and `k` / `m` / `b` suffixes. Existing known values are never overwritten by forum parsing, and missing values remain unknown.
+- Torn's public user-search response does not expose another player's work stats, so API-only results never fabricate MAN, INT or END. They reuse legitimate known local/shared values when available.
+- Last Online prefers an exact known activity timestamp; when the search response supplies only Torn's Online / Idle / Offline state, that state is shown instead of an invented timestamp.
+- Forum and Torn user-search requests continue through the shared Recruitment Agency API scheduler and its existing pacing limits.
 
 ## v4.8.0 simplified Recruitment Agency
 
@@ -106,11 +118,11 @@ v4.5 replaces the older multi-window recruitment workflow with one managed, mova
 
 A single Torn player ID maps to one local candidate record. Forum discovery, manual editing, Scout data, Match data, and company enrichment all compose into that candidate view without creating a second authoritative candidate database.
 
-The v4.8 core Search & Results surface shows:
+The v4.8.1 core Search & Results surface shows:
 
 `Player | END | MAN | INT | Last Online | Message`
 
-Its core filters are player name / ID plus minimum END, MAN and INT. Thresholds accept plain values and compact `k`, `m`, or `b` suffixes. Last Online is the most recent activity observation currently held in shared Player Intelligence; when no observation exists it is shown as `Unknown` rather than guessed.
+Its core filters are player name / ID plus minimum END, MAN and INT. Thresholds accept plain values and compact `k`, `m`, or `b` suffixes. Pressing Search first refreshes the selected recruitment forum sources and queries Torn user search, then applies the filters to the combined local candidate intelligence. Last Online uses the most recent exact activity observation when known, otherwise the current Torn Online / Idle / Offline state when supplied by user search, and otherwise `Unknown`.
 
 The previous deeper candidate, pipeline, Match, Scout and workflow views remain available as optional workspaces and retain their richer filters and controls when enabled.
 
@@ -291,7 +303,7 @@ v4.8 Settings keeps the default interface small and moves advanced surfaces behi
 
 Install [`R4G3RUNN3R-Recruitment-Agency.user.js`](R4G3RUNN3R-Recruitment-Agency.user.js) in Tampermonkey or another compatible userscript manager.
 
-The public userscript metadata and runtime version are **4.8.0**. All **29** application modules are loaded through immutable commit-pinned `@require` URLs pointing to reviewed source commit `ae424579d7b18c4e2b04e944e7f82931fcbe1e16`. The public wrapper's `INSTALLER_VERSION` and `EXPECTED_APP_VERSION`, the pinned application's `SCRIPT_VERSION`, and package metadata all report `4.8.0`. `@updateURL` and `@downloadURL` remain on `main` for normal userscript-manager updates.
+The public userscript metadata and runtime version are **4.8.1**. All **29** application modules are loaded through immutable commit-pinned `@require` URLs pointing to reviewed source commit `a80b594603d414821b80a3a24587ed7002169686`. The public wrapper's `INSTALLER_VERSION` and `EXPECTED_APP_VERSION`, the pinned application's `SCRIPT_VERSION`, and package metadata all report `4.8.1`. `@updateURL` and `@downloadURL` point to the stable Voidsmith Industries VPS endpoint; GitHub remains the source/history and immutable runtime origin.
 
 A Torn API key is stored only in the browser database used by Recruitment Agency. Torn API requests are made directly from the browser through the application scheduler.
 
@@ -308,7 +320,8 @@ The v4.8 release regression suite covers Company/Faction workflow isolation, the
 
 ## Version history
 
-- **v4.8.0** - simplifies the default Recruitment Agency to Search & Results with END/MAN/INT filters, Last Online, safe Company/Faction Message actions, a compact domain switch, premium Voidsmith styling, and opt-in advanced workspaces; all 29 runtime modules pin to immutable v4.8.0 source `ae424579d7b18c4e2b04e944e7f82931fcbe1e16`
+- **v4.8.1** - restores active Search: selected-domain forum discovery plus Torn v2 user search, explicit forum MAN/INT/END extraction, domain-isolated API candidate persistence, shared known-stat reuse and Online/Idle/Offline fallback; all 29 runtime modules pin to immutable v4.8.1 source `a80b594603d414821b80a3a24587ed7002169686`
+- **v4.8.0** - simplifies the default Recruitment Agency to Search & Results with END/MAN/INT filters, Last Online, safe Company/Faction Message actions, a compact domain switch, premium Voidsmith styling, and opt-in advanced workspaces; production wrapper runtime modules pin to immutable source `bf9ea64a64df23c5426f4be1a1e75f1cb392f2fd`
 - **v4.7.6** - adds the private-chat Recruit workflow with fresh official Torn v2 Company/Faction membership checks, separate browser-local templates, draft insertion/focus, and strictly manual final Send; all 29 runtime modules pin to immutable v4.7.6 source `9475f00745f81173a114bb87451f654769b3d32a`
 - **v4.7.5** - protects dark-theme Company/Faction tables and Settings text from Torn host CSS, using neon-green primary text, readable muted/bright controls, and preserved red Danger Zone styling while retaining the immutable v4.7.4 core
 - **v4.7.4** - detects stale/duplicate bootstrap ownership, performs one clean recovery reload, and reports persistent older-owner conflicts instead of silently yielding
