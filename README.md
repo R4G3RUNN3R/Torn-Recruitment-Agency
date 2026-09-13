@@ -316,7 +316,7 @@ v4.8 Settings keeps the default interface small and moves advanced surfaces behi
 
 Install [`R4G3RUNN3R-Recruitment-Agency.user.js`](R4G3RUNN3R-Recruitment-Agency.user.js) in Tampermonkey or another compatible userscript manager.
 
-The public userscript metadata and runtime version are **4.8.1**. All **29** application modules are loaded through immutable commit-pinned `@require` URLs pointing to reviewed source commit `a80b594603d414821b80a3a24587ed7002169686`. The public wrapper's `INSTALLER_VERSION` and `EXPECTED_APP_VERSION`, the pinned application's `SCRIPT_VERSION`, and package metadata all report `4.8.1`. `@updateURL` and `@downloadURL` point to the stable Voidsmith Industries VPS endpoint; GitHub remains the source/history and immutable runtime origin.
+The public userscript metadata and runtime version are **4.8.2**. All **29** application modules are loaded through immutable commit-pinned `@require` URLs pointing to reviewed source commit `76a95ba6e009dc16682cc8ef2ef689394f65edf8`. The public wrapper's `INSTALLER_VERSION` and `EXPECTED_APP_VERSION`, the pinned application's `SCRIPT_VERSION`, and package metadata all report `4.8.2`. `@updateURL` and `@downloadURL` point to the stable Voidsmith Industries VPS endpoint; GitHub remains the source/history and immutable runtime origin.
 
 A Torn API key is stored only in the browser database used by Recruitment Agency. Torn API requests are made directly from the browser through the application scheduler.
 
@@ -333,6 +333,7 @@ The v4.8 release regression suite covers Company/Faction workflow isolation, the
 
 ## Version history
 
+- **v4.8.2** - adds local sortable Player/END/MAN/INT/Last Online results, Online/Idle/Offline and current organisation filters, explicit None vs Unknown membership semantics, Current Company/Faction visibility, and race-free active-route navigation; all 29 runtime modules pin to immutable v4.8.2 source `76a95ba6e009dc16682cc8ef2ef689394f65edf8`
 - **v4.8.1** - restores active Search: selected-domain forum discovery plus Torn v2 user search, explicit forum MAN/INT/END extraction, domain-isolated API candidate persistence, shared known-stat reuse and Online/Idle/Offline fallback; all 29 runtime modules pin to immutable v4.8.1 source `a80b594603d414821b80a3a24587ed7002169686`
 - **v4.8.0** - simplifies the default Recruitment Agency to Search & Results with END/MAN/INT filters, Last Online, safe Company/Faction Message actions, a compact domain switch, premium Voidsmith styling, and opt-in advanced workspaces; production wrapper runtime modules pin to immutable source `bf9ea64a64df23c5426f4be1a1e75f1cb392f2fd`
 - **v4.7.6** - adds the private-chat Recruit workflow with fresh official Torn v2 Company/Faction membership checks, separate browser-local templates, draft insertion/focus, and strictly manual final Send; all 29 runtime modules pin to immutable v4.7.6 source `9475f00745f81173a114bb87451f654769b3d32a`
