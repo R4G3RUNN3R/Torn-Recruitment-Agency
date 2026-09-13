@@ -1,0 +1,62 @@
+name: Apply approved v4.8.2 implementation
+
+on:
+  push:
+    branches:
+      - feature/v482-sort-filter-results
+    paths:
+      - .github/workflows/v482-apply-implementation.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply-tested-patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/v482-sort-filter-results
+          fetch-depth: 0
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Download approved implementation patch
+        run: curl -fsSL https://voidsmithindustries.com/torn/recruitment-agency/testing/v482-implementation.patch -o /tmp/v482-implementation.patch
+
+      - name: Verify patch checksum
+        run: echo 'f0873b5c400126a3ebeabbb36588026f5d899628c7fb2cb76feefb45f052b7ff  /tmp/v482-implementation.patch' | sha256sum -c -
+
+      - name: Apply patch
+        run: |
+          git apply --check /tmp/v482-implementation.patch
+          git apply /tmp/v482-implementation.patch
+
+      - name: Install test dependencies
+        run: npm install
+
+      - name: Run v4.8.2 and active-search regressions
+        run: node --test tests/v482-results-sorting-filters.test.js tests/v481-active-search.test.js
+
+      - name: Verify syntax
+        run: npm run syntax
+
+      - name: Verify self-contained bundle build
+        run: npm run build
+
+      - name: Verify clean patch formatting
+        run: git diff --check
+
+      - name: Commit verified implementation and remove one-shot workflow
+        run: |
+          rm .github/workflows/v482-apply-implementation.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/v45-app.js src/v46-company-platform.js src/v46-company-ui.js src/v47-faction-platform.js src/v47-faction-ui.js tests/v481-active-search.test.js
+          git add -u .github/workflows/v482-apply-implementation.yml
+          git commit -m 'feat: add sortable recruitment results and filters'
+          git push origin HEAD:feature/v482-sort-filter-results
