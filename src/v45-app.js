@@ -60,7 +60,7 @@
     throw new Error('Recruitment Agency v4.5 core modules are required.');
   }
 
-  const SCRIPT_VERSION = '4.8.1';
+  const SCRIPT_VERSION = '4.8.2';
   const DB_NAME = 'tornWorkerDB';
   const DB_VERSION = V47FactionStorage.DB_VERSION;
   const API_BASE = 'https://api.torn.com/v2';
@@ -465,7 +465,7 @@
   async function route(page,persist=true){
     const requested=String(page||'').trim().toLowerCase();
     if(!V46Navigation.ROUTES.includes(requested)||(requested!=='settings'&&!visibleRouteSet().has(requested))||(requested==='logs'&&state.settings.complexity!=='advanced'))return false;
-    if(requested===state.page&&persist)return true;
+    if(requested===state.page&&persist){document.querySelector('.ra-shell')?.classList.remove('sidebar-open');return true;}
     state.page=requested;
     if(persist)await saveSettings({activePage:state.page});
     if(V46CompanyPlatform._test.IMPLEMENTED_ROUTES.has(state.page)){

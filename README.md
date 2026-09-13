@@ -1,8 +1,21 @@
 # Torn Recruitment Agency
 
-R4G3RUNN3R's Recruitment Agency **v4.8.1** is a streamlined Torn recruitment workspace built around a simple default flow: Search → Results → Last Online → Message. Search now actively acquires candidates from configured Torn recruitment forum feeds and Torn's official v2 user search instead of merely filtering browser-local rows. Company and Faction recruitment remain isolated workflows over one shared Player Intelligence identity, while the deeper pipeline, Scout, Smart Match, campaign, analytics, and operational workspaces remain optional features that users can enable from Settings.
+R4G3RUNN3R's Recruitment Agency **v4.8.2** is a streamlined Torn recruitment workspace built around a simple default flow: Search → Results → Last Online → Message. Search now actively acquires candidates from configured Torn recruitment forum feeds and Torn's official v2 user search instead of merely filtering browser-local rows. Company and Faction recruitment remain isolated workflows over one shared Player Intelligence identity, while the deeper pipeline, Scout, Smart Match, campaign, analytics, and operational workspaces remain optional features that users can enable from Settings.
 
 The Scout, Results, Global Intelligence, Smart Match, Forum Discovery, Company Recruitment, and Faction Recruitment modules are clean-room implementations. They do not call, authenticate against, or depend on `rs.dnonetwork.com` or another proprietary Recruit Scout grading backend.
+
+## v4.8.2 sortable results and recruitment filters
+
+**v4.8.2** keeps the simplified v4.8 Search & Results workflow while making the candidate list substantially faster to work.
+
+- Player, END, MAN, INT and Last Online headers are clickable and toggle their approved sort direction. Missing or unknown values remain at the bottom in either direction.
+- Search adds exact Online / Idle / Offline filtering plus partial, case-insensitive Current Company or Current Faction matching.
+- Company and Faction presence can be filtered as Any, None or Has. Missing membership facts remain Unknown rather than being falsely treated as None.
+- Results now show Current Company or Current Faction. Known IDs without names render as Company #ID or Faction #ID.
+- Sorting is local-only and never performs a Torn API or forum request. Search remains the explicit acquisition action.
+- Last Online continues to prefer an exact activity timestamp, falling back to Torn's Online / Idle / Offline state when no timestamp is available.
+- Repeated navigation to the already-active workspace is idempotent; on mobile it only closes the open sidebar, removing the userscript-world replacement race without adding timing sleeps.
+- Company/Faction workflow isolation, the shared Player Intelligence fact boundary, fresh membership verification and manual final Send remain unchanged.
 
 ## v4.8.1 active forum and API Search hotfix
 
@@ -118,11 +131,11 @@ v4.5 replaces the older multi-window recruitment workflow with one managed, mova
 
 A single Torn player ID maps to one local candidate record. Forum discovery, manual editing, Scout data, Match data, and company enrichment all compose into that candidate view without creating a second authoritative candidate database.
 
-The v4.8.1 core Search & Results surface shows:
+The v4.8.2 core Search & Results surface shows:
 
-`Player | END | MAN | INT | Last Online | Message`
+`Player | END | MAN | INT | Last Online | Current Company/Faction | Message`
 
-Its core filters are player name / ID plus minimum END, MAN and INT. Thresholds accept plain values and compact `k`, `m`, or `b` suffixes. Pressing Search first refreshes the selected recruitment forum sources and queries Torn user search, then applies the filters to the combined local candidate intelligence. Last Online uses the most recent exact activity observation when known, otherwise the current Torn Online / Idle / Offline state when supplied by user search, and otherwise `Unknown`.
+Its core filters are player name / ID, Online / Idle / Offline status, current Company/Faction and membership presence, plus minimum END, MAN and INT. Thresholds accept plain values and compact `k`, `m`, or `b` suffixes. Pressing Search first refreshes the selected recruitment forum sources and queries Torn user search, then applies the filters to the combined local candidate intelligence. Last Online uses the most recent exact activity observation when known, otherwise the current Torn Online / Idle / Offline state when supplied by user search, and otherwise `Unknown`.
 
 The previous deeper candidate, pipeline, Match, Scout and workflow views remain available as optional workspaces and retain their richer filters and controls when enabled.
 
