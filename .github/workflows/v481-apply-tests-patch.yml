@@ -36,3 +36,5 @@ jobs:
           git diff --cached --check
           git commit -m "test: cover active forum and API search"
           git push origin HEAD:fix/v481-active-search
+
+# Trigger after workflow registration.
